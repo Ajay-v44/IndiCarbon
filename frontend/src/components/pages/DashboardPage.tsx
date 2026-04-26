@@ -1,499 +1,238 @@
-"use client";
-
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-} from "recharts";
-import {
-  TrendingDown,
-  TrendingUp,
-  Upload,
-  Zap,
-  BarChart2,
-  Leaf,
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  RefreshCw,
-  CloudUpload,
-  Factory,
-  TreePine,
-  ArrowRight,
-} from "lucide-react";
-
-// Dummy chart data
-const emissionsData = [
-  { month: "Oct", actual: 4200, target: 4000 },
-  { month: "Nov", actual: 3800, target: 3900 },
-  { month: "Dec", actual: 4100, target: 3800 },
-  { month: "Jan", actual: 3600, target: 3700 },
-  { month: "Feb", actual: 3200, target: 3600 },
-  { month: "Mar", actual: 2950, target: 3500 },
-];
-
-const sectorData = [
-  { name: "Energy", value: 38, color: "#22c55e" },
-  { name: "Transport", value: 24, color: "#10b981" },
-  { name: "Process", value: 20, color: "#14b8a6" },
-  { name: "Waste", value: 12, color: "#3b82f6" },
-  { name: "Other", value: 6, color: "#6b7280" },
-];
-
-const offsetHistory = [
-  { month: "Oct", credits: 120 },
-  { month: "Nov", credits: 180 },
-  { month: "Dec", credits: 95 },
-  { month: "Jan", credits: 240 },
-  { month: "Feb", credits: 310 },
-  { month: "Mar", credits: 285 },
-];
-
-const sdgItems = [
-  { label: "Clean Energy", metric: "+12%", sub: "adoption across facilities", color: "text-green-400" },
-  { label: "Innovation", metric: "3 patents", sub: "filed for capture", color: "text-emerald-400" },
-  { label: "Climate Action", metric: "-450t", sub: "CO₂ this quarter", color: "text-teal-400" },
-];
-
-const recentActivity = [
-  { type: "upload", msg: "Facility audit Q1 2026 uploaded", time: "2 min ago", status: "success" },
-  { type: "credit", msg: "150 tCO₂ credits verified", time: "1 hr ago", status: "success" },
-  { type: "alert", msg: "Scope 2 emissions exceeded target", time: "3 hrs ago", status: "warning" },
-  { type: "trade", msg: "Carbon offset trade executed", time: "5 hrs ago", status: "success" },
-];
-
-type DashboardState = "success" | "processing" | "error" | "empty";
+/* eslint-disable @next/next/no-img-element */
+import React from 'react';
 
 export function DashboardPage() {
-  const [state, setState] = useState<DashboardState>("success");
-
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-white">Global Operations</h1>
-          <p className="text-sm text-green-400/60 mt-0.5">
-            Real-time carbon footprint monitoring and predictive sustainability modeling.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* State switcher (demo) */}
-          <div className="flex rounded-lg border border-green-900/40 overflow-hidden text-xs">
-            {(["success", "processing", "error", "empty"] as DashboardState[]).map((s) => (
-              <button
-                key={s}
-                onClick={() => setState(s)}
-                className={`px-3 py-1.5 capitalize font-medium transition-all ${
-                  state === s
-                    ? "bg-green-500/20 text-green-400"
-                    : "text-green-600/50 hover:text-green-400"
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-green-900/50 text-green-400/70 hover:bg-green-500/10 hover:text-green-300"
-          >
-            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-            Refresh
-          </Button>
-          <Button
-            size="sm"
-            className="bg-green-500 hover:bg-green-400 text-black font-semibold"
-          >
-            <CloudUpload className="w-3.5 h-3.5 mr-1.5" />
-            Upload Data
-          </Button>
-        </div>
-      </div>
+    <>
 
-      {/* === SUCCESS STATE === */}
-      {state === "success" && (
-        <>
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              {
-                title: "Total Emissions",
-                value: "2,950",
-                unit: "tCO₂e",
-                delta: "-8.2%",
-                trend: "down",
-                icon: Factory,
-                color: "text-green-400",
-                bg: "bg-green-500/10",
-              },
-              {
-                title: "Carbon Credits",
-                value: "1,240",
-                unit: "tCO₂ offset",
-                delta: "+22.5%",
-                trend: "up",
-                icon: Leaf,
-                color: "text-emerald-400",
-                bg: "bg-emerald-500/10",
-              },
-              {
-                title: "Budget Used",
-                value: "68",
-                unit: "% of annual",
-                delta: "-3.4%",
-                trend: "down",
-                icon: BarChart2,
-                color: "text-teal-400",
-                bg: "bg-teal-500/10",
-              },
-              {
-                title: "AI Accuracy",
-                value: "99.2",
-                unit: "%",
-                delta: "+0.4%",
-                trend: "up",
-                icon: Zap,
-                color: "text-blue-400",
-                bg: "bg-blue-500/10",
-              },
-            ].map((kpi) => {
-              const Icon = kpi.icon;
-              return (
-                <Card key={kpi.title} className="glass border-green-900/30 hover:border-green-500/20 transition-all">
-                  <CardContent className="p-4 sm:p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className={`w-9 h-9 rounded-lg ${kpi.bg} flex items-center justify-center`}>
-                        <Icon className={`w-4 h-4 ${kpi.color}`} />
-                      </div>
-                      <Badge
-                        className={`text-xs ${
-                          kpi.trend === "down" && kpi.title === "Total Emissions"
-                            ? "bg-green-500/10 text-green-400 border-green-500/20"
-                            : kpi.trend === "down"
-                            ? "bg-green-500/10 text-green-400 border-green-500/20"
-                            : "bg-green-500/10 text-green-400 border-green-500/20"
-                        }`}
-                      >
-                        {kpi.trend === "down" ? (
-                          <TrendingDown className="w-3 h-3 mr-1" />
-                        ) : (
-                          <TrendingUp className="w-3 h-3 mr-1" />
-                        )}
-                        {kpi.delta}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-green-400/50 mb-1">{kpi.title}</p>
-                    <p className="text-2xl font-black text-white">
-                      {kpi.value}
-                      <span className="text-sm font-normal text-green-400/50 ml-1">{kpi.unit}</span>
-                    </p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+{/*  TopAppBar (Mobile only in layout)  */}
+<header className="md:hidden flex justify-between items-center px-6 py-3 w-full bg-white/60 backdrop-blur-xl dark:bg-slate-900/60 font-space-grotesk text-sm font-medium tracking-wide shadow-sm border-b border-white/40 dark:border-slate-800/40 sticky top-0 z-50">
+<div className="text-xl font-bold text-emerald-900 dark:text-emerald-50 tracking-tighter">IndiCarbon AI</div>
+<div className="flex gap-4 text-emerald-900 dark:text-emerald-400">
+<span className="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span className="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</div>
+</header>
+{/*  SideNavBar (Desktop)  */}
+<nav className="fixed left-0 top-0 h-screen w-64 border-r hidden md:flex flex-col p-6 gap-8 bg-white/60 backdrop-blur-xl dark:bg-slate-900/60 shadow-xl border-white/40 dark:border-slate-800/40 z-40">
+<div>
+<div className="text-2xl font-black text-emerald-900 dark:text-emerald-50">IndiCarbon</div>
+<div className="text-xs text-slate-500">Carbon Intelligence</div>
+</div>
+<div className="flex flex-col gap-4 font-space-grotesk text-sm font-semibold">
+{/*  Active Tab: Dashboard  */}
+<a className="flex items-center gap-3 text-emerald-900 dark:text-emerald-300 relative after:content-[''] after:absolute after:right-0 after:w-1 after:h-4 after:bg-emerald-600 after:rounded-full hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 hover:opacity-100 transition-all duration-300 ease-out p-2 rounded-lg bg-emerald-50/20 shadow-[inset_0_0_10px_rgba(27,94,32,0.05)]" href="#">
+<span className="material-symbols-outlined text-primary-container" data-icon="dashboard">dashboard</span>
+                Dashboard
+            </a>
+<a className="flex items-center gap-3 text-slate-500 dark:text-slate-400 opacity-80 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 hover:opacity-100 transition-all duration-300 ease-out p-2 rounded-lg" href="#">
+<span className="material-symbols-outlined" data-icon="analytics">analytics</span>
+                Simulator
+            </a>
+<a className="flex items-center gap-3 text-slate-500 dark:text-slate-400 opacity-80 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 hover:opacity-100 transition-all duration-300 ease-out p-2 rounded-lg" href="#">
+<span className="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+                Budget
+            </a>
+<a className="flex items-center gap-3 text-slate-500 dark:text-slate-400 opacity-80 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 hover:opacity-100 transition-all duration-300 ease-out p-2 rounded-lg" href="#">
+<span className="material-symbols-outlined" data-icon="swap_horiz">swap_horiz</span>
+                Trading
+            </a>
+<a className="flex items-center gap-3 text-slate-500 dark:text-slate-400 opacity-80 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 hover:opacity-100 transition-all duration-300 ease-out p-2 rounded-lg" href="#">
+<span className="material-symbols-outlined" data-icon="settings">settings</span>
+                Settings
+            </a>
+</div>
+</nav>
+{/*  Main Content Canvas  */}
+<main className="flex-1 md:ml-64 p-container-padding pb-[100px] md:pb-container-padding flex flex-col gap-section-gap">
+{/*  Dashboard Header  */}
+<header className="flex flex-col gap-2">
+<h1 className="font-display-lg text-display-lg text-on-surface">Global Operations</h1>
+<p className="font-body-md text-body-md text-on-surface-variant max-w-2xl">Real-time carbon footprint monitoring and predictive sustainability modeling.</p>
+</header>
+{/*  Bento Grid Layout  */}
+<div className="grid grid-cols-1 md:grid-cols-12 gap-gutter">
+{/*  Central Carbon Budget Gauge  */}
+<section className="glass-panel organic-curve p-glass-padding flex flex-col items-center justify-center col-span-1 md:col-span-8 shadow-[0_8px_32px_rgba(27,94,32,0.05)] relative overflow-hidden">
+<div className="absolute inset-0 bg-gradient-to-br from-primary-fixed/20 to-transparent pointer-events-none"></div>
+<h2 className="font-title-sm text-title-sm text-on-surface self-start w-full mb-8">Carbon Budget</h2>
+<div className="relative w-64 h-64 flex items-center justify-center">
+{/*  Placeholder for SVG Gauge  */}
+<svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+<circle cx="50" cy="50" fill="none" r="45" stroke="#e0e4db" strokeDasharray="283" strokeDashoffset="0" strokeLinecap="round" strokeWidth="8"></circle>
+<circle className="drop-shadow-md" cx="50" cy="50" fill="none" r="45" stroke="#1b5e20" strokeDasharray="283" strokeDashoffset="80" strokeLinecap="round" strokeWidth="8"></circle>
+</svg>
+<div className="absolute flex flex-col items-center">
+<span className="font-display-lg text-display-lg text-primary-container">72%</span>
+<span className="font-label-caps text-label-caps text-on-surface-variant uppercase">Utilized</span>
+</div>
+</div>
+<div className="flex gap-8 mt-8 w-full justify-around border-t border-outline-variant/30 pt-6">
+<div className="flex flex-col items-center">
+<span className="font-label-caps text-label-caps text-outline uppercase">Target</span>
+<span className="font-title-sm text-title-sm text-on-surface mt-1">450k <span className="text-sm font-normal">tCO2e</span></span>
+</div>
+<div className="flex flex-col items-center">
+<span className="font-label-caps text-label-caps text-outline uppercase">Current</span>
+<span className="font-title-sm text-title-sm text-error mt-1">324k <span className="text-sm font-normal">tCO2e</span></span>
+</div>
+</div>
+</section>
+{/*  Compliance Lab  */}
+<section className="glass-panel organic-curve p-glass-padding flex flex-col col-span-1 md:col-span-4 gap-6">
+<h2 className="font-title-sm text-title-sm text-on-surface flex items-center gap-2">
+<span className="material-symbols-outlined text-primary" data-icon="science">science</span>
+                    Compliance Lab
+                </h2>
+<div className="flex-1 border-2 border-dashed border-outline-variant rounded-xl flex flex-col items-center justify-center p-6 text-center hover:bg-surface-container-low transition-colors cursor-pointer group">
+<div className="bg-primary-container/10 p-3 rounded-full mb-3 group-hover:scale-110 transition-transform">
+<span className="material-symbols-outlined text-primary-container" data-icon="cloud_upload">cloud_upload</span>
+</div>
+<p className="font-title-sm text-base text-on-surface">Upload Data Logs</p>
+<p className="font-label-caps text-label-caps text-outline mt-1">CSV, JSON, PDF</p>
+</div>
+<div className="bg-surface-container-lowest rounded-lg p-4 border border-outline-variant/50 max-h-40 overflow-y-auto">
+<div className="font-label-caps text-label-caps text-outline mb-2">Real-time Reasoning Logs</div>
+<div className="flex flex-col gap-2 font-mono text-xs text-on-surface-variant">
+<div className="flex gap-2"><span className="text-primary">[INFO]</span> Parsing Scope 3 emissions...</div>
+<div className="flex gap-2"><span className="text-secondary">[WARN]</span> Anomaly detected in logistics data.</div>
+<div className="flex gap-2"><span className="text-primary">[INFO]</span> Aligning with GHG Protocol...</div>
+</div>
+</div>
+</section>
+{/*  What-if Simulator  */}
+<section className="glass-panel organic-curve p-glass-padding flex flex-col col-span-1 md:col-span-12 gap-8">
+<div className="flex justify-between items-end">
+<div>
+<h2 className="font-title-sm text-title-sm text-on-surface flex items-center gap-2">
+<span className="material-symbols-outlined text-secondary" data-icon="tune">tune</span>
+                            What-If Simulator
+                        </h2>
+<p className="font-body-md text-sm text-on-surface-variant mt-1">Project future emissions based on energy transitions.</p>
+</div>
+<button className="bg-primary-container text-on-primary font-label-caps text-label-caps px-6 py-3 rounded-leaf hover:bg-on-primary-fixed transition-colors flex items-center gap-2 shadow-md">
+                        RUN SIMULATION
+                        <span className="material-symbols-outlined text-[16px]" data-icon="play_arrow">play_arrow</span>
+</button>
+</div>
+<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+{/*  Sliders  */}
+<div className="col-span-1 flex flex-col gap-6">
+<div className="flex flex-col gap-2">
+<div className="flex justify-between">
+<span className="font-label-caps text-label-caps text-on-surface uppercase">Coal Reduction</span>
+<span className="font-label-caps text-label-caps text-primary-container">40%</span>
+</div>
+<input className="w-full h-2 bg-surface-variant rounded-full appearance-none cursor-pointer accent-primary-container" max="100" min="0" type="range" defaultValue="40"/>
+</div>
+<div className="flex flex-col gap-2">
+<div className="flex justify-between">
+<span className="font-label-caps text-label-caps text-on-surface uppercase">Solar Adoption</span>
+<span className="font-label-caps text-label-caps text-secondary">65%</span>
+</div>
+<input className="w-full h-2 bg-surface-variant rounded-full appearance-none cursor-pointer accent-secondary" max="100" min="0" type="range" defaultValue="65"/>
+</div>
+<div className="flex flex-col gap-2">
+<div className="flex justify-between">
+<span className="font-label-caps text-label-caps text-on-surface uppercase">Wind Expansion</span>
+<span className="font-label-caps text-label-caps text-tertiary-container">20%</span>
+</div>
+<input className="w-full h-2 bg-surface-variant rounded-full appearance-none cursor-pointer accent-tertiary-container" max="100" min="0" type="range" defaultValue="20"/>
+</div>
+</div>
+{/*  Graph Placeholder  */}
+<div className="col-span-1 lg:col-span-2 h-64 bg-surface-container-lowest border border-outline-variant/30 rounded-xl flex items-center justify-center relative overflow-hidden">
+{/*  Abstract representation of a chart  */}
+<div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-primary-fixed/30 to-transparent"></div>
+<svg className="w-full h-full absolute inset-0" preserveAspectRatio="none">
+<path d="M0,200 Q100,180 200,100 T400,120 T600,40 L600,250 L0,250 Z" fill="rgba(145, 215, 138, 0.2)" stroke="none"></path>
+<path d="M0,200 Q100,180 200,100 T400,120 T600,40" fill="none" stroke="#1b5e20" strokeWidth="3"></path>
+{/*  Baseline  */}
+<path d="M0,150 L600,150" fill="none" stroke="#717a6d" strokeDasharray="4" strokeWidth="1"></path>
+</svg>
+<span className="absolute top-4 left-4 font-label-caps text-label-caps text-outline bg-surface px-2 py-1 rounded shadow-sm">Projected vs Baseline</span>
+</div>
+</div>
+</section>
+{/*  SDG Impact Tiles  */}
+<section className="col-span-1 md:col-span-12 flex flex-col gap-6">
+<h2 className="font-title-sm text-title-sm text-on-surface">SDG Impact</h2>
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter">
+<div className="glass-panel p-6 rounded-2xl flex flex-col gap-4 hover:shadow-[0_4px_20px_rgba(27,94,32,0.1)] transition-all cursor-pointer border-t-4 border-t-primary-container">
+<div className="flex justify-between items-start">
+<div className="bg-primary-container/10 p-2 rounded-lg">
+<span className="material-symbols-outlined text-primary-container" data-icon="bolt">bolt</span>
+</div>
+<span className="bg-primary-fixed text-on-primary-fixed font-label-caps text-[10px] px-2 py-1 rounded-full">SDG 7</span>
+</div>
+<div>
+<h3 className="font-title-sm text-base text-on-surface">Clean Energy</h3>
+<p className="font-body-md text-sm text-on-surface-variant mt-1">+12% adoption across facilities</p>
+</div>
+</div>
+<div className="glass-panel p-6 rounded-2xl flex flex-col gap-4 hover:shadow-[0_4px_20px_rgba(27,94,32,0.1)] transition-all cursor-pointer border-t-4 border-t-secondary">
+<div className="flex justify-between items-start">
+<div className="bg-secondary/10 p-2 rounded-lg">
+<span className="material-symbols-outlined text-secondary" data-icon="factory">factory</span>
+</div>
+<span className="bg-secondary-fixed text-on-secondary-fixed font-label-caps text-[10px] px-2 py-1 rounded-full">SDG 9</span>
+</div>
+<div>
+<h3 className="font-title-sm text-base text-on-surface">Innovation</h3>
+<p className="font-body-md text-sm text-on-surface-variant mt-1">3 new patents filed for capture</p>
+</div>
+</div>
+<div className="glass-panel p-6 rounded-2xl flex flex-col gap-4 hover:shadow-[0_4px_20px_rgba(27,94,32,0.1)] transition-all cursor-pointer border-t-4 border-t-tertiary-container">
+<div className="flex justify-between items-start">
+<div className="bg-tertiary-container/10 p-2 rounded-lg">
+<span className="material-symbols-outlined text-tertiary-container" data-icon="public">public</span>
+</div>
+<span className="bg-tertiary-fixed text-on-tertiary-fixed font-label-caps text-[10px] px-2 py-1 rounded-full">SDG 13</span>
+</div>
+<div>
+<h3 className="font-title-sm text-base text-on-surface">Climate Action</h3>
+<p className="font-body-md text-sm text-on-surface-variant mt-1">-450 tons CO2 this quarter</p>
+</div>
+</div>
+<div className="glass-panel p-6 rounded-2xl flex flex-col gap-4 hover:shadow-[0_4px_20px_rgba(27,94,32,0.1)] transition-all cursor-pointer border-t-4 border-t-outline">
+<div className="flex justify-between items-start">
+<div className="bg-surface-variant p-2 rounded-lg">
+<span className="material-symbols-outlined text-on-surface-variant" data-icon="add">add</span>
+</div>
+</div>
+<div className="mt-auto">
+<h3 className="font-title-sm text-base text-on-surface">Track New Goal</h3>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+{/*  BottomNavBar (Mobile)  */}
+<nav className="fixed bottom-0 left-0 w-full z-50 md:hidden rounded-t-[24px] border-t border-white/20 dark:border-slate-800/50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] bg-white/70 backdrop-blur-lg dark:bg-slate-900/80 flex justify-around items-center h-20 px-4 pb-safe font-space-grotesk text-[10px] font-bold uppercase tracking-widest">
+{/*  Active Tab: Home maps to Dashboard  */}
+<a className="flex flex-col items-center justify-center text-emerald-700 dark:text-emerald-400 bg-sky-400/15 rounded-xl px-3 py-1 active:scale-95 transition-transform duration-200 spring-dampened" href="#">
+<span className="material-symbols-outlined" data-icon="home" style={{fontVariationSettings: '"FILL" 1'}}>home</span>
+<span className="mt-1">Home</span>
+</a>
+<a className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 active:scale-95 transition-transform duration-200 spring-dampened" href="#">
+<span className="material-symbols-outlined" data-icon="eco">eco</span>
+<span className="mt-1">Impact</span>
+</a>
+<a className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 active:scale-95 transition-transform duration-200 spring-dampened" href="#">
+<span className="material-symbols-outlined" data-icon="currency_exchange">currency_exchange</span>
+<span className="mt-1">Trade</span>
+</a>
+<a className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 active:scale-95 transition-transform duration-200 spring-dampened" href="#">
+<span className="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span className="mt-1">Alerts</span>
+</a>
+<a className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 active:scale-95 transition-transform duration-200 spring-dampened" href="#">
+<span className="material-symbols-outlined" data-icon="person">person</span>
+<span className="mt-1">Profile</span>
+</a>
+</nav>
 
-          {/* Charts row */}
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* Emissions trend */}
-            <Card className="lg:col-span-2 glass border-green-900/30">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-base text-green-100">Emissions Trend</CardTitle>
-                    <CardDescription className="text-green-500/50 text-xs">Actual vs. NDC target (tCO₂e)</CardDescription>
-                  </div>
-                  <Badge className="bg-green-500/10 text-green-400 border-green-500/20 text-xs">
-                    On Track ✓
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={emissionsData}>
-                    <defs>
-                      <linearGradient id="actualGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="targetGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(34,197,94,0.06)" />
-                    <XAxis dataKey="month" tick={{ fill: "#4d7a5a", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: "#4d7a5a", fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ background: "#0c1610", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "8px", color: "#a7f3d0" }}
-                    />
-                    <Area type="monotone" dataKey="actual" stroke="#22c55e" fill="url(#actualGrad)" strokeWidth={2} name="Actual" />
-                    <Area type="monotone" dataKey="target" stroke="#3b82f6" fill="url(#targetGrad)" strokeWidth={1.5} strokeDasharray="4 3" name="Target" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Sector breakdown */}
-            <Card className="glass border-green-900/30">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base text-green-100">Emission Sources</CardTitle>
-                <CardDescription className="text-green-500/50 text-xs">By sector (%)</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {sectorData.map((s) => (
-                  <div key={s.name}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-green-300/70">{s.name}</span>
-                      <span className="text-green-400 font-semibold">{s.value}%</span>
-                    </div>
-                    <Progress value={s.value} className="h-1.5" />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Bottom row */}
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* SDG Impact */}
-            <Card className="glass border-green-900/30">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base text-green-100">SDG Impact</CardTitle>
-                <CardDescription className="text-green-500/50 text-xs">Panchamrit contribution</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {sdgItems.map((item) => (
-                  <div key={item.label} className="flex items-center justify-between p-3 rounded-xl bg-green-500/5 border border-green-900/30">
-                    <div>
-                      <p className="text-xs font-semibold text-green-200">{item.label}</p>
-                      <p className="text-xs text-green-500/50">{item.sub}</p>
-                    </div>
-                    <span className={`text-lg font-black ${item.color}`}>{item.metric}</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            {/* Compliance Lab */}
-            <Card className="glass border-green-900/30">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base text-green-100">Compliance Lab</CardTitle>
-                <CardDescription className="text-green-500/50 text-xs">Data upload & audit</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="border-2 border-dashed border-green-900/40 rounded-xl p-5 text-center hover:border-green-500/30 transition-all cursor-pointer group">
-                  <Upload className="w-8 h-8 text-green-600/40 mx-auto mb-2 group-hover:text-green-500/60 transition-colors" />
-                  <p className="text-sm font-medium text-green-300/60">Upload Data Logs</p>
-                  <p className="text-xs text-green-600/40 mt-0.5">CSV, JSON, PDF</p>
-                  <Button variant="outline" size="sm" className="mt-3 border-green-500/30 text-green-400 hover:bg-green-500/10 text-xs">
-                    Browse Files
-                  </Button>
-                </div>
-                <div className="mt-3 space-y-1.5">
-                  {[
-                    { name: "Q1_audit_2026.csv", size: "2.4 MB", status: "Verified" },
-                    { name: "facility_report.pdf", size: "1.1 MB", status: "Processing" },
-                  ].map((file) => (
-                    <div key={file.name} className="flex items-center justify-between p-2 rounded-lg bg-green-500/5">
-                      <span className="text-xs text-green-300/70 truncate mr-2">{file.name}</span>
-                      <Badge
-                        className={`text-[10px] shrink-0 ${
-                          file.status === "Verified"
-                            ? "bg-green-500/10 text-green-400 border-green-500/20"
-                            : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                        }`}
-                      >
-                        {file.status}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Activity feed */}
-            <Card className="glass border-green-900/30">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base text-green-100">Recent Activity</CardTitle>
-                <CardDescription className="text-green-500/50 text-xs">Latest platform events</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {recentActivity.map((activity, i) => (
-                  <div key={i} className="flex items-start gap-3 p-2">
-                    <div className={`mt-0.5 shrink-0 ${activity.status === "success" ? "text-green-400" : "text-amber-400"}`}>
-                      {activity.status === "success" ? (
-                        <CheckCircle2 className="w-4 h-4" />
-                      ) : (
-                        <AlertTriangle className="w-4 h-4" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-green-200/70 leading-tight">{activity.msg}</p>
-                      <p className="text-[10px] text-green-600/50 mt-0.5">{activity.time}</p>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* What-If Simulator Teaser */}
-          <Card className="glass border-green-500/20 gradient-card">
-            <CardContent className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-xl bg-green-500/20 border border-green-500/30 flex items-center justify-center shrink-0">
-                  <Zap className="w-5 h-5 text-green-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-green-200">What-If AI Simulator</h3>
-                  <p className="text-xs text-green-500/60 mt-0.5">
-                    Project future emissions based on energy transitions and policy scenarios.
-                  </p>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                className="bg-green-500 hover:bg-green-400 text-black font-semibold shrink-0"
-                onClick={() => window.location.href = "/simulator"}
-              >
-                Launch Simulator
-                <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-              </Button>
-            </CardContent>
-          </Card>
-        </>
-      )}
-
-      {/* === EMPTY STATE === */}
-      {state === "empty" && (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
-          <div className="w-20 h-20 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center mb-6">
-            <CloudUpload className="w-10 h-10 text-green-500/40" />
-          </div>
-          <h2 className="text-2xl font-black text-white mb-3">No data yet</h2>
-          <p className="text-sm text-green-400/50 max-w-md mb-8">
-            Upload your first emissions dataset to start monitoring your carbon footprint and
-            generating AI-powered insights.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button className="bg-green-500 hover:bg-green-400 text-black font-semibold">
-              <Upload className="w-4 h-4 mr-2" />
-              Upload First Dataset
-            </Button>
-            <Button variant="outline" className="border-green-500/30 text-green-400 hover:bg-green-500/10">
-              View Sample Data
-            </Button>
-          </div>
-          <div className="mt-10 grid sm:grid-cols-3 gap-4 w-full max-w-lg">
-            {[
-              { title: "Upload CSV/Excel", desc: "Drag & drop facility logs", icon: Upload },
-              { title: "Connect API", desc: "Real-time data streaming", icon: Zap },
-              { title: "Manual Entry", desc: "Add emissions manually", icon: Factory },
-            ].map((opt) => {
-              const Icon = opt.icon;
-              return (
-                <div key={opt.title} className="p-4 rounded-xl glass border border-green-900/30 hover:border-green-500/20 cursor-pointer transition-all">
-                  <Icon className="w-5 h-5 text-green-500/50 mb-2" />
-                  <p className="text-sm font-semibold text-green-200">{opt.title}</p>
-                  <p className="text-xs text-green-500/40 mt-0.5">{opt.desc}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* === PROCESSING STATE === */}
-      {state === "processing" && (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
-          <div className="relative w-20 h-20 mb-6">
-            <div className="absolute inset-0 rounded-full border-4 border-green-500/10" />
-            <div className="absolute inset-0 rounded-full border-4 border-t-green-500 border-r-transparent border-b-transparent border-l-transparent animate-spin" />
-            <div className="absolute inset-3 rounded-full bg-green-500/10 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-green-400" />
-            </div>
-          </div>
-          <h2 className="text-2xl font-black text-white mb-2">AI Processing</h2>
-          <p className="text-sm text-green-400/50 max-w-md mb-8">
-            Our AI engine is analyzing your emissions data and generating predictive insights...
-          </p>
-          <div className="w-full max-w-sm space-y-3">
-            {[
-              { label: "Parsing facility data", done: true },
-              { label: "Running compliance checks", done: true },
-              { label: "Generating AI predictions", done: false, active: true },
-              { label: "Building offset recommendations", done: false },
-            ].map((step) => (
-              <div key={step.label} className="flex items-center gap-3 p-3 rounded-xl glass border border-green-900/30">
-                {step.done ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-                ) : step.active ? (
-                  <div className="w-4 h-4 rounded-full border-2 border-t-green-400 border-green-500/20 animate-spin shrink-0" />
-                ) : (
-                  <Clock className="w-4 h-4 text-green-600/40 shrink-0" />
-                )}
-                <span className={`text-sm ${step.done ? "text-green-300/70 line-through" : step.active ? "text-green-300" : "text-green-600/40"}`}>
-                  {step.label}
-                </span>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-green-600/40 mt-6">Estimated time: ~2 minutes</p>
-        </div>
-      )}
-
-      {/* === ERROR STATE === */}
-      {state === "error" && (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
-          <div className="w-20 h-20 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-6">
-            <AlertTriangle className="w-10 h-10 text-red-400" />
-          </div>
-          <h2 className="text-2xl font-black text-white mb-2">Data Error Detected</h2>
-          <p className="text-sm text-green-400/50 max-w-md mb-8">
-            We encountered issues processing your latest emissions dataset. Please review and
-            reupload with corrected data.
-          </p>
-          <div className="w-full max-w-md p-4 rounded-xl bg-red-500/8 border border-red-500/20 mb-6 text-left">
-            <p className="text-sm font-semibold text-red-300 mb-2">Errors found (3)</p>
-            {[
-              "Row 47: Missing Scope 2 electricity data for Pune facility",
-              "Row 112: Invalid unit — expected tCO₂, got 'kg'",
-              "Column 'transport_fuel' contains non-numeric values",
-            ].map((err) => (
-              <div key={err} className="flex gap-2 py-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
-                <p className="text-xs text-red-300/70">{err}</p>
-              </div>
-            ))}
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button className="bg-red-500 hover:bg-red-400 text-white font-semibold">
-              <Upload className="w-4 h-4 mr-2" />
-              Reupload Corrected File
-            </Button>
-            <Button variant="outline" className="border-red-500/30 text-red-400 hover:bg-red-500/10">
-              Download Error Report
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 }

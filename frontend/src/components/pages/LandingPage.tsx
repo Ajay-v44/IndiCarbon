@@ -1,457 +1,204 @@
-"use client";
-
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  ArrowRight,
-  Leaf,
-  BarChart2,
-  ShieldCheck,
-  Zap,
-  Globe,
-  TrendingDown,
-  Factory,
-  TreePine,
-  ChevronRight,
-  Star,
-  Users,
-  Award,
-} from "lucide-react";
-
-const stats = [
-  { value: "2.4M", label: "tCO₂ Tracked", icon: BarChart2 },
-  { value: "340+", label: "Enterprises", icon: Factory },
-  { value: "99.2%", label: "Audit Accuracy", icon: ShieldCheck },
-  { value: "₹480Cr", label: "Credits Traded", icon: TrendingDown },
-];
-
-const features = [
-  {
-    step: "01",
-    title: "Localized Audit",
-    description:
-      "Ingest complex, region-specific emission data across manufacturing and logistics nodes with 99% accuracy.",
-    icon: Factory,
-    color: "text-green-400",
-    bg: "bg-green-500/10",
-    border: "border-green-500/20",
-  },
-  {
-    step: "02",
-    title: "AI Prediction",
-    description:
-      "Simulate intervention strategies. Forecast reduction trajectories against state-level environmental compliance targets.",
-    icon: Zap,
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/20",
-  },
-  {
-    step: "03",
-    title: "Offset Trading",
-    description:
-      "Seamlessly access verified local offset projects (agro-forestry, renewables) within the Indian domestic market.",
-    icon: Globe,
-    color: "text-teal-400",
-    bg: "bg-teal-500/10",
-    border: "border-teal-500/20",
-  },
-];
-
-const testimonials = [
-  {
-    quote:
-      "IndiCarbon AI reduced our compliance reporting time by 80%. The AI predictions are remarkably accurate.",
-    author: "Rajesh Kumar",
-    role: "Head of Sustainability, Tata Steel",
-    avatar: "RK",
-  },
-  {
-    quote:
-      "The localized offset marketplace is a game-changer. We found verified projects within 50km of our plants.",
-    author: "Priya Sharma",
-    role: "ESG Director, Reliance Industries",
-    avatar: "PS",
-  },
-  {
-    quote:
-      "Finally, a platform built for Indian regulatory requirements. NDC compliance tracking is seamless.",
-    author: "Amit Verma",
-    role: "VP Operations, Mahindra Group",
-    avatar: "AV",
-  },
-];
-
-const sdgGoals = [
-  { number: "SDG 7", title: "Clean Energy", metric: "+12%", desc: "adoption across facilities" },
-  { number: "SDG 9", title: "Innovation", metric: "3 patents", desc: "filed for capture tech" },
-  { number: "SDG 13", title: "Climate Action", metric: "-450t", desc: "CO₂ this quarter" },
-  { number: "SDG 17", title: "Partnerships", metric: "340+", desc: "enterprises aligned" },
-];
+/* eslint-disable @next/next/no-img-element */
+import React from 'react';
 
 export function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#0a0f0d]">
-      {/* Navbar */}
-      <nav className="sticky top-0 z-50 glass-strong border-b border-green-900/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-green-500/20 border border-green-500/30 flex items-center justify-center glow-green-sm">
-                <Leaf className="w-4 h-4 text-green-400" />
-              </div>
-              <span className="font-bold text-lg">
-                <span className="text-gradient">IndiCarbon</span>
-                <span className="text-green-600/50 font-light"> AI</span>
-              </span>
-            </div>
+    <>
 
-            <div className="hidden md:flex items-center gap-6">
-              <Link href="/mission" className="text-sm text-green-100/60 hover:text-green-300 transition-colors">
-                Mission
-              </Link>
-              <Link href="/dashboard" className="text-sm text-green-100/60 hover:text-green-300 transition-colors">
-                Platform
-              </Link>
-              <Link href="/portfolio" className="text-sm text-green-100/60 hover:text-green-300 transition-colors">
-                Carbon Vault
-              </Link>
-              <Link href="/admin" className="text-sm text-green-100/60 hover:text-green-300 transition-colors">
-                Enterprise
-              </Link>
-            </div>
+{/*  JSON Component: TopAppBar  */}
+<header className="fixed top-0 z-50 docked full-width border-b bg-white/60 backdrop-blur-xl dark:bg-slate-900/60 border-white/40 dark:border-slate-800/40 shadow-sm flex justify-between items-center px-6 py-3 w-full">
+<div className="flex items-center gap-4">
+<span className="text-xl font-bold text-emerald-900 dark:text-emerald-50 tracking-tighter">IndiCarbon AI</span>
+</div>
+<div className="flex items-center gap-6">
+<div className="hidden md:flex items-center gap-2 bg-surface-container-low/50 px-4 py-2 rounded-full border border-outline-variant/30">
+<span className="material-symbols-outlined text-outline">search</span>
+<span className="font-body-md text-body-md text-on-surface-variant text-sm">Search</span>
+</div>
+<div className="flex items-center gap-4">
+<button className="font-space-grotesk text-sm font-medium tracking-wide text-emerald-900 dark:text-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-colors duration-200 ease-in-out p-2 rounded-full flex items-center justify-center">
+<span className="material-symbols-outlined">notifications</span>
+</button>
+<button className="font-space-grotesk text-sm font-medium tracking-wide text-emerald-900 dark:text-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-colors duration-200 ease-in-out p-2 rounded-full flex items-center justify-center">
+<span className="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</div>
+</header>
+<main className="pt-[100px] flex flex-col gap-section-gap pb-section-gap overflow-x-hidden">
+{/*  Hero Section  */}
+<section className="px-container-padding max-w-[1440px] mx-auto w-full">
+<div className="glass-panel rounded-xl p-glass-padding md:p-12 flex flex-col md:flex-row items-center gap-gutter relative overflow-hidden">
+{/*  Abstract background decoration within the card  */}
+<div className="absolute -top-[20%] -left-[10%] w-[50%] h-[150%] bg-secondary-container/10 blur-[100px] rounded-full pointer-events-none"></div>
+<div className="absolute -bottom-[20%] -right-[10%] w-[50%] h-[150%] bg-primary-container/5 blur-[100px] rounded-full pointer-events-none"></div>
+<div className="w-full md:w-1/2 flex flex-col gap-6 relative z-10">
+<div className="flex items-center gap-2 bg-surface-container-highest px-3 py-1 rounded-full w-fit">
+<span className="material-symbols-outlined text-primary text-[16px]" style={{fontVariationSettings: '"FILL" 1'}}>public</span>
+<span className="font-label-caps text-label-caps text-primary tracking-widest uppercase">Target 2030</span>
+</div>
+<h1 className="font-display-lg text-display-lg text-on-surface text-balance">
+                        Accelerating India&apos;s <br/>
+<span className="text-primary-container">Net-Zero</span> Future.
+                    </h1>
+<p className="font-body-md text-body-md text-on-surface-variant max-w-md">
+                        Advanced predictive carbon accounting and localized offset trading to meet National Determined Contribution (NDC) goals with precision.
+                    </p>
+<div className="flex flex-wrap items-center gap-4 mt-4">
+<button className="bg-primary-container text-on-primary font-label-caps text-label-caps px-6 py-4 leaf-radius uppercase tracking-widest hover:opacity-90 transition-opacity">
+                            Start Simulation
+                        </button>
+<button className="glass-panel text-secondary font-label-caps text-label-caps px-6 py-4 leaf-radius uppercase tracking-widest flex items-center gap-2 border-secondary-container/50 hover:bg-surface-container-low transition-colors">
+<span className="material-symbols-outlined text-[18px]">play_circle</span>
+                            Watch Vision
+                        </button>
+</div>
+</div>
+<div className="w-full md:w-1/2 relative min-h-[400px] flex items-center justify-center">
+<img alt="" className="w-full max-w-[500px] h-auto object-contain z-10" data-alt="Abstract 3D rendering of the Indian subcontinent formed by glowing green and sky blue digital network nodes on a frosted glass pedestal, bright clean lighting, organic technological aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDpOLB-XPQtdxZCUJF4t8BeeAu0CRDRYcgc_zJ2Ra7DV_sgoWWjq2gbXqU1TvxkuTrv6sYw285LCkgrwsMvIojzNYMNPn8uj_SKdNuavcOxg1FqfTEtgFNrbnbXJmRdNJZkFCfty7hx5bGav2uQ13jrA3wE-P0Vk2t0SWaAm3m_Z8PSylY3vyrKcNl1NKASqefvVQIv64c4CCK4yDqvY_uYddJkP3e_PA_5k_IWEUpXNb6njnzr_qxI0ROKjO8ckrAvLZsnoaW97GT1"/>
+</div>
+</div>
+</section>
+{/*  How it Works Section (Horizontal Scroll)  */}
+<section className="w-full flex flex-col gap-8">
+<div className="px-container-padding max-w-[1440px] mx-auto w-full flex flex-col gap-2">
+<span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest">Methodology</span>
+<h2 className="font-headline-md text-headline-md text-on-surface">Intelligence at Scale</h2>
+</div>
+<div className="w-full overflow-x-auto no-scrollbar snap-x snap-mandatory px-container-padding pb-8">
+<div className="flex gap-gutter w-max max-w-[1440px] mx-auto">
+{/*  Card 1: Audit  */}
+<div className="w-[320px] md:w-[400px] snap-center glass-panel rounded-xl p-glass-padding flex flex-col gap-4 relative overflow-hidden group">
+<div className="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center mb-4 text-primary">
+<span className="material-symbols-outlined" style={{fontVariationSettings: '"FILL" 1'}}>radar</span>
+</div>
+<h3 className="font-title-sm text-title-sm text-on-surface">1. Localized Audit</h3>
+<p className="font-body-md text-body-md text-on-surface-variant">
+                            Ingest complex, region-specific emission data across manufacturing and logistics nodes with 99% accuracy.
+                        </p>
+{/*  Decorative element  */}
+<div className="absolute right-0 bottom-0 w-32 h-32 bg-primary-container/5 rounded-tl-full -z-10 transition-transform group-hover:scale-110"></div>
+</div>
+{/*  Arrow Connector (hidden on mobile, visible on desktop layout conceptually, but keeping it simple in flex)  */}
+<div className="hidden md:flex items-center justify-center text-outline-variant w-8">
+<span className="material-symbols-outlined">arrow_forward</span>
+</div>
+{/*  Card 2: Predict  */}
+<div className="w-[320px] md:w-[400px] snap-center glass-panel rounded-xl p-glass-padding flex flex-col gap-4 relative overflow-hidden group">
+<div className="w-12 h-12 rounded-full bg-secondary-container/20 flex items-center justify-center mb-4 text-secondary">
+<span className="material-symbols-outlined" style={{fontVariationSettings: '"FILL" 1'}}>analytics</span>
+</div>
+<h3 className="font-title-sm text-title-sm text-on-surface">2. AI Prediction</h3>
+<p className="font-body-md text-body-md text-on-surface-variant">
+                            Simulate intervention strategies. Forecast reduction trajectories against state-level environmental compliance targets.
+                        </p>
+<div className="absolute right-0 bottom-0 w-32 h-32 bg-secondary-container/10 rounded-tl-full -z-10 transition-transform group-hover:scale-110"></div>
+</div>
+<div className="hidden md:flex items-center justify-center text-outline-variant w-8">
+<span className="material-symbols-outlined">arrow_forward</span>
+</div>
+{/*  Card 3: Trade  */}
+<div className="w-[320px] md:w-[400px] snap-center glass-panel rounded-xl p-glass-padding flex flex-col gap-4 relative overflow-hidden group">
+<div className="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center mb-4 text-primary">
+<span className="material-symbols-outlined" style={{fontVariationSettings: '"FILL" 1'}}>currency_exchange</span>
+</div>
+<h3 className="font-title-sm text-title-sm text-on-surface">3. Offset Trading</h3>
+<p className="font-body-md text-body-md text-on-surface-variant">
+                            Seamlessly access verified local offset projects (agro-forestry, renewables) within the Indian domestic market.
+                        </p>
+<div className="absolute right-0 bottom-0 w-32 h-32 bg-primary-container/5 rounded-tl-full -z-10 transition-transform group-hover:scale-110"></div>
+</div>
+</div>
+</div>
+</section>
+{/*  The Impact Section  */}
+<section className="px-container-padding max-w-[1440px] mx-auto w-full">
+<div className="bg-surface-container-low rounded-[32px] p-8 md:p-16 flex flex-col items-center justify-center text-center gap-12 border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.02)]">
+<div className="flex flex-col gap-4 max-w-2xl">
+<h2 className="font-headline-md text-headline-md text-on-surface">Simulated Impact</h2>
+<p className="font-body-md text-body-md text-on-surface-variant">
+                        Live monitoring of carbon equivalents offset through our ecosystem, contributing directly to the Panchamrit goals.
+                    </p>
+</div>
+<div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full">
+{/*  Metric 1  */}
+<div className="glass-panel rounded-xl p-8 flex flex-col items-center justify-center gap-2 border-secondary-container/30 bg-surface-bright/80">
+<span className="font-display-lg text-display-lg text-secondary tracking-tighter">4.2M</span>
+<span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">Tons CO2e Reduced</span>
+</div>
+{/*  Metric 2  */}
+<div className="glass-panel rounded-xl p-8 flex flex-col items-center justify-center gap-2 border-primary-container/20 bg-surface-bright/80 relative">
+<div className="absolute top-4 right-4 flex items-center gap-1 text-primary-container">
+<span className="material-symbols-outlined text-[16px] animate-pulse" style={{fontVariationSettings: '"FILL" 1'}}>fiber_manual_record</span>
+<span className="font-label-caps text-[10px] uppercase font-bold tracking-widest">Live</span>
+</div>
+<span className="font-display-lg text-display-lg text-primary tracking-tighter">1,850+</span>
+<span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">Active Enterprises</span>
+</div>
+{/*  Metric 3  */}
+<div className="glass-panel rounded-xl p-8 flex flex-col items-center justify-center gap-2 border-secondary-container/30 bg-surface-bright/80">
+<span className="font-display-lg text-display-lg text-secondary tracking-tighter">₹800Cr</span>
+<span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">Offset Value Traded</span>
+</div>
+</div>
+</div>
+</section>
+{/*  About Us Section  */}
+<section className="px-container-padding max-w-[1440px] mx-auto w-full pt-8">
+<div className="flex flex-col md:flex-row gap-gutter md:gap-16 items-center">
+<div className="w-full md:w-1/2 relative">
+<div className="aspect-[4/3] rounded-[24px] overflow-hidden glass-panel border-0 shadow-lg relative">
+<img alt="" className="w-full h-full object-cover" data-alt="Aerial view of a futuristic sustainable industrial park in India integrating solar panels and lush green forestry alongside clean manufacturing facilities, bright daylight, optimistic atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBdbgTISDf_l3oFxuQZ07eu6W8xmLV6fFLzU7i1d9Me7o97U5CLSlhNyBFuBeiGEWRRauPlVeg8Huwtd-RygnTywHn7irobJoqHZuvUNFwXrnBd73tVfsn6cO9vycGH6ZRkBcbG1BW3SrwdjfWAHD3sUs09cc_1APseMUnmequTGKC8fHSGPhMLsr0KfO8lru9VXMmczKa6O63AMgVME1fce39R4jhm2gA7TMOMaxhUSioADr27hV5xrjgnj9JhINe9BVr_ikq54cGC"/>
+{/*  Decorative overlay  */}
+<div className="absolute inset-0 bg-gradient-to-tr from-primary-container/40 to-transparent mix-blend-multiply"></div>
+</div>
+{/*  Small floating stat card  */}
+<div className="absolute -bottom-6 -right-6 md:bottom-8 md:-right-8 glass-panel p-4 rounded-xl flex items-center gap-4 border-white/60 shadow-xl bg-surface-bright/90 hidden sm:flex">
+<div className="w-10 h-10 rounded-full bg-primary-container/10 flex items-center justify-center">
+<span className="material-symbols-outlined text-primary">psychology</span>
+</div>
+<div className="flex flex-col">
+<span className="font-title-sm text-title-sm text-on-surface leading-tight">AI Driven</span>
+<span className="font-label-caps text-label-caps text-outline text-[10px]">Continuous Learning</span>
+</div>
+</div>
+</div>
+<div className="w-full md:w-1/2 flex flex-col gap-6 mt-8 md:mt-0">
+<div className="flex flex-col gap-2">
+<span className="font-label-caps text-label-caps text-primary uppercase tracking-widest">Our Vision</span>
+<h2 className="font-headline-md text-headline-md text-on-surface">Architecting India&apos;s Carbon Infrastructure</h2>
+</div>
+<p className="font-body-md text-body-md text-on-surface-variant">
+                        By 2070, India aims for Net-Zero. The journey requires unprecedented clarity in industrial emissions and localized mitigation strategies.
+                    </p>
+<p className="font-body-md text-body-md text-on-surface-variant">
+                        IndiCarbon AI bridges the gap between high-level policy and factory-floor execution. We provide the digital instrumentation required to measure, predict, and trade environmental impact securely on an enterprise level.
+                    </p>
+<div className="pt-4">
+<button className="bg-surface-container-high text-on-surface font-label-caps text-label-caps px-6 py-4 leaf-radius uppercase tracking-widest hover:bg-surface-variant transition-colors border border-outline-variant/30 flex items-center gap-2 w-fit">
+                            Read the Manifesto
+                            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+</main>
+{/*  Minimal Footer to cap the page  */}
+<footer className="border-t border-outline-variant/20 bg-surface-container-lowest mt-section-gap">
+<div className="max-w-[1440px] mx-auto px-container-padding py-12 flex flex-col md:flex-row justify-between items-center gap-6">
+<div className="flex items-center gap-2">
+<span className="material-symbols-outlined text-primary" style={{fontVariationSettings: '"FILL" 1'}}>eco</span>
+<span className="font-title-sm text-title-sm text-on-surface font-bold">IndiCarbon AI</span>
+</div>
+<div className="flex gap-6">
+<span className="font-label-caps text-label-caps text-on-surface-variant hover:text-primary cursor-pointer transition-colors uppercase">Privacy</span>
+<span className="font-label-caps text-label-caps text-on-surface-variant hover:text-primary cursor-pointer transition-colors uppercase">Terms</span>
+<span className="font-label-caps text-label-caps text-on-surface-variant hover:text-primary cursor-pointer transition-colors uppercase">Contact</span>
+</div>
+</div>
+</footer>
 
-            <div className="flex items-center gap-3">
-              <Link href="/auth/login">
-                <Button variant="ghost" className="text-green-300 hover:text-green-200 hover:bg-green-500/10">
-                  Sign in
-                </Button>
-              </Link>
-              <Link href="/auth/register">
-                <Button className="bg-green-500 hover:bg-green-400 text-black font-semibold">
-                  Get Started
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* Hero Section */}
-      <section className="relative overflow-hidden gradient-hero grid-pattern min-h-[90vh] flex items-center">
-        {/* Background elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-green-500/8 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-emerald-500/6 rounded-full blur-2xl" />
-          <div className="absolute top-1/2 right-1/3 w-48 h-48 bg-teal-500/5 rounded-full blur-xl" />
-        </div>
-
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-          <div className="max-w-4xl">
-            <Badge className="mb-6 bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/15">
-              <div className="status-dot-green mr-2" />
-              India's First AI Carbon Intelligence Platform
-            </Badge>
-
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-none mb-6">
-              <span className="text-white">Accelerating</span>
-              <br />
-              <span className="text-gradient">India's Net-Zero</span>
-              <br />
-              <span className="text-white">Future.</span>
-            </h1>
-
-            <p className="text-xl text-green-100/60 max-w-2xl mb-10 leading-relaxed">
-              Advanced predictive carbon accounting and localized offset trading to meet National
-              Determined Contribution (NDC) goals with precision. Built for India's industrial
-              scale.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/auth/register">
-                <Button
-                  size="lg"
-                  className="bg-green-500 hover:bg-green-400 text-black font-bold text-base px-8 glow-green"
-                >
-                  Start Free Trial
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </Button>
-              </Link>
-              <Link href="/dashboard">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-green-500/30 text-green-300 hover:bg-green-500/10 text-base px-8"
-                >
-                  View Live Demo
-                </Button>
-              </Link>
-            </div>
-
-            {/* Trust badges */}
-            <div className="mt-12 flex flex-wrap items-center gap-4 text-xs text-green-400/50">
-              <span className="flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-green-500/60" />
-                SOC 2 Type II Certified
-              </span>
-              <span className="w-px h-4 bg-green-900/50" />
-              <span className="flex items-center gap-1.5">
-                <Award className="w-4 h-4 text-green-500/60" />
-                CPCB Compliant
-              </span>
-              <span className="w-px h-4 bg-green-900/50" />
-              <span className="flex items-center gap-1.5">
-                <Star className="w-4 h-4 text-green-500/60" />
-                4.9/5 from 120+ reviews
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Live Stats Bar */}
-      <section className="border-y border-green-900/30 bg-green-500/5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {stats.map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <div key={stat.label} className="text-center">
-                  <div className="flex items-center justify-center mb-2">
-                    <Icon className="w-5 h-5 text-green-500/60 mr-2" />
-                    <span className="text-2xl sm:text-3xl font-black text-gradient">{stat.value}</span>
-                  </div>
-                  <p className="text-xs text-green-400/50">{stat.label}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Intelligence at Scale */}
-      <section className="py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <Badge className="mb-4 bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-              Intelligence at Scale
-            </Badge>
-            <h2 className="text-4xl sm:text-5xl font-black text-white mb-4">
-              Three steps to <span className="text-gradient">carbon clarity</span>
-            </h2>
-            <p className="text-lg text-green-100/50 max-w-2xl mx-auto">
-              From raw emissions data to verified carbon credits — IndiCarbon AI handles the entire
-              journey with enterprise-grade precision.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {features.map((feature, i) => {
-              const Icon = feature.icon;
-              return (
-                <div
-                  key={feature.step}
-                  className={`relative p-6 rounded-2xl glass border ${feature.border} hover:border-opacity-40 transition-all duration-300 group`}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className={`w-12 h-12 rounded-xl ${feature.bg} border ${feature.border} flex items-center justify-center`}>
-                      <Icon className={`w-6 h-6 ${feature.color}`} />
-                    </div>
-                    <span className="text-5xl font-black text-green-900/40">{feature.step}</span>
-                  </div>
-                  <h3 className={`text-xl font-bold ${feature.color} mb-2`}>{feature.title}</h3>
-                  <p className="text-sm text-green-100/50 leading-relaxed">{feature.description}</p>
-                  <div className="mt-4 flex items-center gap-1 text-xs text-green-500/40 group-hover:text-green-400/60 transition-colors">
-                    Learn more <ChevronRight className="w-3 h-3" />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* SDG Goals */}
-      <section className="py-24 border-y border-green-900/30 bg-green-500/3">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <Badge className="mb-4 bg-teal-500/10 text-teal-400 border-teal-500/20">
-              Panchamrit Aligned
-            </Badge>
-            <h2 className="text-4xl font-black text-white mb-4">
-              Contributing to <span className="text-gradient">SDG Goals</span>
-            </h2>
-            <p className="text-green-100/50 max-w-xl mx-auto">
-              Simulated live monitoring of carbon equivalents offset through our ecosystem,
-              contributing directly to India's Panchamrit goals.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {sdgGoals.map((goal) => (
-              <div
-                key={goal.number}
-                className="p-5 rounded-2xl glass border border-green-900/30 hover:border-green-500/20 transition-all"
-              >
-                <Badge className="mb-3 bg-green-500/10 text-green-400 border-green-500/20 text-xs">
-                  {goal.number}
-                </Badge>
-                <p className="text-2xl font-black text-gradient mb-1">{goal.metric}</p>
-                <p className="text-xs text-green-300/70 font-medium mb-0.5">{goal.title}</p>
-                <p className="text-xs text-green-400/40">{goal.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Architecture section */}
-      <section className="py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div>
-              <Badge className="mb-4 bg-green-500/10 text-green-400 border-green-500/20">
-                Built for India
-              </Badge>
-              <h2 className="text-4xl font-black text-white mb-6">
-                Architecting India's{" "}
-                <span className="text-gradient">Carbon Infrastructure</span>
-              </h2>
-              <p className="text-green-100/50 leading-relaxed mb-6">
-                By 2070, India aims for Net-Zero. The journey requires unprecedented clarity in
-                industrial emissions and localized mitigation strategies.
-              </p>
-              <p className="text-green-100/50 leading-relaxed mb-8">
-                IndiCarbon AI bridges the gap between high-level policy and factory-floor execution.
-                We provide the digital instrumentation required to measure, predict, and trade
-                environmental impact securely on an enterprise level.
-              </p>
-              <div className="flex gap-4">
-                <Link href="/auth/register">
-                  <Button className="bg-green-500 hover:bg-green-400 text-black font-semibold">
-                    Start Building
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </Link>
-              </div>
-            </div>
-
-            {/* Visual card grid */}
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { label: "Emission Sources Tracked", value: "120+", icon: Factory },
-                { label: "State-Level Compliance", value: "28 States", icon: Globe },
-                { label: "Offset Projects", value: "450+", icon: TreePine },
-                { label: "Active Users", value: "12,000+", icon: Users },
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div
-                    key={item.label}
-                    className="p-5 rounded-2xl glass border border-green-900/30 hover:border-green-500/20 transition-all"
-                  >
-                    <Icon className="w-6 h-6 text-green-500/60 mb-3" />
-                    <p className="text-2xl font-black text-gradient mb-1">{item.value}</p>
-                    <p className="text-xs text-green-400/50">{item.label}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="py-24 border-t border-green-900/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-black text-white mb-4">
-              Trusted by India's <span className="text-gradient">sustainability leaders</span>
-            </h2>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((t) => (
-              <div key={t.author} className="p-6 rounded-2xl glass border border-green-900/30">
-                <div className="flex gap-1 mb-4">
-                  {Array(5).fill(0).map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-green-400 text-green-400" />
-                  ))}
-                </div>
-                <p className="text-sm text-green-100/70 leading-relaxed mb-5 italic">"{t.quote}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center text-xs font-bold text-green-400">
-                    {t.avatar}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-green-100">{t.author}</p>
-                    <p className="text-xs text-green-500/60">{t.role}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative p-12 sm:p-16 rounded-3xl overflow-hidden bg-gradient-to-br from-green-950/80 to-emerald-950/60 border border-green-500/20 text-center">
-            <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent pointer-events-none" />
-            <Badge className="mb-6 bg-green-400/20 text-green-300 border-green-400/30">
-              Net-Zero by 2070
-            </Badge>
-            <h2 className="text-4xl sm:text-5xl font-black text-white mb-4">
-              Ready to lead India's{" "}
-              <span className="text-gradient">green transition?</span>
-            </h2>
-            <p className="text-lg text-green-100/50 mb-10 max-w-xl mx-auto">
-              Join 340+ enterprises already using IndiCarbon AI to measure, reduce, and offset
-              their carbon footprint.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/auth/register">
-                <Button
-                  size="lg"
-                  className="bg-green-400 hover:bg-green-300 text-black font-bold px-10 glow-green"
-                >
-                  Start Free — No Credit Card
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </Button>
-              </Link>
-              <Link href="/mission">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-green-500/30 text-green-300 hover:bg-green-500/10"
-                >
-                  Read Our Mission
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-green-900/30 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Leaf className="w-4 h-4 text-green-500/60" />
-              <span className="text-sm text-green-500/60">
-                © 2026 IndiCarbon AI · Built for India's Net-Zero Future
-              </span>
-            </div>
-            <div className="flex gap-6 text-xs text-green-500/40">
-              <Link href="#" className="hover:text-green-400 transition-colors">Privacy</Link>
-              <Link href="#" className="hover:text-green-400 transition-colors">Terms</Link>
-              <Link href="#" className="hover:text-green-400 transition-colors">Contact</Link>
-            </div>
-          </div>
-        </div>
-      </footer>
-    </div>
+    </>
   );
 }

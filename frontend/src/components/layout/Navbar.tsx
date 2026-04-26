@@ -96,10 +96,8 @@ export function Navbar() {
 
             {/* Mobile menu */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden text-green-400/70 hover:text-green-400">
+              <SheetTrigger render={<Button variant="ghost" size="icon" className="md:hidden text-green-400/70 hover:text-green-400" />}>
                   <Menu className="w-5 h-5" />
-                </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-72 bg-[#0c1610] border-green-900/30 p-0">
                 <div className="p-6 border-b border-green-900/30">
