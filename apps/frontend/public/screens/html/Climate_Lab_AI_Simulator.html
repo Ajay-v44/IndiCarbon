@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>IndiCarbon AI - Climate Lab</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&amp;family=Manrope:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-primary-fixed": "#002203",
+                      "surface": "#f8faf2",
+                      "surface-bright": "#f8faf2",
+                      "on-primary": "#ffffff",
+                      "error-container": "#ffdad6",
+                      "on-secondary-container": "#004f7c",
+                      "on-surface": "#191d18",
+                      "tertiary-fixed-dim": "#e5beb4",
+                      "on-tertiary": "#ffffff",
+                      "secondary-container": "#7ec1fe",
+                      "on-error-container": "#93000a",
+                      "on-tertiary-container": "#c09c93",
+                      "on-surface-variant": "#41493e",
+                      "surface-container-high": "#e6e9e1",
+                      "tertiary": "#361f19",
+                      "secondary-fixed-dim": "#96ccff",
+                      "on-tertiary-fixed": "#2b1610",
+                      "on-secondary-fixed": "#001d32",
+                      "surface-container": "#ecefe6",
+                      "inverse-on-surface": "#eff2e9",
+                      "surface-tint": "#2e6b2f",
+                      "surface-container-lowest": "#ffffff",
+                      "on-primary-container": "#74b46e",
+                      "on-secondary": "#ffffff",
+                      "secondary": "#00639a",
+                      "background": "#f8faf2",
+                      "surface-variant": "#e1e4db",
+                      "outline": "#717a6d",
+                      "primary-container": "#00450d",
+                      "on-background": "#191d18",
+                      "surface-dim": "#d8dbd3",
+                      "tertiary-container": "#4e342d",
+                      "on-tertiary-fixed-variant": "#5c4039",
+                      "surface-container-low": "#f2f5ec",
+                      "error": "#ba1a1a",
+                      "secondary-fixed": "#cee5ff",
+                      "tertiary-fixed": "#ffdbd1",
+                      "on-secondary-fixed-variant": "#004a75",
+                      "on-error": "#ffffff",
+                      "primary": "#002c06",
+                      "primary-fixed-dim": "#95d78e",
+                      "inverse-primary": "#95d78e",
+                      "outline-variant": "#c0c9bb",
+                      "on-primary-fixed-variant": "#135219",
+                      "inverse-surface": "#2e312c",
+                      "primary-fixed": "#b0f3a7",
+                      "surface-container-highest": "#e1e4db"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "section-gap": "80px",
+                      "unit": "4px",
+                      "container-padding": "32px",
+                      "gutter": "24px",
+                      "glass-padding": "24px"
+              },
+              "fontFamily": {
+                      "title-sm": [
+                              "Manrope"
+                      ],
+                      "display-lg": [
+                              "Space Grotesk"
+                      ],
+                      "body-md": [
+                              "Manrope"
+                      ],
+                      "mono-stream": [
+                              "ui-monospace, monospace"
+                      ],
+                      "headline-md": [
+                              "Space Grotesk"
+                      ],
+                      "label-caps": [
+                              "Manrope"
+                      ]
+              },
+              "fontSize": {
+                      "title-sm": [
+                              "20px",
+                              {
+                                      "lineHeight": "1.4",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "48px",
+                              {
+                                      "lineHeight": "1.1",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "mono-stream": [
+                              "14px",
+                              {
+                                      "lineHeight": "1.5"
+                              }
+                      ],
+                      "headline-md": [
+                              "32px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "1.0",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "700"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+</head>
+<body class="bg-background text-on-background antialiased flex min-h-screen">
+<!-- SideNavBar (Web) -->
+<nav class="hidden md:flex flex-col h-full py-8 px-6 space-y-8 bg-white/60 dark:bg-emerald-950/60 backdrop-blur-2xl fixed left-0 w-64 border-r border-white/40 dark:border-emerald-700/30 shadow-xl z-50">
+<div class="flex items-center space-x-3 mb-8">
+<img alt="IndiCarbon Logo" class="w-10 h-10 rounded-full" data-alt="Abstract emerald green gradient sphere resembling a stylized earth or tech logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdbLAdgIPmGaAkxT87fDVuX44sWqnxN-T_mRpDQtqL94ZgmhNRDQq0hYdcJdyGkK_isVjSOorkAnXsSHAANduNv5w4f5Rgbr0QH4MaZ5PpG_2N1xitpC9LkrjRt89ane9Zj7JmJ9nsbXa5I6SSEZWGuTEJZlqXS5IcbZSt7x1JOqc-VePjtCqynFvafB78QBFjLN0F09aPIFGdWz7yg6cpZ8WPBOkoMId4O8DIayI9CkIVqlhFEyD-yz0iX9q3XN8FdA5a-XeeBpDc"/>
+<div>
+<h1 class="text-lg font-black text-emerald-950 dark:text-emerald-100 font-['Space_Grotesk']">IndiCarbon AI</h1>
+<p class="text-[10px] text-emerald-800/60 font-['Manrope'] uppercase tracking-widest">The Great Restoration</p>
+</div>
+</div>
+<button class="w-full bg-primary text-on-primary py-3 rounded-full font-label-caps text-label-caps font-bold hover:opacity-90 transition-opacity">
+            New Simulation
+        </button>
+<div class="flex-1 mt-8">
+<ul class="space-y-4 font-['Space_Grotesk'] uppercase tracking-widest text-xs font-semibold">
+<li>
+<a class="flex items-center space-x-4 p-2 text-emerald-800/60 dark:text-emerald-400/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/30 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Command Center</span>
+</a>
+</li>
+<li>
+<a class="flex items-center space-x-4 p-2 text-emerald-900 dark:text-emerald-100 relative after:content-[''] after:absolute after:right-0 after:top-1/4 after:h-1/2 after:w-1 after:bg-emerald-600 after:rounded-l-full bg-emerald-50/50 dark:bg-emerald-900/30 rounded-lg Active: translate-x-1 duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">science</span>
+<span>Climate Lab</span>
+</a>
+</li>
+<li>
+<a class="flex items-center space-x-4 p-2 text-emerald-800/60 dark:text-emerald-400/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/30 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">history_edu</span>
+<span>Restoration Log</span>
+</a>
+</li>
+<li>
+<a class="flex items-center space-x-4 p-2 text-emerald-800/60 dark:text-emerald-400/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/30 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">psychology</span>
+<span>Eco Intelligence</span>
+</a>
+</li>
+</ul>
+</div>
+<div class="mt-auto">
+<ul class="space-y-4 font-['Space_Grotesk'] uppercase tracking-widest text-xs font-semibold">
+<li>
+<a class="flex items-center space-x-4 p-2 text-emerald-800/60 dark:text-emerald-400/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/30 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">help_outline</span>
+<span>Support</span>
+</a>
+</li>
+<li>
+<a class="flex items-center space-x-4 p-2 text-emerald-800/60 dark:text-emerald-400/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/30 transition-all rounded-lg" href="#">
+<span class="material-symbols-outlined">manage_accounts</span>
+<span>Account</span>
+</a>
+</li>
+</ul>
+</div>
+</nav>
+<!-- TopNavBar (Web/Mobile) -->
+<div class="flex-1 flex flex-col md:ml-64 relative min-h-screen">
+<header class="hidden md:flex justify-between items-center w-full px-8 py-4 bg-white/60 dark:bg-emerald-950/60 backdrop-blur-2xl docked full-width top-0 border-b border-white/40 dark:border-emerald-700/30 shadow-sm z-40 sticky">
+<div class="flex items-center">
+<!-- Branding hidden on desktop as sidebar handles it -->
+</div>
+<div class="flex items-center space-x-6">
+<!-- Search on right per JSON -->
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant rounded-full text-sm focus:outline-none focus:border-primary w-64 bg-white/50 backdrop-blur-sm" placeholder="Search scenarios..." type="text"/>
+</div>
+<button class="text-slate-600 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-emerald-800/20 transition-colors p-2 rounded-full">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-slate-600 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-emerald-800/20 transition-colors p-2 rounded-full">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<img alt="Chief Ecology Officer" class="w-10 h-10 rounded-full border-2 border-primary-fixed" data-alt="Professional portrait of a woman in a modern office environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7P-3l5k14q7-H-_mcNPrSkFgxNBowqdN8wnmk0fMjuNHgnRB59dmNxTviKpTlSkZMpJ0ZFxpJfoan6Y9VugM96XEQxQVkCyO_PXxxKAqJVhhVdAuKyWtXRTukP9CDxUp6e4G5s4U_ISiCC08yA5wCDANBBkchNVn6mkcBj2bh1UfbdTtTNFTCVmXpWDHO_BrFCqae8zitLHh8qGGY3XZ__zzNEsoYeIyldJNbU0N4tNTDv0k_4LKIhDn_wha6WmtGt2zPVN5fXsvZ"/>
+</div>
+</header>
+<!-- Mobile Top Nav (Simplified) -->
+<header class="md:hidden flex justify-between items-center w-full px-4 py-3 bg-white/60 backdrop-blur-2xl sticky top-0 z-40">
+<h1 class="text-xl font-bold tracking-tight text-emerald-900 font-['Space_Grotesk'] antialiased">IndiCarbon AI</h1>
+<img alt="Chief Ecology Officer" class="w-8 h-8 rounded-full border border-primary-fixed" data-alt="Professional portrait of a woman in a modern office environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuADOhlOf_CvoQoTxzrqa-lZ2_r8dDsyGQf6k8waULdMen2fYu4BKhiAqDD0-imImclhPQdtUCELKvOOcLX8u04fNzzttyby2000l0aX4Yhqh2fhy7XECNJM79p-icIfY4824zcD0eGUxFaTXsuORBk_0cuY9Hb6ftg5rUhtJvDnhEKVZOH_16_KmsRhnpbPlIwhKHX2R_uscyJkfcVjp1iHkdUC75bfz_9Y1qX85JF3LfPhRGyU9z4Vm-PqlS_wwSOez2qJcW1QjWQz"/>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 p-container-padding flex flex-col gap-section-gap w-full max-w-[1600px] mx-auto pb-32 md:pb-8">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+<div>
+<h2 class="font-display-lg text-display-lg text-on-surface">Climate Lab</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2 max-w-2xl">Simulate enterprise carbon footprint reductions and optimize your sustainability investments using predictive AI modeling.</p>
+</div>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Left Column: Controls (4 columns) -->
+<div class="lg:col-span-4 flex flex-col gap-gutter">
+<!-- Simulation Controls Card -->
+<div class="bg-surface-bright/80 backdrop-blur-xl border border-white/40 shadow-xl rounded-2xl p-glass-padding relative overflow-hidden">
+<!-- Decorative Earth Texture Background -->
+<div class="absolute inset-0 opacity-5 pointer-events-none" data-alt="Subtle, dark topographical map texture resembling earth terrain" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCm5_IUCLh_OPZzdouNVCx6_dLs9Pxahf_CFhmWQNsCnG46J7dYUBHevwp-n2JyGLl-jNoizID-SMOL8srhlYL6MzzQBO9sDuh7CcsDFMSF6WMtRVya0sulYz8pvl3KjkmsgGajZpWgXS3ajry8u3KGwkqd4Qf3y3_F2hagct7ypYPmInI6uphiHfsR-FqXTPSgMlzthK_Ck9XG2VmJkNRJksUMS0_FaItNk2447kt69VT4qOKIBVFpqOU-SgNr5V_04mtNyERwoafE'); background-size: cover; background-position: center;"></div>
+<div class="relative z-10">
+<h3 class="font-title-sm text-title-sm text-on-surface mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">tune</span>
+                                Simulation Parameters
+                            </h3>
+<div class="space-y-8">
+<!-- Slider 1 -->
+<div>
+<div class="flex justify-between items-center mb-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Renewable Energy Adoption</label>
+<span class="font-mono-stream text-mono-stream font-bold text-primary">45%</span>
+</div>
+<input class="w-full h-2 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-primary" max="100" min="0" type="range" value="45"/>
+<div class="flex justify-between text-xs text-on-surface-variant/60 mt-1">
+<span>Current Base</span>
+<span>Aggressive Shift</span>
+</div>
+</div>
+<!-- Slider 2 -->
+<div>
+<div class="flex justify-between items-center mb-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Energy Efficiency Upgrades</label>
+<span class="font-mono-stream text-mono-stream font-bold text-secondary">Level 3</span>
+</div>
+<input class="w-full h-2 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-secondary" max="5" min="1" type="range" value="3"/>
+<div class="flex justify-between text-xs text-on-surface-variant/60 mt-1">
+<span>Minimal</span>
+<span>Maximized</span>
+</div>
+</div>
+<div class="pt-4 border-t border-outline-variant/30">
+<button class="w-full bg-primary text-on-primary py-4 rounded-xl font-label-caps text-label-caps font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">auto_awesome</span>
+                                        Run AI Prediction
+                                    </button>
+</div>
+</div>
+</div>
+</div>
+<!-- AI Processing Log (Loading State Mockup) -->
+<div class="bg-surface-container-low shadow-inner border border-outline-variant/20 rounded-2xl p-glass-padding font-mono-stream text-mono-stream text-on-surface-variant">
+<div class="flex items-center gap-2 mb-4 pb-2 border-b border-outline-variant/20">
+<span class="material-symbols-outlined text-primary animate-spin">memory</span>
+<span class="font-bold text-on-surface">LangGraph Terminal</span>
+</div>
+<div class="space-y-2 opacity-30">
+<p>&gt; Initializing environmental constraints...</p>
+<p>&gt; Loading historical emission datasets...</p>
+</div>
+<div class="space-y-2 opacity-60 mt-2">
+<p>&gt; Applying predictive vector models...</p>
+<p>&gt; Simulating grid adoption scenario alpha...</p>
+</div>
+<div class="space-y-2 mt-2">
+<p class="text-primary">&gt; Calculating projected liability vs credit delta...</p>
+<p class="animate-pulse">_</p>
+</div>
+</div>
+</div>
+<!-- Right Column: Visualization (8 columns) -->
+<div class="lg:col-span-8 flex flex-col gap-gutter">
+<!-- Chart Card -->
+<div class="bg-surface-bright/80 backdrop-blur-xl border border-white/40 shadow-xl rounded-2xl p-glass-padding h-full flex flex-col min-h-[500px]">
+<div class="flex justify-between items-center mb-8">
+<div>
+<h3 class="font-title-sm text-title-sm text-on-surface">Financial Impact Projection</h3>
+<p class="text-sm text-on-surface-variant mt-1">Projected Carbon Liability vs. Carbon Credit Savings (2024-2030)</p>
+</div>
+<div class="flex gap-4">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-error"></div>
+<span class="text-xs font-label-caps text-label-caps text-on-surface-variant">Liability Cost ($)</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 rounded-full bg-primary"></div>
+<span class="text-xs font-label-caps text-label-caps text-on-surface-variant">Credit Savings ($)</span>
+</div>
+</div>
+</div>
+<!-- Faux Recharts Dual Axis Line Chart -->
+<div class="flex-1 relative flex items-end">
+<!-- Y-Axis Left (Liability) -->
+<div class="absolute left-0 top-0 bottom-8 flex flex-col justify-between text-xs text-on-surface-variant/50 font-mono-stream text-right pr-2">
+<span>$10M</span>
+<span>$8M</span>
+<span>$6M</span>
+<span>$4M</span>
+<span>$2M</span>
+<span>$0</span>
+</div>
+<!-- Grid Lines -->
+<div class="absolute left-12 right-12 top-2 bottom-8 flex flex-col justify-between">
+<div class="w-full h-px bg-outline-variant/20"></div>
+<div class="w-full h-px bg-outline-variant/20"></div>
+<div class="w-full h-px bg-outline-variant/20"></div>
+<div class="w-full h-px bg-outline-variant/20"></div>
+<div class="w-full h-px bg-outline-variant/20"></div>
+<div class="w-full h-px bg-outline-variant/40"></div>
+</div>
+<!-- Lines Visualization -->
+<div class="absolute left-12 right-12 top-2 bottom-8">
+<!-- Liability Line (Trending Down) -->
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 100 100">
+<path d="M0,20 C20,25 40,40 60,60 C80,80 90,85 100,90" fill="none" stroke="var(--color-error, #ba1a1a)" stroke-dasharray="4 4" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+<!-- Points -->
+<circle cx="0" cy="20" fill="var(--color-error, #ba1a1a)" r="1"></circle>
+<circle cx="60" cy="60" fill="var(--color-error, #ba1a1a)" r="1"></circle>
+<circle cx="100" cy="90" fill="var(--color-error, #ba1a1a)" r="1"></circle>
+</svg>
+<!-- Savings Line (Trending Up) -->
+<svg class="w-full h-full absolute inset-0" preserveaspectratio="none" viewbox="0 0 100 100">
+<path d="M0,95 C20,90 40,70 60,50 C80,30 90,15 100,10" fill="none" stroke="var(--color-primary, #002c06)" stroke-width="3" vector-effect="non-scaling-stroke"></path>
+<!-- Points -->
+<circle cx="0" cy="95" fill="var(--color-primary, #002c06)" r="1.5"></circle>
+<circle cx="60" cy="50" fill="var(--color-primary, #002c06)" r="1.5"></circle>
+<circle cx="100" cy="10" fill="var(--color-primary, #002c06)" r="1.5"></circle>
+</svg>
+<!-- Hover Tooltip Mockup -->
+<div class="absolute top-[40%] left-[60%] bg-surface border border-outline-variant/50 shadow-lg rounded-lg p-3 transform -translate-x-1/2 -translate-y-full mb-2 pointer-events-none">
+<div class="text-xs font-bold text-on-surface mb-1 text-center">2027 Projection</div>
+<div class="flex items-center justify-between gap-4 text-sm">
+<span class="text-error font-mono-stream">$4.2M</span>
+<span class="text-primary font-mono-stream font-bold">$5.8M</span>
+</div>
+</div>
+</div>
+<!-- Y-Axis Right (Savings) -->
+<div class="absolute right-0 top-0 bottom-8 flex flex-col justify-between text-xs text-on-surface-variant/50 font-mono-stream text-left pl-2">
+<span>100k C</span>
+<span>80k C</span>
+<span>60k C</span>
+<span>40k C</span>
+<span>20k C</span>
+<span>0</span>
+</div>
+<!-- X-Axis -->
+<div class="w-full pl-12 pr-12 flex justify-between text-xs text-on-surface-variant/70 font-mono-stream mt-2 absolute bottom-0 left-0">
+<span>'24</span>
+<span>'25</span>
+<span>'26</span>
+<span>'27</span>
+<span>'28</span>
+<span>'29</span>
+<span>'30</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- BottomNavBar (Mobile) -->
+<nav class="md:hidden flex justify-around items-center px-4 pb-6 pt-3 w-full bg-white/80 dark:bg-emerald-950/80 backdrop-blur-xl fixed bottom-0 w-full rounded-t-3xl border-t z-50 border-white/40 dark:border-emerald-700/30 shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.1)] font-['Space_Grotesk'] text-[10px] font-medium">
+<a class="flex flex-col items-center justify-center text-emerald-800/50 dark:text-emerald-400/40 p-2 active:bg-emerald-200/50 dark:active:bg-emerald-800/50 rounded-2xl transition-all" href="#">
+<span class="material-symbols-outlined mb-1">grid_view</span>
+            Home
+        </a>
+<a class="flex flex-col items-center justify-center bg-emerald-100/50 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-50 rounded-2xl p-2 w-16 Active: scale-90 duration-150" href="#">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">biotech</span>
+            Labs
+        </a>
+<a class="flex flex-col items-center justify-center text-emerald-800/50 dark:text-emerald-400/40 p-2 active:bg-emerald-200/50 dark:active:bg-emerald-800/50 rounded-2xl transition-all" href="#">
+<span class="material-symbols-outlined mb-1">query_stats</span>
+            Data
+        </a>
+<a class="flex flex-col items-center justify-center text-emerald-800/50 dark:text-emerald-400/40 p-2 active:bg-emerald-200/50 dark:active:bg-emerald-800/50 rounded-2xl transition-all" href="#">
+<span class="material-symbols-outlined mb-1">person</span>
+            User
+        </a>
+</nav>
+</body></html>

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>IndiCarbon AI - Processing Dashboard</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&amp;family=Space+Grotesk:wght@500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary-fixed": "#cee5ff",
+                    "surface-tint": "#2a6b2c",
+                    "secondary-fixed-dim": "#96ccff",
+                    "on-primary-container": "#90d689",
+                    "on-error-container": "#93000a",
+                    "surface": "#f7fbf1",
+                    "surface-bright": "#f7fbf1",
+                    "surface-container": "#ecefe6",
+                    "surface-container-high": "#e6e9e0",
+                    "outline": "#717a6d",
+                    "inverse-surface": "#2d322c",
+                    "on-secondary": "#ffffff",
+                    "on-background": "#191d17",
+                    "tertiary-container": "#684b44",
+                    "secondary": "#00639a",
+                    "on-secondary-fixed": "#001d32",
+                    "on-primary-fixed-variant": "#0c5216",
+                    "tertiary": "#4f352e",
+                    "on-surface": "#191d17",
+                    "error-container": "#ffdad6",
+                    "tertiary-fixed-dim": "#e5beb5",
+                    "on-tertiary-container": "#e4bdb4",
+                    "on-secondary-fixed-variant": "#004a75",
+                    "background": "#f7fbf1",
+                    "primary-fixed-dim": "#91d78a",
+                    "primary-fixed": "#acf4a4",
+                    "on-tertiary-fixed-variant": "#5c403a",
+                    "tertiary-fixed": "#ffdad2",
+                    "on-surface-variant": "#41493e",
+                    "on-primary-fixed": "#002203",
+                    "surface-dim": "#d8dbd2",
+                    "on-secondary-container": "#00436a",
+                    "surface-variant": "#e0e4db",
+                    "inverse-primary": "#91d78a",
+                    "error": "#ba1a1a",
+                    "on-tertiary-fixed": "#2b1611",
+                    "on-primary": "#ffffff",
+                    "inverse-on-surface": "#eff2e9",
+                    "surface-container-low": "#f2f5ec",
+                    "on-tertiary": "#ffffff",
+                    "surface-container-lowest": "#ffffff",
+                    "primary": "#00450d",
+                    "surface-container-highest": "#e0e4db",
+                    "secondary-container": "#51b2fe",
+                    "primary-container": "#1b5e20",
+                    "on-error": "#ffffff",
+                    "outline-variant": "#c0c9bb"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter": "24px",
+                    "container-padding": "32px",
+                    "unit": "4px",
+                    "section-gap": "80px",
+                    "glass-padding": "24px"
+            },
+            "fontFamily": {
+                    "label-caps": [
+                            "Manrope"
+                    ],
+                    "headline-md": [
+                            "Space Grotesk"
+                    ],
+                    "body-md": [
+                            "Manrope"
+                    ],
+                    "title-sm": [
+                            "Manrope"
+                    ],
+                    "display-lg": [
+                            "Space Grotesk"
+                    ]
+            },
+            "fontSize": {
+                    "label-caps": [
+                            "12px",
+                            {
+                                    "lineHeight": "1",
+                                    "letterSpacing": "0.05em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "headline-md": [
+                            "32px",
+                            {
+                                    "lineHeight": "1.2",
+                                    "letterSpacing": "-0.01em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "1.6",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "title-sm": [
+                            "20px",
+                            {
+                                    "lineHeight": "1.4",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "display-lg": [
+                            "48px",
+                            {
+                                    "lineHeight": "1.1",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ]
+            }
+          }
+        }
+      }
+    </script>
+</head>
+<body class="bg-background text-on-background min-h-screen flex selection:bg-primary-container selection:text-on-primary-container">
+<!-- Desktop Side Navigation -->
+<nav class="fixed left-0 top-0 h-screen w-64 border-r hidden md:flex flex-col bg-white/60 backdrop-blur-xl dark:bg-slate-900/60 font-space-grotesk text-sm font-semibold border-white/40 dark:border-slate-800/40 shadow-xl p-6 gap-8 z-50">
+<div>
+<h1 class="text-2xl font-black text-emerald-900 dark:text-emerald-50">IndiCarbon</h1>
+<p class="text-slate-600 dark:text-slate-400 font-medium text-xs mt-1">Carbon Intelligence</p>
+</div>
+<div class="flex flex-col gap-4">
+<!-- Active Tab: Dashboard -->
+<a class="flex items-center gap-3 text-emerald-900 dark:text-emerald-300 relative after:content-[''] after:absolute after:right-0 after:w-1 after:h-4 after:bg-emerald-600 after:rounded-full transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 opacity-80 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 hover:opacity-100 transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span>Simulator</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 opacity-80 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 hover:opacity-100 transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span>Budget</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 opacity-80 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 hover:opacity-100 transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined">swap_horiz</span>
+<span>Trading</span>
+</a>
+<a class="flex items-center gap-3 text-slate-500 dark:text-slate-400 opacity-80 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 hover:opacity-100 transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Settings</span>
+</a>
+</div>
+</nav>
+<!-- Mobile Bottom Navigation -->
+<nav class="fixed bottom-0 left-0 w-full z-50 md:hidden rounded-t-[24px] border-t bg-white/70 backdrop-blur-lg dark:bg-slate-900/80 border-white/20 dark:border-slate-800/50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] flex justify-around items-center h-20 px-4 pb-safe">
+<!-- Active Tab: Home -->
+<a class="flex flex-col items-center justify-center text-emerald-700 dark:text-emerald-400 bg-sky-400/15 rounded-xl px-3 py-1 font-space-grotesk text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-space-grotesk text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">eco</span>
+<span class="mt-1">Impact</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-space-grotesk text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">currency_exchange</span>
+<span class="mt-1">Trade</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-space-grotesk text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="mt-1">Alerts</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-space-grotesk text-[10px] font-bold uppercase tracking-widest active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="mt-1">Profile</span>
+</a>
+</nav>
+<!-- Main Content Wrapper -->
+<main class="flex-1 md:ml-64 flex flex-col min-h-screen relative pb-24 md:pb-0">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-40 border-b w-full bg-white/60 backdrop-blur-xl dark:bg-slate-900/60 border-white/40 dark:border-slate-800/40 shadow-sm flex justify-between items-center px-6 py-3 transition-colors duration-200 ease-in-out">
+<div class="flex items-center gap-4">
+<span class="text-xl font-bold text-emerald-900 dark:text-emerald-50 tracking-tighter hidden md:block">IndiCarbon AI</span>
+</div>
+<div class="flex items-center gap-2">
+<!-- Search on right per JSON -->
+<div class="relative hidden sm:block mr-2">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+<input class="pl-9 pr-4 py-1.5 rounded-full bg-slate-100/50 border border-white/40 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 w-48" placeholder="Search insights..." type="text"/>
+</div>
+<button class="p-2 rounded-full text-slate-600 dark:text-slate-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-colors duration-200 flex items-center justify-center">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 rounded-full text-slate-600 dark:text-slate-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-colors duration-200 flex items-center justify-center">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Canvas -->
+<div class="flex-1 p-container-padding max-w-[1440px] w-full mx-auto relative z-10">
+<!-- Page Header -->
+<div class="flex items-center gap-4 mb-gutter">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-2xl">memory</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-on-background">System Processing</h2>
+<p class="font-body-md text-body-md text-on-surface-variant opacity-80 mt-1">IndiCarbon AI is analyzing your environmental footprint</p>
+</div>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Compliance Lab Card (Active Processing) -->
+<!-- Asymmetric "Leaf" border radius applied here -->
+<div class="col-span-1 lg:col-span-8 bg-surface/80 backdrop-blur-[24px] border border-outline-variant/30 rounded-tl-[32px] rounded-br-[32px] rounded-tr-xl rounded-bl-xl p-glass-padding shadow-[0_8px_32px_rgba(27,94,32,0.05)] flex flex-col relative overflow-hidden">
+<!-- Decorative background gradient glow -->
+<div class="absolute top-0 right-0 w-64 h-64 bg-primary-fixed/20 blur-[60px] rounded-full pointer-events-none -mr-20 -mt-20"></div>
+<div class="flex justify-between items-start mb-6 relative z-10">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary-container text-xl">policy</span>
+<h3 class="font-title-sm text-title-sm text-on-surface">Compliance Lab: SEBI Assessment</h3>
+</div>
+<span class="px-3 py-1 bg-surface-variant rounded-full font-label-caps text-label-caps text-on-surface-variant flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+                            In Progress
+                        </span>
+</div>
+<!-- Progress Indicator -->
+<div class="mb-8 relative z-10">
+<div class="flex justify-between items-end mb-3">
+<span class="font-label-caps text-label-caps text-primary tracking-widest uppercase">Analyzing Data Pipeline...</span>
+<span class="font-body-md text-sm text-on-surface-variant font-bold">68%</span>
+</div>
+<div class="w-full h-2 bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-secondary to-primary w-[68%] rounded-full relative">
+<!-- Simulated shine/pulse without keyframes -->
+<div class="absolute inset-0 bg-white/20 w-1/2 skew-x-[-20deg] -ml-8"></div>
+</div>
+</div>
+</div>
+<!-- Rapid Reasoning Logs Box -->
+<div class="flex-1 bg-surface-container-low/60 border border-outline-variant/20 rounded-xl p-6 flex flex-col gap-4 font-body-md text-sm text-on-surface-variant overflow-hidden relative z-10 shadow-inner">
+<div class="flex items-center gap-2 pb-2 border-b border-outline-variant/10 text-xs font-label-caps uppercase tracking-wider text-outline">
+<span class="material-symbols-outlined text-[16px]">terminal</span>
+                            AI Agent Reasoning Stream
+                        </div>
+<div class="flex flex-col gap-3 font-mono">
+<div class="flex justify-between items-start opacity-30">
+<div><span class="text-secondary font-bold mr-2">System:</span> Initiating BRSR framework mapping module...</div>
+<span class="material-symbols-outlined text-[14px] text-primary">check_circle</span>
+</div>
+<div class="flex justify-between items-start opacity-60">
+<div><span class="text-primary-container font-bold mr-2">Agent 1:</span> Extracting Scope 3 category 4 (Upstream Transportation) data from ERP API...</div>
+<span class="material-symbols-outlined text-[14px] text-primary">check_circle</span>
+</div>
+<div class="flex justify-between items-start bg-surface-container/50 p-2 -mx-2 rounded border-l-2 border-secondary">
+<div><span class="text-secondary font-bold mr-2">Agent 2:</span> Validating extraction against SEBI formatting guidelines. Detecting missing supplier emission factors. Interpolating from industry baseline database.</div>
+<span class="text-xs px-2 py-0.5 bg-secondary-fixed text-on-secondary-fixed rounded-full animate-pulse whitespace-nowrap">Computing</span>
+</div>
+<div class="flex justify-between items-start">
+<div><span class="text-tertiary font-bold mr-2">Agent 3:</span> Cross-referencing identified gaps with GHG Protocol compliance rulesets...</div>
+<span class="text-xs px-2 py-0.5 border border-outline-variant text-outline rounded-full whitespace-nowrap">Queued</span>
+</div>
+</div>
+</div>
+</div>
+<!-- What-If Simulator (Skeleton Loader) -->
+<div class="col-span-1 lg:col-span-4 bg-surface/80 backdrop-blur-[24px] border border-outline-variant/30 rounded-xl p-glass-padding shadow-sm flex flex-col relative overflow-hidden">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-outline text-xl opacity-50">science</span>
+<h3 class="font-title-sm text-title-sm text-on-surface opacity-50">What-If Simulator</h3>
+</div>
+<div class="flex-1 flex flex-col gap-6">
+<!-- Controls Skeleton -->
+<div class="flex gap-2">
+<div class="h-8 w-24 bg-surface-variant/60 rounded-full"></div>
+<div class="h-8 w-32 bg-surface-variant/40 rounded-full"></div>
+<div class="h-8 w-16 bg-surface-variant/30 rounded-full"></div>
+</div>
+<!-- Main Chart Area Skeleton -->
+<div class="flex-1 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 flex items-end gap-2 h-48">
+<div class="w-full bg-gradient-to-t from-surface-variant/80 to-surface-variant/20 h-[30%] rounded-t-md"></div>
+<div class="w-full bg-gradient-to-t from-surface-variant/80 to-surface-variant/20 h-[50%] rounded-t-md"></div>
+<div class="w-full bg-gradient-to-t from-surface-variant/80 to-surface-variant/20 h-[40%] rounded-t-md"></div>
+<div class="w-full bg-gradient-to-t from-surface-variant/80 to-surface-variant/20 h-[70%] rounded-t-md"></div>
+<div class="w-full bg-gradient-to-t from-surface-variant/80 to-surface-variant/20 h-[60%] rounded-t-md"></div>
+<div class="w-full bg-gradient-to-t from-surface-variant/80 to-surface-variant/20 h-[85%] rounded-t-md"></div>
+</div>
+<!-- Data Row Skeletons -->
+<div class="space-y-3">
+<div class="flex justify-between items-center">
+<div class="h-4 w-3/4 bg-surface-variant/50 rounded"></div>
+<div class="h-4 w-12 bg-surface-variant/30 rounded"></div>
+</div>
+<div class="flex justify-between items-center">
+<div class="h-4 w-1/2 bg-surface-variant/40 rounded"></div>
+<div class="h-4 w-16 bg-surface-variant/20 rounded"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Status Bar / Ingestion Hub -->
+<div class="col-span-1 lg:col-span-12 bg-surface/50 backdrop-blur-md border border-outline-variant/20 rounded-full px-6 py-4 flex items-center justify-between shadow-sm mt-4">
+<div class="flex items-center gap-4">
+<div class="relative flex h-3 w-3">
+<span class="absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75 animate-pulse"></span>
+<span class="relative inline-flex rounded-full h-3 w-3 bg-secondary"></span>
+</div>
+<span class="font-body-md text-sm text-on-surface-variant">Live Data Connection Active</span>
+</div>
+<div class="flex items-center gap-6 hidden md:flex text-xs font-label-caps text-outline uppercase">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">cloud_sync</span>
+                            AWS Hub
+                        </div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">lock</span>
+                            Encrypted
+                        </div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>
