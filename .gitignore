@@ -6,6 +6,7 @@
 .venv
 venv
 *.egg-info
+.*
 .env
 .envs/*.env
 !.envs/.*.env.example
@@ -21,3 +22,4 @@ redis_data
 coverage/
 .coverage
 htmlcov/
+.aider*
