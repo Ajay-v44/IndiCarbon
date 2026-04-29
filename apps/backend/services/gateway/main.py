@@ -193,7 +193,9 @@ async def health():
 async def auth_proxy(request: Request, path: str):
     """
     Public gateway to the Auth Service.
-    Login, register, refresh, and token verify do NOT require a JWT.
+    Login, register, refresh, roles, and token verify do NOT require a JWT.
+    If a JWT is provided, user context is injected for protected auth actions
+    such as role assignment.
     """
     http: httpx.AsyncClient = request.app.state.http
     query = str(request.url.query)
@@ -201,6 +203,11 @@ async def auth_proxy(request: Request, path: str):
     body = await request.body()
     headers = {k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")}
     headers["X-Request-ID"] = getattr(request.state, "request_id", "")
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token_payload = await verify_jwt(request)
+        headers["X-User-ID"] = token_payload.get("sub", "")
+        headers["X-User-Email"] = token_payload.get("email", "")
 
     resp = await http.request(method=request.method, url=target, headers=headers, content=body)
     return JSONResponse(content=resp.json(), status_code=resp.status_code)

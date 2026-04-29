@@ -13,26 +13,26 @@
   --brand-emerald:      #10b981;
   --brand-teal:         #0d9488;
 
-  /* Light Theme */
-  --background:           #f7fbf1;
-  --foreground:           #111827;
+  /* Light Theme (high readability: black on white) */
+  --background:           #ffffff;
+  --foreground:           #0a0a0a;
   --card:                 #ffffff;
-  --card-foreground:      #111827;
+  --card-foreground:      #0a0a0a;
   --popover:              #ffffff;
-  --popover-foreground:   #111827;
-  --primary:              #14532d;
+  --popover-foreground:   #0a0a0a;
+  --primary:              #0a0a0a;
   --primary-foreground:   #ffffff;
-  --secondary:            #e7f3ec;
-  --secondary-foreground: #14532d;
-  --muted:                #f1f5f1;
-  --muted-foreground:     #4b5563;
-  --accent:               #dcfce7;
-  --accent-foreground:    #14532d;
+  --secondary:            #f4f4f5;
+  --secondary-foreground: #0a0a0a;
+  --muted:                #f6f6f7;
+  --muted-foreground:     #3f3f46;
+  --accent:               #ededee;
+  --accent-foreground:    #0a0a0a;
   --destructive:          #dc2626;
   --destructive-foreground: #ffffff;
-  --border:               #d1d5db;
-  --input:                #d1d5db;
-  --ring:                 #16a34a;
+  --border:               #e4e4e7;
+  --input:                #e4e4e7;
+  --ring:                 #0a0a0a;
   --radius:               0.75rem;
 
   /* Charts */
@@ -45,12 +45,66 @@
   /* Sidebar */
   --sidebar:                  #ffffff;
   --sidebar-foreground:       #111827;
-  --sidebar-primary:          #14532d;
+  --sidebar-primary:          #0a0a0a;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent:           #f0fdf4;
-  --sidebar-accent-foreground: #14532d;
-  --sidebar-border:           #e5e7eb;
-  --sidebar-ring:             #16a34a;
+  --sidebar-accent:           #f4f4f5;
+  --sidebar-accent-foreground: #0a0a0a;
+  --sidebar-border:           #e4e4e7;
+  --sidebar-ring:             #0a0a0a;
+}
+
+.dark {
+  --background:           #000000;
+  --foreground:           #ffffff;
+  --card:                 #0a0a0a;
+  --card-foreground:      #ffffff;
+  --popover:              #0a0a0a;
+  --popover-foreground:   #ffffff;
+  --primary:              #ffffff;
+  --primary-foreground:   #000000;
+  --secondary:            #18181b;
+  --secondary-foreground: #ffffff;
+  --muted:                #18181b;
+  --muted-foreground:     #d4d4d8;
+  --accent:               #27272a;
+  --accent-foreground:    #ffffff;
+  --border:               #27272a;
+  --input:                #27272a;
+  --ring:                 #ffffff;
+  --sidebar:              #0a0a0a;
+  --sidebar-foreground:   #ffffff;
+  --sidebar-primary:      #ffffff;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent:       #18181b;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border:       #27272a;
+  --sidebar-ring:         #ffffff;
+}
+
+/* Tailwind v4 theme tokens (enables bg-primary, text-muted-foreground, etc.) */
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
 }
 
 /* ─── Base ──────────────────────────────────────────────────── */
@@ -112,9 +166,10 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ─── Gradient utilities ────────────────────────────────────── */
 .gradient-hero {
-  background: radial-gradient(ellipse at 20% 50%, rgba(22, 163, 74, 0.08) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 20%, rgba(16, 185, 129, 0.06) 0%, transparent 50%),
-    linear-gradient(180deg, #f7fbf1 0%, #f0fdf4 100%);
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(0, 0, 0, 0.04) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(0, 0, 0, 0.03) 0%, transparent 55%),
+    linear-gradient(180deg, var(--background) 0%, var(--background) 100%);
 }
 
 .gradient-card {
@@ -211,8 +266,8 @@ h1, h2, h3, h4, h5, h6 {
 /* ─── Grid pattern (light) ──────────────────────────────────── */
 .grid-pattern {
   background-image:
-    linear-gradient(rgba(22, 163, 74, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(22, 163, 74, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(0, 0, 0, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.045) 1px, transparent 1px);
   background-size: 40px 40px;
 }
 

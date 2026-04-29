@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Leaf, ArrowLeft, Globe, Target, Zap, TreePine, ArrowRight } from "lucide-react";
+import { ArrowLeft, Globe, Target, Zap, TreePine, ArrowRight } from "lucide-react";
 
 const timeline = [
   {
@@ -69,75 +70,105 @@ const values = [
 
 export function MissionPage() {
   return (
-    <div className="min-h-screen bg-[#0a0f0d]">
-      {/* Simple nav */}
-      <nav className="sticky top-0 z-50 glass-strong border-b border-green-900/30 px-6 py-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <Leaf className="w-5 h-5 text-green-400" />
-            <span className="font-bold text-sm text-gradient">IndiCarbon AI</span>
-          </Link>
-          <Link href="/">
-            <Button variant="ghost" size="sm" className="text-green-400/60 hover:text-green-300 text-xs">
-              <ArrowLeft className="w-3.5 h-3.5 mr-1.5" />
-              Back to Home
-            </Button>
-          </Link>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-xl">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <div className="flex h-16 items-center justify-between">
+            <Link href="/" className="flex items-center gap-2">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-card border border-border overflow-hidden">
+                <Image
+                  src="/images/Indicrabon%20logo.png"
+                  alt="IndiCarbon AI logo"
+                  width={44}
+                  height={44}
+                  priority
+                  className="h-full w-full object-contain"
+                />
+              </span>
+              <span className="font-black tracking-tight">IndiCarbon AI</span>
+            </Link>
+            <Link href="/">
+              <Button variant="ghost" size="sm" className="text-xs">
+                <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
+                Back to home
+              </Button>
+            </Link>
+          </div>
         </div>
-      </nav>
+      </header>
 
       {/* Hero */}
-      <section className="relative gradient-hero grid-pattern py-24">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/3 left-1/4 w-80 h-80 bg-green-500/8 rounded-full blur-3xl" />
-          <div className="absolute bottom-1/4 right-1/3 w-60 h-60 bg-teal-500/6 rounded-full blur-2xl" />
-        </div>
-        <div className="relative max-w-4xl mx-auto px-6 text-center">
-          <Badge className="mb-6 bg-green-500/10 text-green-400 border-green-500/20">
-            The Mission
-          </Badge>
-          <h1 className="text-5xl sm:text-6xl font-black leading-none mb-6">
-            <span className="text-white">By 2070, India will</span>
-            <br />
-            <span className="text-gradient">reach Net-Zero.</span>
-          </h1>
-          <p className="text-xl text-green-100/60 max-w-2xl mx-auto leading-relaxed">
-            The journey requires unprecedented clarity in industrial emissions and localized
-            mitigation strategies. We're building the digital infrastructure to get there.
-          </p>
+      <section className="border-b border-border">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-12 sm:py-14 lg:py-16">
+          <div className="grid lg:grid-cols-2 gap-10 items-center">
+            <div>
+              <Badge className="bg-muted text-foreground border-border">The mission</Badge>
+              <h1 className="mt-4 text-4xl sm:text-5xl font-black tracking-tight leading-[1.02]">
+                Net-zero needs clarity — not guesswork.
+              </h1>
+              <p className="mt-4 text-base sm:text-lg text-muted-foreground leading-relaxed">
+                India’s 2070 target demands factory-floor measurement, state-aware compliance, and
+                local mitigation ecosystems. We’re building the infrastructure to make that practical.
+              </p>
+              <div className="mt-7 flex flex-col sm:flex-row gap-3">
+                <Link href="/auth/register">
+                  <Button size="lg" className="w-full sm:w-auto font-bold">
+                    Start your journey
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button size="lg" variant="outline" className="w-full sm:w-auto">
+                    See the platform
+                  </Button>
+                </Link>
+              </div>
+            </div>
+
+            <div className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+              <Image
+                src="/images/mission-netzero.svg"
+                alt="Net-zero roadmap illustration"
+                width={1200}
+                height={800}
+                priority
+                className="w-full h-auto"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* The Problem */}
-      <section className="py-20 border-t border-green-900/30">
-        <div className="max-w-4xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
+      {/* Challenge */}
+      <section className="py-12">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <div className="grid md:grid-cols-2 gap-8 items-start">
             <div>
-              <Badge className="mb-4 bg-red-500/10 text-red-400 border-red-500/20">The Challenge</Badge>
-              <h2 className="text-3xl font-black text-white mb-4">
-                The gap between policy and{" "}
-                <span className="text-gradient">factory floor</span>
+              <Badge className="bg-muted text-foreground border-border">The challenge</Badge>
+              <h2 className="mt-3 text-3xl font-black tracking-tight">
+                Bridging policy and the factory floor
               </h2>
-              <p className="text-green-100/50 leading-relaxed mb-4">
-                India's industrial sector accounts for 28% of total GHG emissions. Yet most
-                enterprises lack the digital tools to accurately measure, report, and reduce their
-                carbon footprint at a granular level.
+              <p className="mt-3 text-muted-foreground leading-relaxed">
+                India’s industrial sector is complex and distributed. Without granular measurement and
+                consistent reporting, reductions are hard to plan — and even harder to verify.
               </p>
-              <p className="text-green-100/50 leading-relaxed">
-                Existing Western platforms don't account for India's unique supply chain complexity,
-                regional energy mix variability, or domestic offset market structures.
+              <p className="mt-3 text-muted-foreground leading-relaxed">
+                Our goal is to make carbon accounting readable and actionable: clear inputs, clear outputs,
+                clear decisions.
               </p>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               {[
-                { stat: "28%", label: "of India's GHG from industry", color: "text-red-400" },
-                { stat: "₹2.5L Cr", label: "potential carbon market size by 2030", color: "text-amber-400" },
-                { stat: "92%", label: "of SMEs lack carbon measurement", color: "text-orange-400" },
-                { stat: "2070", label: "India's Net-Zero target year", color: "text-green-400" },
+                { stat: "28%", label: "of India’s GHG from industry" },
+                { stat: "₹2.5L Cr", label: "potential carbon market by 2030" },
+                { stat: "92%", label: "SMEs lack measurement capability" },
+                { stat: "2070", label: "national net-zero target year" },
               ].map((s) => (
-                <div key={s.label} className="p-4 rounded-xl glass border border-green-900/30">
-                  <p className={`text-2xl font-black ${s.color} mb-1`}>{s.stat}</p>
-                  <p className="text-xs text-green-400/50 leading-snug">{s.label}</p>
+                <div key={s.label} className="rounded-2xl border border-border bg-card p-5">
+                  <p className="text-2xl font-black">{s.stat}</p>
+                  <p className="mt-2 text-xs text-muted-foreground leading-snug">{s.label}</p>
                 </div>
               ))}
             </div>
@@ -146,52 +177,59 @@ export function MissionPage() {
       </section>
 
       {/* Timeline */}
-      <section className="py-20 border-t border-green-900/30">
-        <div className="max-w-4xl mx-auto px-6">
-          <div className="text-center mb-12">
-            <Badge className="mb-4 bg-teal-500/10 text-teal-400 border-teal-500/20">Timeline</Badge>
-            <h2 className="text-3xl font-black text-white">India's carbon journey</h2>
-          </div>
-          <div className="relative">
-            {/* Vertical line */}
-            <div className="absolute left-6 top-0 bottom-0 w-px bg-green-900/40 hidden sm:block" />
-            <div className="space-y-6">
-              {timeline.map((item, i) => (
-                <div key={item.year} className="flex gap-6 items-start">
-                  <div className={`shrink-0 w-12 h-12 rounded-xl border ${item.color} bg-green-950/60 flex items-center justify-center hidden sm:flex`}>
-                    <span className="text-xs font-black">{item.year.slice(2)}</span>
-                  </div>
-                  <div className="flex-1 p-4 rounded-xl glass border border-green-900/30 hover:border-green-500/20 transition-all">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge className="bg-green-500/8 text-green-400/80 border-green-900/40 text-xs">{item.year}</Badge>
-                      <span className="text-sm font-bold text-green-200">{item.event}</span>
-                    </div>
-                    <p className="text-xs text-green-400/50">{item.desc}</p>
-                  </div>
-                </div>
-              ))}
+      <section className="py-12 border-y border-border bg-muted/30">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <div className="flex items-end justify-between gap-6 flex-wrap">
+            <div className="max-w-2xl">
+              <Badge className="bg-muted text-foreground border-border">Timeline</Badge>
+              <h2 className="mt-3 text-3xl font-black tracking-tight">India’s carbon journey</h2>
+              <p className="mt-3 text-muted-foreground">
+                Key milestones that define the road to 2070 — and the software layer needed to deliver it.
+              </p>
             </div>
+          </div>
+
+          <div className="mt-8 space-y-4">
+            {timeline.map((item) => (
+              <div
+                key={item.year}
+                className="rounded-2xl border border-border bg-card p-5"
+              >
+                <div className="flex items-start justify-between gap-6">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-muted-foreground">{item.year}</p>
+                    <p className="mt-1 text-sm font-bold">{item.event}</p>
+                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
+                  </div>
+                  <div className="shrink-0 h-9 w-9 rounded-xl bg-muted border border-border" />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* Values */}
-      <section className="py-20 border-t border-green-900/30">
-        <div className="max-w-4xl mx-auto px-6">
-          <div className="text-center mb-12">
-            <Badge className="mb-4 bg-green-500/10 text-green-400 border-green-500/20">Our Principles</Badge>
-            <h2 className="text-3xl font-black text-white">What we believe</h2>
+      <section className="py-12">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <div className="max-w-2xl">
+            <Badge className="bg-muted text-foreground border-border">Principles</Badge>
+            <h2 className="mt-3 text-3xl font-black tracking-tight">What we believe</h2>
+            <p className="mt-3 text-muted-foreground">
+              Carbon intelligence should be precise, local, and proactive — and it should feel usable.
+            </p>
           </div>
-          <div className="grid sm:grid-cols-2 gap-6">
+
+          <div className="mt-8 grid sm:grid-cols-2 gap-4">
             {values.map((v) => {
               const Icon = v.icon;
               return (
-                <div key={v.title} className="p-6 rounded-2xl glass border border-green-900/30 hover:border-green-500/20 transition-all">
-                  <div className="w-10 h-10 rounded-xl bg-green-500/10 border border-green-500/20 flex items-center justify-center mb-4">
-                    <Icon className="w-5 h-5 text-green-400" />
+                <div key={v.title} className="rounded-2xl border border-border bg-card p-6">
+                  <div className="h-11 w-11 rounded-xl bg-muted border border-border flex items-center justify-center">
+                    <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="text-base font-bold text-green-200 mb-2">{v.title}</h3>
-                  <p className="text-sm text-green-400/50 leading-relaxed">{v.desc}</p>
+                  <h3 className="mt-4 text-base font-bold">{v.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{v.desc}</p>
                 </div>
               );
             })}
@@ -200,27 +238,26 @@ export function MissionPage() {
       </section>
 
       {/* CTA */}
-      <section className="py-20 border-t border-green-900/30">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className="text-3xl font-black text-white mb-4">
-            Join the <span className="text-gradient">net-zero movement</span>
-          </h2>
-          <p className="text-green-100/50 mb-8 max-w-lg mx-auto">
-            Every enterprise that measures, reduces, and offsets their carbon footprint brings India
-            one step closer to its 2070 goal.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/auth/register">
-              <Button className="bg-green-500 hover:bg-green-400 text-black font-bold px-8">
-                Start Your Journey
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
-            <Link href="/dashboard">
-              <Button variant="outline" className="border-green-500/30 text-green-300 hover:bg-green-500/10">
-                See the Platform
-              </Button>
-            </Link>
+      <section className="py-12 border-t border-border">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <div className="rounded-3xl border border-border bg-card p-8 sm:p-10 text-center">
+            <h2 className="text-3xl sm:text-4xl font-black tracking-tight">Join the net-zero movement</h2>
+            <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
+              Every enterprise that measures, reduces, and offsets brings India closer to 2070 — with confidence in the numbers.
+            </p>
+            <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
+              <Link href="/auth/register">
+                <Button size="lg" className="w-full sm:w-auto font-bold">
+                  Start your journey
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </Link>
+              <Link href="/dashboard">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto">
+                  See the platform
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </section>

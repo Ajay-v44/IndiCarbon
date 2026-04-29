@@ -33,3 +33,15 @@ class OrganizationRepository:
 
     def list_all(self, limit: int = 50, offset: int = 0) -> list[Organization]:
         return self.db.query(Organization).limit(limit).offset(offset).all()
+
+    def list_by_ids(self, org_ids: list[str], limit: int = 50, offset: int = 0) -> list[Organization]:
+        if not org_ids:
+            return []
+        ids = [_uuid.UUID(org_id) for org_id in org_ids]
+        return (
+            self.db.query(Organization)
+            .filter(Organization.id.in_(ids))
+            .limit(limit)
+            .offset(offset)
+            .all()
+        )
