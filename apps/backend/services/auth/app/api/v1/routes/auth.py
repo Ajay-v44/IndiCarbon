@@ -11,6 +11,7 @@ from ....schemas.auth import (
     LoginRequest,
     RefreshRequest,
     RegisterRequest,
+    RoleResponse,
     TokenResponse,
     VerifyTokenRequest,
     VerifyTokenResponse,
@@ -69,10 +70,17 @@ def assign_role(
     requesting_user: str = Depends(get_requesting_user),
     db: Session = Depends(get_db),
 ) -> ApiResponse[dict]:
-    result = auth_svc.assign_role_to_user(
+    result = auth_svc.assign_role_as_admin(
+        requesting_user,
         str(req.user_id),
         req.role_name,
         str(req.organization_id) if req.organization_id else None,
         db,
     )
     return ApiResponse(data=result, message=f"Role '{req.role_name}' assigned.")
+
+
+@router.get("/roles", response_model=ApiResponse[list[RoleResponse]], summary="List available RBAC roles")
+def list_roles(db: Session = Depends(get_db)) -> ApiResponse[list[RoleResponse]]:
+    roles = auth_svc.list_roles(db)
+    return ApiResponse(data=roles, message=f"{len(roles)} roles found.")

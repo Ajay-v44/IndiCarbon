@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" fill="none">
+  <rect width="1200" height="800" rx="48" fill="#FFFFFF"/>
+  <g opacity="0.1" stroke="#000000">
+    <path d="M110 164H1090" />
+    <path d="M110 262H1090" />
+    <path d="M110 360H1090" />
+    <path d="M110 458H1090" />
+    <path d="M110 556H1090" />
+    <path d="M110 654H1090" />
+  </g>
+
+  <g transform="translate(120 120)">
+    <text x="0" y="0" font-family="Inter, ui-sans-serif, system-ui" font-size="22" font-weight="700" fill="#0A0A0A">Indias net-zero path</text>
+    <text x="0" y="34" font-family="Inter, ui-sans-serif, system-ui" font-size="14" font-weight="500" fill="#3F3F46">A clear, measurable roadmap  from policy to factory floor.</text>
+  </g>
+
+  <g transform="translate(120 220)" stroke="#000000">
+    <rect x="0" y="0" width="960" height="460" rx="28" fill="#FFFFFF"/>
+    <rect x="0.5" y="0.5" width="959" height="459" rx="27.5" stroke-opacity="0.16"/>
+
+    <g transform="translate(46 72)">
+      <path d="M0 180 C 130 70, 260 200, 390 128 C 520 56, 650 160, 780 90" stroke="#0A0A0A" stroke-width="5" stroke-linecap="round"/>
+      <g opacity="0.9" fill="#0A0A0A">
+        <circle cx="0" cy="180" r="7"/>
+        <circle cx="195" cy="155" r="7"/>
+        <circle cx="390" cy="128" r="7"/>
+        <circle cx="585" cy="112" r="7"/>
+        <circle cx="780" cy="90" r="7"/>
+      </g>
+      <g font-family="Inter, ui-sans-serif, system-ui" font-size="12" font-weight="600" fill="#3F3F46">
+        <text x="-10" y="212">2015</text>
+        <text x="175" y="212">2021</text>
+        <text x="370" y="212">2024</text>
+        <text x="565" y="212">2030</text>
+        <text x="760" y="212">2070</text>
+      </g>
+      <g opacity="0.12" fill="#000000">
+        <rect x="0" y="32" width="868" height="1"/>
+        <rect x="0" y="82" width="868" height="1"/>
+        <rect x="0" y="132" width="868" height="1"/>
+        <rect x="0" y="182" width="868" height="1"/>
+      </g>
+    </g>
+
+    <g transform="translate(46 318)" font-family="Inter, ui-sans-serif, system-ui">
+      <g>
+        <text x="0" y="0" font-size="13" font-weight="700" fill="#0A0A0A">What IndiCarbon AI does</text>
+        <text x="0" y="26" font-size="12" font-weight="500" fill="#3F3F46">Measure emissions accurately, predict reductions, and connect to verified offsets.</text>
+      </g>
+      <g transform="translate(0 64)">
+        <rect x="0" y="0" width="272" height="72" rx="16" fill="#F4F4F5" stroke="#000000" stroke-opacity="0.14"/>
+        <text x="16" y="28" font-size="12" font-weight="700" fill="#0A0A0A">Measure</text>
+        <text x="16" y="50" font-size="12" font-weight="500" fill="#3F3F46">Factory-floor data</text>
+      </g>
+      <g transform="translate(304 64)">
+        <rect x="0" y="0" width="272" height="72" rx="16" fill="#F4F4F5" stroke="#000000" stroke-opacity="0.14"/>
+        <text x="16" y="28" font-size="12" font-weight="700" fill="#0A0A0A">Predict</text>
+        <text x="16" y="50" font-size="12" font-weight="500" fill="#3F3F46">Scenario planning</text>
+      </g>
+      <g transform="translate(608 64)">
+        <rect x="0" y="0" width="272" height="72" rx="16" fill="#F4F4F5" stroke="#000000" stroke-opacity="0.14"/>
+        <text x="16" y="28" font-size="12" font-weight="700" fill="#0A0A0A">Offset</text>
+        <text x="16" y="50" font-size="12" font-weight="500" fill="#3F3F46">Verified projects</text>
+      </g>
+    </g>
+  </g>
+</svg>

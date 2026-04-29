@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -28,22 +29,29 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
   return (
     <aside
       className={cn(
-        "hidden lg:flex flex-col h-screen sticky top-0 bg-white border-r border-gray-200 shadow-sm transition-all duration-300 z-40",
+        "hidden lg:flex flex-col h-screen sticky top-0 bg-background border-r border-border shadow-sm transition-all duration-300 z-40",
         collapsed ? "w-16" : "w-60"
       )}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center px-5 border-b border-gray-100 shrink-0">
+      <div className="flex h-16 items-center px-5 border-b border-border shrink-0">
         <Link href="/" className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-green-600 flex items-center justify-center shrink-0 shadow-sm">
-            <Leaf className="w-4 h-4 text-white" />
+          <div className="w-10 h-10 rounded-2xl bg-card border border-border overflow-hidden shrink-0 shadow-sm">
+            <Image
+              src="/images/Indicrabon%20logo.png"
+              alt="IndiCarbon AI logo"
+              width={40}
+              height={40}
+              className="h-full w-full object-contain"
+              priority
+            />
           </div>
           {!collapsed && (
             <div className="overflow-hidden">
-              <span className="font-bold text-[15px] text-gray-900 tracking-tight block leading-none">
+              <span className="font-bold text-[15px] text-foreground tracking-tight block leading-none">
                 IndiCarbon
               </span>
-              <span className="text-[10px] font-medium text-green-600 tracking-widest uppercase block mt-0.5">
+              <span className="text-[10px] font-medium text-muted-foreground tracking-widest uppercase block mt-0.5">
                 AI Platform
               </span>
             </div>
@@ -53,19 +61,19 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
 
       {/* Live stats */}
       {!collapsed && (
-        <div className="mx-3 mt-3 px-3 py-2.5 bg-green-50 border border-green-100 rounded-xl">
+        <div className="mx-3 mt-3 px-3 py-2.5 bg-muted border border-border rounded-xl">
           <div className="flex items-center gap-2">
-            <div className="status-dot-green" />
-            <span className="text-xs font-semibold text-green-700">Live Monitoring</span>
+            <div className="w-2 h-2 rounded-full bg-foreground" />
+            <span className="text-xs font-semibold text-foreground">Live Monitoring</span>
           </div>
-          <p className="text-[11px] text-green-600 mt-0.5 pl-[18px]">−2.4 tCO₂ this hour</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 pl-[18px]">−2.4 tCO₂ this hour</p>
         </div>
       )}
 
       {/* Nav items */}
       <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
         {!collapsed && (
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-2 mb-2">
             Navigation
           </p>
         )}
@@ -79,24 +87,24 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group relative",
                 active
-                  ? "bg-green-50 text-green-700 border border-green-200 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                  ? "bg-muted text-foreground border border-border shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
             >
               {active && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-green-600 rounded-r-full" />
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-foreground rounded-r-full" />
               )}
               <Icon
                 className={cn(
                   "w-4 h-4 shrink-0 transition-colors",
-                  active ? "text-green-600" : "text-gray-400 group-hover:text-gray-600"
+                  active ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
                 )}
               />
               {!collapsed && (
                 <>
                   <span className="flex-1 truncate">{item.label}</span>
                   {item.badge && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold border border-green-200">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-foreground font-semibold border border-border">
                       {item.badge}
                     </span>
                   )}
@@ -108,24 +116,24 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
       </nav>
 
       {/* Bottom */}
-      <div className="px-3 pb-4 border-t border-gray-100 pt-3 space-y-0.5">
+      <div className="px-3 pb-4 border-t border-border pt-3 space-y-0.5">
         <Link
           href="/settings"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
         >
-          <Settings className="w-4 h-4 text-gray-400" />
+          <Settings className="w-4 h-4 text-muted-foreground" />
           {!collapsed && <span>Settings</span>}
         </Link>
 
         {!collapsed && (
-          <div className="mt-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+          <div className="mt-3 p-3 rounded-xl bg-muted border border-border">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center shrink-0">
-                <span className="text-white text-xs font-bold">AV</span>
+              <div className="w-8 h-8 rounded-full bg-foreground flex items-center justify-center shrink-0">
+                <span className="text-background text-xs font-bold">AV</span>
               </div>
               <div className="overflow-hidden">
-                <p className="text-sm font-semibold text-gray-900 truncate leading-tight">Ajay Verma</p>
-                <p className="text-[11px] text-gray-500 truncate">Enterprise · Admin</p>
+                <p className="text-sm font-semibold text-foreground truncate leading-tight">Ajay Verma</p>
+                <p className="text-[11px] text-muted-foreground truncate">Enterprise · Admin</p>
               </div>
             </div>
           </div>

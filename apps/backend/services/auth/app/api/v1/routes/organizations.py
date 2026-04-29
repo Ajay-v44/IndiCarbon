@@ -18,7 +18,7 @@ def create_organization(
     user_id: str = Depends(get_requesting_user),
     db: Session = Depends(get_db),
 ) -> ApiResponse[OrganizationResponse]:
-    org = org_svc.create_organization(req, db)
+    org = org_svc.create_organization(req, user_id, db)
     return ApiResponse(data=org, message="Organization created.")
 
 
@@ -29,7 +29,7 @@ def list_organizations(
     user_id: str = Depends(get_requesting_user),
     db: Session = Depends(get_db),
 ) -> ApiResponse[list]:
-    orgs = org_svc.list_organizations(db, limit=limit, offset=offset)
+    orgs = org_svc.list_organizations(user_id, db, limit=limit, offset=offset)
     return ApiResponse(data=[o.model_dump() for o in orgs], message=f"{len(orgs)} organizations found.")
 
 
@@ -39,5 +39,5 @@ def get_organization(
     user_id: str = Depends(get_requesting_user),
     db: Session = Depends(get_db),
 ) -> ApiResponse[OrganizationResponse]:
-    org = org_svc.get_organization(org_id, db)
+    org = org_svc.get_organization(org_id, user_id, db)
     return ApiResponse(data=org)

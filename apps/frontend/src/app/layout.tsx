@@ -17,6 +17,17 @@ export const metadata: Metadata = {
   description:
     "Advanced predictive carbon accounting, AI-driven compliance, and localized offset trading to accelerate India's net-zero mission.",
   keywords: ["carbon credits", "net zero", "India", "sustainability", "carbon accounting", "ESG"],
+  icons: {
+    icon: [
+      { url: "/images/Indicrabon%20logo.png", type: "image/png", sizes: "32x32" },
+    ],
+    shortcut: [
+      { url: "/images/Indicrabon%20logo.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/images/Indicrabon%20logo.png", type: "image/png" },
+    ],
+  },
   openGraph: {
     title: "IndiCarbon AI",
     description: "Accelerating India's Net-Zero Future with AI-powered carbon intelligence.",

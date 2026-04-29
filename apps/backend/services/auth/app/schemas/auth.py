@@ -42,6 +42,8 @@ class VerifyTokenResponse(BaseModel):
     user_id: Optional[UUID] = None
     email: Optional[str] = None
     role: Optional[str] = None
+    roles: list[str] = Field(default_factory=list)
+    organization_ids: list[UUID] = Field(default_factory=list)
     expires_at: Optional[datetime] = None
 
 
@@ -54,10 +56,17 @@ class UserProfile(BaseModel):
     is_active: bool = True
     last_login: Optional[datetime] = None
     created_at: datetime
-    roles: list[str] = []
+    roles: list[str] = Field(default_factory=list)
+    organization_ids: list[UUID] = Field(default_factory=list)
 
 
 class AssignRoleRequest(BaseModel):
     user_id: UUID
     role_name: str
     organization_id: Optional[UUID] = None
+
+
+class RoleResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
