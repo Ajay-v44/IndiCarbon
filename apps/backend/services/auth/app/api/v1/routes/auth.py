@@ -26,8 +26,9 @@ async def register(
     req: RegisterRequest,
     db: Session = Depends(get_db),
 ) -> ApiResponse[TokenResponse]:
-    supabase = get_supabase_client(use_service_role=False)
-    token = await auth_svc.register(req, db, supabase)
+    supabase_admin = get_supabase_client(use_service_role=True)
+    supabase_public = get_supabase_client(use_service_role=False)
+    token = await auth_svc.register(req, db, supabase_admin, supabase_public)
     return ApiResponse(data=token, message="Registration successful.")
 
 
@@ -44,7 +45,6 @@ async def login(
 @router.post("/refresh", response_model=ApiResponse[TokenResponse], summary="Refresh access token")
 async def refresh(
     req: RefreshRequest,
-    db: Session = Depends(get_db),
 ) -> ApiResponse[TokenResponse]:
     supabase = get_supabase_client(use_service_role=False)
     token = await auth_svc.refresh_token(req.refresh_token, supabase)
