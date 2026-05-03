@@ -1,20 +1,14 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from shared_logic import ApiResponse, get_db
+from shared_logic import ApiResponse, AuthenticatedUser, get_current_user, get_db
 
 from ....schemas.agent import AgentRunRequest, AgentRunResponse, HITLReviewCreate, HITLReviewResolve
 from ....services import agent_service as agent_svc
 
 router = APIRouter()
-
-
-def get_requesting_user(x_user_id: str = Header(default="")) -> str:
-    if not x_user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No user context.")
-    return x_user_id
 
 
 def get_factory(request: Request):
@@ -27,7 +21,7 @@ def get_factory(request: Request):
 @router.post("/run", response_model=ApiResponse[AgentRunResponse], summary="Run an AI agent (Auditor or Strategist)")
 async def run_agent(
     req: AgentRunRequest,
-    user_id: str = Depends(get_requesting_user),
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
     factory=Depends(get_factory),
 ) -> ApiResponse[AgentRunResponse]:
@@ -38,7 +32,7 @@ async def run_agent(
 @router.post("/hitl", response_model=ApiResponse[dict], summary="Flag an agent interaction for human review")
 def create_hitl_review(
     req: HITLReviewCreate,
-    user_id: str = Depends(get_requesting_user),
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ApiResponse[dict]:
     result = agent_svc.create_hitl_review(req, db)
@@ -49,8 +43,8 @@ def create_hitl_review(
 def resolve_hitl_review(
     review_id: str,
     req: HITLReviewResolve,
-    user_id: str = Depends(get_requesting_user),
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ApiResponse[dict]:
-    result = agent_svc.resolve_hitl_review(review_id, req.decision, user_id, db)
+    result = agent_svc.resolve_hitl_review(review_id, req.decision, str(user.id), db)
     return ApiResponse(data=result, message="Review resolved.")

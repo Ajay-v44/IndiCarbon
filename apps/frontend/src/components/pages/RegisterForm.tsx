@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { clearAuthError, register } from "@/store/auth-slice";
 import {
   Leaf,
   Mail,
@@ -33,9 +35,11 @@ const industryOptions = [
 ];
 
 export function RegisterForm() {
+  const dispatch = useAppDispatch();
+  const authStatus = useAppSelector((state) => state.auth.status);
+  const authError = useAppSelector((state) => state.auth.error);
   const [step, setStep] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -45,20 +49,27 @@ export function RegisterForm() {
     size: "",
     phone: "",
   });
+  const loading = authStatus === "loading";
 
   const update = (key: keyof typeof form, val: string) =>
     setForm((f) => ({ ...f, [key]: val }));
 
-  const handleNext = (e: React.FormEvent) => {
+  const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
+    dispatch(clearAuthError());
     if (step < STEPS.length - 1) {
       setStep((s) => s + 1);
     } else {
-      setLoading(true);
-      setTimeout(() => {
-        setLoading(false);
+      const result = await dispatch(register({
+        email: form.email,
+        password: form.password,
+        full_name: form.name,
+        phone_number: form.phone || undefined,
+        designation: [form.company, form.industry].filter(Boolean).join(" - ") || undefined,
+      }));
+      if (register.fulfilled.match(result)) {
         window.location.href = "/dashboard";
-      }, 2000);
+      }
     }
   };
 
@@ -105,6 +116,12 @@ export function RegisterForm() {
       {/* Card */}
       <div className="rounded-2xl border border-border bg-card p-7 shadow-sm">
         <form onSubmit={handleNext} className="space-y-4">
+          {authError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {authError}
+            </div>
+          )}
+
           {/* Step 0: Account */}
           {step === 0 && (
             <>
@@ -212,6 +229,7 @@ export function RegisterForm() {
                     </button>
                   ))}
                 </div>
+                <input className="sr-only" value={form.industry} onChange={() => undefined} required />
               </div>
             </>
           )}

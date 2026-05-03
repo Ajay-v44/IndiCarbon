@@ -26,6 +26,10 @@ class AuthSettings(BaseSettings):
     supabase_service_role_key: str
     supabase_jwt_secret: str
 
+    app_jwt_secret: str
+    app_jwt_algorithm: str = "HS256"
+    app_access_token_expires_in: int = 36000
+
     @property
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",")]

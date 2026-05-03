@@ -18,7 +18,7 @@ def get_requesting_user(x_user_id: str = Header(default="")) -> str:
 
 def verify_token_payload(authorization: str = Header(default="")) -> dict:
     """
-    Verify Supabase JWT and return the decoded payload.
+    Verify app JWT and return the decoded payload.
     Used internally by other services calling the /verify endpoint.
     """
     if not authorization.startswith("Bearer "):
@@ -30,9 +30,10 @@ def verify_token_payload(authorization: str = Header(default="")) -> dict:
     try:
         payload = jwt.decode(
             token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
+            settings.app_jwt_secret,
+            algorithms=[settings.app_jwt_algorithm],
             audience="authenticated",
+            issuer="indicarbon-auth",
         )
         return payload
     except jwt.ExpiredSignatureError:

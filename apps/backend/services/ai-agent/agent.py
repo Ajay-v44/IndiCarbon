@@ -37,6 +37,7 @@ from langfuse import Langfuse
 from langfuse.callback import CallbackHandler as LangfuseCallbackHandler
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from shared_logic import ServiceName, get_service_client
 from shared_logic.paths import backend_root
 from shared_logic.supabase_client import VectorRepository
 
@@ -56,6 +57,7 @@ class AgentSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=[
             str(_ROOT / ".envs" / ".ai-agent.env"),
+            str(_ROOT / ".envs" / ".services.env"),
             str(_ROOT / ".envs" / ".supabase.env"),
             str(_ROOT / ".envs" / ".langfuse.env"),
         ],
@@ -65,8 +67,6 @@ class AgentSettings(BaseSettings):
     ollama_base_url: str = "http://host.docker.internal:11434"
     ollama_llm_model: str = "qwen2.5:3b-instruct"
     ollama_embed_model: str = "nomic-embed-text"
-
-    compliance_service_url: str = "http://compliance:8001"
 
     langfuse_secret_key: str
     langfuse_public_key: str
@@ -148,8 +148,9 @@ class GHGCalculatorTool(BaseTool):
             "activity_unit": kwargs["activity_unit"],
         }
         try:
-            resp = httpx.post(
-                f"{s.compliance_service_url}/ghg/calculate",
+            resp = get_service_client(ServiceName.COMPLIANCE, caller="ai-agent").request(
+                "POST",
+                "/ghg/calculate",
                 json=payload,
                 headers={"X-User-ID": "ai-agent-system"},
                 timeout=20.0,
@@ -189,14 +190,13 @@ class BRSRReportTool(BaseTool):
     args_schema: Type[BaseModel] = BRSRReportInput
 
     def _run(self, organization_id: str, fiscal_year: int, revenue_crore: float | None = None) -> str:
-        s = get_settings()
-        url = f"{s.compliance_service_url}/brsr/report/{organization_id}/{fiscal_year}"
         params = {}
         if revenue_crore:
             params["revenue_crore"] = revenue_crore
         try:
-            resp = httpx.get(
-                url,
+            resp = get_service_client(ServiceName.COMPLIANCE, caller="ai-agent").request(
+                "GET",
+                f"/brsr/report/{organization_id}/{fiscal_year}",
                 params=params,
                 headers={"X-User-ID": "ai-agent-system"},
                 timeout=20.0,

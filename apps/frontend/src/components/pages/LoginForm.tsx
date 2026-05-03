@@ -5,21 +5,26 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { clearAuthError, login } from "@/store/auth-slice";
 import { Leaf, Mail, Lock, ArrowRight, Eye, EyeOff, Zap } from "lucide-react";
 
 export function LoginForm() {
+  const dispatch = useAppDispatch();
+  const authStatus = useAppSelector((state) => state.auth.status);
+  const authError = useAppSelector((state) => state.auth.error);
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const loading = authStatus === "loading";
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    dispatch(clearAuthError());
+    const result = await dispatch(login({ email, password }));
+    if (login.fulfilled.match(result)) {
       window.location.href = "/dashboard";
-    }, 1500);
+    }
   };
 
   return (
@@ -36,6 +41,12 @@ export function LoginForm() {
       {/* Card */}
       <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
         <form onSubmit={handleSubmit} className="space-y-5">
+          {authError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {authError}
+            </div>
+          )}
+
           {/* Email */}
           <div className="space-y-2">
             <Label htmlFor="email" className="text-sm font-medium text-foreground">
