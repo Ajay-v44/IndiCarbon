@@ -19,6 +19,7 @@ from ..schemas.auth import (
     UserProfile,
     VerifyTokenResponse,
 )
+from ..utils.token_util import _create_app_access_token, _decode_app_access_token
 
 logger = logging.getLogger(__name__)
 
@@ -107,9 +108,9 @@ async def register(
         raise HTTPException(status_code=status.HTTP_201_CREATED, detail="Registration succeeded, but no session was returned.")
 
     return TokenResponse(
-        access_token=session.access_token,
+        access_token=_create_user_access_token(str(user.id), user.email or req.email, db),
         refresh_token=session.refresh_token,
-        expires_in=session.expires_in or 3600,
+        expires_in=settings.app_access_token_expires_in,
         user_id=UUID(str(user.id)),
         email=user.email or req.email,
     )
@@ -136,15 +137,15 @@ async def login(
     logger.info("User logged in: %s", user.email)
 
     return TokenResponse(
-        access_token=session.access_token,
+        access_token=_create_user_access_token(str(user.id), user.email or req.email, db),
         refresh_token=session.refresh_token,
-        expires_in=session.expires_in or 3600,
+        expires_in=settings.app_access_token_expires_in,
         user_id=UUID(str(user.id)),
         email=user.email or req.email,
     )
 
 
-async def refresh_token(refresh_token_str: str, supabase: Client) -> TokenResponse:
+async def refresh_token(refresh_token_str: str, supabase: Client, db: Session) -> TokenResponse:
     """Exchange a refresh token for a new access token."""
     try:
         res = supabase.auth.refresh_session(refresh_token_str)
@@ -156,24 +157,21 @@ async def refresh_token(refresh_token_str: str, supabase: Client) -> TokenRespon
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Failed to refresh session.")
 
     return TokenResponse(
-        access_token=session.access_token,
+        access_token=_create_user_access_token(str(user.id), user.email or "", db),
         refresh_token=session.refresh_token,
-        expires_in=session.expires_in or 3600,
+        expires_in=settings.app_access_token_expires_in,
         user_id=UUID(str(user.id)),
         email=user.email or "",
     )
 
 
 def verify_token(token: str, db: Session) -> VerifyTokenResponse:
-    """Decode and validate a Supabase JWT. Returns user context for gateway injection."""
+    """Decode and validate an app JWT. Returns user context for gateway injection."""
     try:
-        payload = pyjwt.decode(
-            token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
+        payload = _decode_app_access_token(token)
         user_id = payload.get("sub")
+        if not user_id:
+            raise pyjwt.InvalidTokenError("Missing subject claim.")
         exp = payload.get("exp")
         expires_at = datetime.fromtimestamp(exp, tz=timezone.utc) if exp else None
 
@@ -191,14 +189,23 @@ def verify_token(token: str, db: Session) -> VerifyTokenResponse:
             organization_ids=organization_ids,
             expires_at=expires_at,
         )
-    except pyjwt.ExpiredSignatureError:
-        return VerifyTokenResponse(valid=False)
     except pyjwt.InvalidTokenError:
-        return VerifyTokenResponse(valid=False)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token.")
 
 
-def get_user_profile(user_id: str, db: Session, supabase_admin: Client) -> UserProfile:
+def get_user_profile(token: str, db: Session, supabase_admin: Client) -> UserProfile:
     """Load profile + roles from DB and combine with Supabase Auth email."""
+    try:
+        payload = _decode_app_access_token(token)
+    except pyjwt.InvalidTokenError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token.")
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token.")
+    return _build_user_profile_by_id(user_id, db, supabase_admin)
+
+
+def _build_user_profile_by_id(user_id: str, db: Session, supabase_admin: Client) -> UserProfile:
     profile = ProfileRepository(db).find_by_id(user_id)
     if not profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found.")
@@ -253,7 +260,7 @@ def get_visible_user_profile(
 ) -> UserProfile:
     if target_user_id != requesting_user_id:
         _require_user_visible(requesting_user_id, target_user_id, db)
-    return get_user_profile(target_user_id, db, supabase_admin)
+    return _build_user_profile_by_id(target_user_id, db, supabase_admin)
 
 
 def assign_role_to_user(
@@ -318,7 +325,19 @@ def user_organization_ids(user_id: str, db: Session) -> list[str]:
 
 
 def _profile_to_user_response(profile, db: Session, supabase_admin: Client) -> UserProfile:
-    return get_user_profile(str(profile.id), db, supabase_admin)
+    return _build_user_profile_by_id(str(profile.id), db, supabase_admin)
+
+
+def _create_user_access_token(user_id: str, email: str, db: Session) -> str:
+    user_role_repo = UserRoleRepository(db)
+    return _create_app_access_token(
+        user_id,
+        email,
+        roles=user_role_repo.get_role_names_for_user(user_id),
+        organization_ids=user_role_repo.get_organization_ids_for_user(user_id),
+    )
+
+
 
 
 def _require_user_visible(requesting_user_id: str, target_user_id: str, db: Session) -> None:

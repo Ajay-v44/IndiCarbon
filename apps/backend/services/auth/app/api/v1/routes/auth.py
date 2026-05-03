@@ -45,9 +45,10 @@ async def login(
 @router.post("/refresh", response_model=ApiResponse[TokenResponse], summary="Refresh access token")
 async def refresh(
     req: RefreshRequest,
+    db: Session = Depends(get_db),
 ) -> ApiResponse[TokenResponse]:
     supabase = get_supabase_client(use_service_role=False)
-    token = await auth_svc.refresh_token(req.refresh_token, supabase)
+    token = await auth_svc.refresh_token(req.refresh_token, supabase, db)
     return ApiResponse(data=token, message="Token refreshed.")
 
 

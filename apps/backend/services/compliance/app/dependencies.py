@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from fastapi import Header, HTTPException, status
+from shared_logic import AuthenticatedUser, get_current_user, get_requesting_user, require_organization_access
 
 
-def get_requesting_user(x_user_id: str = Header(default="")) -> str:
-    if not x_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No user context provided. Ensure request passes through the gateway.",
-        )
-    return x_user_id
+__all__ = [
+    "AuthenticatedUser",
+    "get_current_user",
+    "get_requesting_user",
+    "require_organization_access",
+]

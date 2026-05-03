@@ -2,7 +2,15 @@
 libs/shared-logic/__init__.py
 Public surface of the shared library — imported by all microservices.
 """
+from .auth import AuthenticatedUser, get_current_user, get_requesting_user, require_organization_access
 from .middleware import register_middleware
+from .service_client import (
+    ServiceClient,
+    ServiceName,
+    get_service_client,
+    get_service_registry_settings,
+    get_service_url,
+)
 from .schemas import (
     AgentRunRequest,
     AgentRunResponse,
@@ -53,6 +61,17 @@ def __getattr__(name: str):
 __all__ = [
     # Middleware
     "register_middleware",
+    # Auth context
+    "AuthenticatedUser",
+    "get_current_user",
+    "get_requesting_user",
+    "require_organization_access",
+    # Service discovery/client
+    "ServiceClient",
+    "ServiceName",
+    "get_service_client",
+    "get_service_registry_settings",
+    "get_service_url",
     # Response envelopes
     "ApiResponse",
     "ApiErrorResponse",

@@ -43,6 +43,7 @@ services:
     container_name: indicarbon_auth
     restart: unless-stopped
     env_file:
+      - apps/backend/.envs/.services.env
       - apps/backend/.envs/.auth.env
       - apps/backend/.envs/.supabase.env
     networks:
@@ -65,6 +66,7 @@ services:
     container_name: indicarbon_compliance
     restart: unless-stopped
     env_file:
+      - apps/backend/.envs/.services.env
       - apps/backend/.envs/.compliance.env
       - apps/backend/.envs/.supabase.env
     networks:
@@ -87,6 +89,7 @@ services:
     container_name: indicarbon_marketplace
     restart: unless-stopped
     env_file:
+      - apps/backend/.envs/.services.env
       - apps/backend/.envs/.marketplace.env
       - apps/backend/.envs/.supabase.env
     depends_on:
@@ -112,6 +115,7 @@ services:
     container_name: indicarbon_ai_agent
     restart: unless-stopped
     env_file:
+      - apps/backend/.envs/.services.env
       - apps/backend/.envs/.ai-agent.env
       - apps/backend/.envs/.supabase.env
       - apps/backend/.envs/.langfuse.env
@@ -140,6 +144,7 @@ services:
     container_name: indicarbon_gateway
     restart: unless-stopped
     env_file:
+      - apps/backend/.envs/.services.env
       - apps/backend/.envs/.gateway.env
       - apps/backend/.envs/.supabase.env
     depends_on:

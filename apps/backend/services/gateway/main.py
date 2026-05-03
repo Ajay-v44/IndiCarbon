@@ -29,6 +29,7 @@ class GatewaySettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=[
             str(_ROOT / ".envs" / ".gateway.env"),
+            str(_ROOT / ".envs" / ".auth.env"),
             str(_ROOT / ".envs" / ".supabase.env"),
         ],
         extra="ignore",
@@ -47,7 +48,8 @@ class GatewaySettings(BaseSettings):
     rate_limit_requests: int = 100
     rate_limit_window_seconds: int = 60
 
-    supabase_jwt_secret: str
+    app_jwt_secret: str
+    app_jwt_algorithm: str = "HS256"
     allowed_origins: str = "http://localhost:3000"
 
     @property
@@ -120,8 +122,8 @@ async def rate_limit(request: Request) -> None:
 
 async def verify_jwt(request: Request) -> dict:
     """
-    Validates the Supabase JWT from Authorization header.
-    Uses direct HS256 decode for performance on every protected request.
+    Validates the app JWT from Authorization header.
+    Uses direct decode for performance on every protected request.
     The auth service is called only for login/register (public routes).
     """
     import jwt
@@ -136,9 +138,10 @@ async def verify_jwt(request: Request) -> dict:
     try:
         payload = jwt.decode(
             token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
+            settings.app_jwt_secret,
+            algorithms=[settings.app_jwt_algorithm],
             audience="authenticated",
+            issuer="indicarbon-auth",
         )
         return payload
     except jwt.ExpiredSignatureError:
@@ -158,9 +161,21 @@ async def _proxy(request: Request, upstream_url: str, strip_prefix: str, token_p
     target = f"{upstream_url}{path}" + (f"?{query}" if query else "")
     body = await request.body()
 
-    headers = dict(request.headers)
+    headers = {
+        k: v
+        for k, v in request.headers.items()
+        if k.lower()
+        not in (
+            "x-user-id",
+            "x-user-email",
+            "x-user-roles",
+            "x-organization-ids",
+        )
+    }
     headers["X-User-ID"] = token_payload.get("sub", "")
     headers["X-User-Email"] = token_payload.get("email", "")
+    headers["X-User-Roles"] = ",".join(token_payload.get("roles") or [])
+    headers["X-Organization-IDs"] = ",".join(token_payload.get("organization_ids") or [])
     headers["X-Request-ID"] = getattr(request.state, "request_id", "")
     for h in ("host", "content-length", "transfer-encoding"):
         headers.pop(h, None)
@@ -201,13 +216,27 @@ async def auth_proxy(request: Request, path: str):
     query = str(request.url.query)
     target = f"{settings.auth_service_url}/api/v1/auth/{path}" + (f"?{query}" if query else "")
     body = await request.body()
-    headers = {k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")}
+    headers = {
+        k: v
+        for k, v in request.headers.items()
+        if k.lower()
+        not in (
+            "host",
+            "content-length",
+            "x-user-id",
+            "x-user-email",
+            "x-user-roles",
+            "x-organization-ids",
+        )
+    }
     headers["X-Request-ID"] = getattr(request.state, "request_id", "")
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token_payload = await verify_jwt(request)
         headers["X-User-ID"] = token_payload.get("sub", "")
         headers["X-User-Email"] = token_payload.get("email", "")
+        headers["X-User-Roles"] = ",".join(token_payload.get("roles") or [])
+        headers["X-Organization-IDs"] = ",".join(token_payload.get("organization_ids") or [])
 
     resp = await http.request(method=request.method, url=target, headers=headers, content=body)
     return JSONResponse(content=resp.json(), status_code=resp.status_code)
