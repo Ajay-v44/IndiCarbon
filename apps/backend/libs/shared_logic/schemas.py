@@ -180,3 +180,7 @@ class AgentRunResponse(BaseModel):
     trace_url: Optional[str] = None
     duration_ms: int
     completed_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Message(BaseModel):
+    message:str

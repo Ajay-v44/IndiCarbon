@@ -1,4 +1,4 @@
-from __future__ import annotations
+from typing import List
 
 import logging
 import uuid
@@ -18,7 +18,8 @@ from ..schemas.emission import (
     EmissionSummaryResponse,
     GHGScope,
 )
-
+from shared_logic.schemas.compilance_schema import CalculateScopeEmissionsRequest
+from shared_logic.auth.dependencies import AuthenticatedUser
 logger = logging.getLogger(__name__)
 
 _DEFAULT_FACTORS: dict[str, Decimal] = {
@@ -154,3 +155,46 @@ def _report_to_response(r: EmissionReport) -> EmissionReportResponse:
         audit_status=r.audit_status,
         document_evidence_id=r.document_evidence_id,
     )
+
+def calculate_scope_emissions(
+    req: List[CalculateScopeEmissionsRequest],
+    user: AuthenticatedUser,
+    db: Session,
+) :
+    for data in req:
+        emission_factor_repo=EmissionFactorRepository(db)
+        
+        factor_rec = emission_factor_repo.find_by_factor_and_year(data.factor_key,data.year)
+        if not factor_rec:
+           db.add(EmissionReport(
+            organization_id=user.organization_id,
+            reporting_period_start=date(data.year,1,1),
+            reporting_period_end=date(data.year,12,31),
+            scope_type="None",
+            raw_quantity=data.raw_quantity,
+            activity_unit="None",
+            calculated_tco2e=None,
+            factor_used_id=None,
+            document_evidence_id=data.document_id,
+            audit_status="MISSING_FACTOR",
+            created_by=uuid.UUID(user.user_id),
+           ))
+        else:
+            tco2=data.raw_quantity * factor_rec.factor_value / Decimal("1000")
+            db.add(EmissionReport(
+                organization_id=user.organization_id,
+                reporting_period_start=date(data.year,1,1),
+                reporting_period_end=date(data.year,12,31),
+                scope_type=factor_rec.scope,
+                raw_quantity=data.raw_quantity,
+                activity_unit=data.activity_unit,
+                calculated_tco2e=tco2,
+                factor_used_id=factor_rec.id,
+                document_evidence_id=data.document_id,
+                audit_status="PENDING_AI_VERIFICATION",
+                created_by=uuid.UUID(user.user_id),
+            ))
+
+        
+    db.commit()
+    return {"message":"calculation successful"}
