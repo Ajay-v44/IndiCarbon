@@ -1,4 +1,4 @@
-from __future__ import annotations
+from typing import List
 
 from datetime import date
 from typing import Optional
@@ -6,7 +6,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from shared_logic import ApiResponse, get_db
+from shared_logic import ApiResponse, get_db,schemas
+
+from shared_logic.schemas.compilance_schema import CalculateScopeEmissionsRequest
+from fastapi import HTTPException,status
 
 from ....dependencies import AuthenticatedUser, get_current_user, require_organization_access
 from ....schemas.emission import (
@@ -66,3 +69,17 @@ def list_factors(
 ) -> ApiResponse[list]:
     factors = ghg_svc.list_emission_factors(vintage_year, db)
     return ApiResponse(data=factors, message=f"{len(factors)} factors found.")
+
+
+@router.post("/calculate_scope_emissions",response_model=schemas.Message, summary="Calculate and store scope emissions")
+def calculate_scope_emissions(
+    req:List[CalculateScopeEmissionsRequest],
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        require_organization_access(user, user.organization_id)
+        return ghg_svc.calculate_scope_emissions(req,user, db)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    

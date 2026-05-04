@@ -53,3 +53,14 @@ class EmissionFactorRepository:
         if vintage_year:
             q = q.filter(EmissionFactor.vintage_year == vintage_year)
         return q.order_by(EmissionFactor.factor_key).all()
+
+    def find_by_factor_and_year(self,factor_key:str,vintage_year:int)->Optional[EmissionFactor]:
+        return (
+            self.db.query(EmissionFactor)
+            .filter(
+                EmissionFactor.factor_key == factor_key,
+                EmissionFactor.vintage_year == vintage_year,
+                EmissionFactor.is_active.is_(True),
+            )
+            .first()
+        )

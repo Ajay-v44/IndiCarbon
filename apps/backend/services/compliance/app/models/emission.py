@@ -20,6 +20,7 @@ class EmissionFactor(Base):
     vintage_year = Column(Integer, nullable=False)
     source_agency = Column(Text)
     is_active = Column(Boolean, default=True)
+    scope = Column(String(100))
 
     reports = relationship("EmissionReport", back_populates="factor_used")
 
