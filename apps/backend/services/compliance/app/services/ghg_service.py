@@ -1,3 +1,8 @@
+from datetime import timezone
+from datetime import datetime
+from apps.backend.services.compliance.app.models.emission import MonthlyEmissionsSummary
+from apps.backend.services.compliance.app.models.emission import SectorBenchmarks
+from apps.backend.services.compliance.app.registry.auth_registry import get_org_by_id
 from typing import List
 
 import logging
@@ -8,6 +13,7 @@ from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from ..models.emission import EmissionReport
 from ..repositories.emission_repo import EmissionFactorRepository, EmissionReportRepository
@@ -156,11 +162,14 @@ def _report_to_response(r: EmissionReport) -> EmissionReportResponse:
         document_evidence_id=r.document_evidence_id,
     )
 
-def calculate_scope_emissions(
+async def calculate_scope_emissions(
     req: List[CalculateScopeEmissionsRequest],
     user: AuthenticatedUser,
+    revenue_crore:float,
     db: Session,
 ) :
+    current_month=datetime.now(timezone.utc)
+    total_tco2e=0.0
     for data in req:
         emission_factor_repo=EmissionFactorRepository(db)
         
@@ -194,7 +203,52 @@ def calculate_scope_emissions(
                 audit_status="PENDING_AI_VERIFICATION",
                 created_by=uuid.UUID(user.user_id),
             ))
-
-        
+            total_tco2e+=tco2
     db.commit()
+    await calculate_monthly_brsr_score(user.organization_id,revenue_crore,total_tco2e,current_month,db)
     return {"message":"calculation successful"}
+
+
+def brsr_score(total_tco2e:float, revenue_cr:float, target_intensity:float ) ->float:
+    actual_intensity = total_tco2e / revenue_cr if revenue_cr > 0 else Decimal("0")
+    
+    # 3. Calculate Compliance Gap (Difference from Regulatory Goalpost)
+    # Negative gap = Under the limit (Green/Good)
+    # Positive gap = Over the limit (Liability/Needs Credits)
+    compliance_gap = actual_intensity - target_intensity
+    
+    # 4. Generate Score (0-100 scale where 100 is perfectly clean)
+    # Logic: If gap is 0 or negative, score is 100. If gap is positive, reduce score.
+    if compliance_gap <= 0:
+        compliance_score = 100.0
+    else:
+        # Example: Penalty reduction based on how far they exceeded the target
+        compliance_score = max(0, 100 - float((compliance_gap / target_intensity) * 100))
+
+    return compliance_score
+
+async def calculate_monthly_brsr_score(org_id:str, revenue_crore:float,new_tco2e:float,current_month:date,db:Session):
+    org=await get_org_by_id(org_id)
+    sector_benchmark=db.query(SectorBenchmarks).filter(or_(SectorBenchmarks.sector_name==org.industry_sector, SectorBenchmarks.sub_sector==org.industry_sector)).filter(SectorBenchmarks.year==current_month.year).first()
+    if not sector_benchmark:
+        return {"message":"benchmark not found"}
+    
+    monthly_emission_summary=db.query(MonthlyEmissionsSummary).filter(MonthlyEmissionsSummary.organization_id==org_id).filter(MonthlyEmissionsSummary.month_year==current_month).first()
+    if not monthly_emission_summary:
+        score=brsr_score(new_tco2e,revenue_crore,sector_benchmark.target_intensity)
+        db.add(MonthlyEmissionsSummary(
+            organization_id=org_id,
+            month_year=current_month,
+            total_monthly_tco2e=new_tco2e,
+            monthly_revenue_cr=revenue_crore,
+            calculated_score=score,
+            is_locked=False
+        ))
+    else:
+        monthly_emission_summary.total_monthly_tco2e+=new_tco2e
+        monthly_emission_summary.monthly_revenue_cr=revenue_crore
+        score=brsr_score(monthly_emission_summary.total_monthly_tco2e,monthly_emission_summary.monthly_revenue_cr,sector_benchmark.target_intensity)
+        monthly_emission_summary.calculated_score=score
+        monthly_emission_summary.updated_at=datetime.now(timezone.utc)
+        
+    

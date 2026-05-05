@@ -1,8 +1,40 @@
+# IndiCarbon AI-Agent Service — Python Dependencies
+# ─────────────────────────────────────────────────
+# Core Framework
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9          # Required for FastAPI file/form uploads
+
+# LangGraph + LangChain
+langgraph>=0.2.0
 langchain>=0.2.0
+langchain-core>=0.2.0
 langchain-community>=0.2.0
+langchain-ollama>=0.1.0          # Official Ollama integration (replaces langchain_community.llms.Ollama)
+
+# LangSmith (prompt hub + tracing)
+langsmith>=0.1.80
+
+# Langfuse (observability)
 langfuse>=2.30.0
+
+# HTTP client (for service registry calls)
 httpx>=0.27.0
+
+# Settings
+pydantic>=2.7.0
 pydantic-settings>=2.2.0
+
+# Document Parsing
+pdfplumber>=0.11.0               # PDF text extraction
+python-docx>=1.1.0               # DOCX parsing
+openpyxl>=3.1.0                  # XLSX parsing
+html2text>=2024.2.26             # HTML → plain text
+Pillow>=10.0.0                   # Image support (for OCR)
+# pytesseract                    # Uncomment if OCR needed (requires system tesseract)
+
+# Supabase
 supabase>=2.3.0
+
+# Typing backport
+typing-extensions>=4.9.0
