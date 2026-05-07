@@ -72,14 +72,15 @@ def list_factors(
 
 
 @router.post("/calculate_scope_emissions",response_model=schemas.Message, summary="Calculate and store scope emissions")
-def calculate_scope_emissions(
+async def calculate_scope_emissions(
+    revenue_crore:float,
     req:List[CalculateScopeEmissionsRequest],
     user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
         require_organization_access(user, user.organization_id)
-        return ghg_svc.calculate_scope_emissions(req,user, db)
+        return ghg_svc.calculate_scope_emissions(req,user,revenue_crore, db)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     

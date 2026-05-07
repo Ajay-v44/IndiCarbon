@@ -43,3 +43,29 @@ class EmissionReport(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     factor_used = relationship("EmissionFactor", back_populates="reports")
+
+
+class MonthlyEmissionsSummary(Base):
+    __tablename__ = "monthly_emissions_summary"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    month_year = Column(Date, nullable=False)
+    total_monthly_tco2e = Column(Numeric, nullable=False)
+    monthly_revenue_cr = Column(Numeric, nullable=False)
+    calculated_score = Column(Numeric, nullable=False)
+    is_locked = Column(Boolean, default=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class SectorBenchmarks(Base):
+    __tablename__ = "sector_benchmarks"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    sector_name = Column(String(100), nullable=False)
+    sub_sector = Column(String(100))
+    target_intensity = Column(Numeric, nullable=False)  
+    intensity_unit = Column(String(50)) 
+    compliance_year = Column(Integer)        
+    reduction_target_pct = Column(Numeric)  
+    is_ccts_obligated = Column(Boolean, default=False)   
+    regulatory_framework = Column(String(50))         
+    UNIQUE(sector_name, sub_sector, compliance_year)
