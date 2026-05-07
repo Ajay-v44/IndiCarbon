@@ -65,7 +65,7 @@ class AgentSettings(BaseSettings):
     )
     # host.docker.internal when running in Docker; localhost for local dev
     ollama_base_url: str = "http://host.docker.internal:11434"
-    ollama_llm_model: str = "qwen2.5:3b-instruct"
+    ollama_llm_model: str = "qwen2.5-coder:14b"
     ollama_embed_model: str = "nomic-embed-text"
 
     langfuse_secret_key: str

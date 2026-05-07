@@ -109,73 +109,36 @@ async def rate_limit(request: Request) -> None:
     pipe = redis.pipeline()
     pipe.incr(key)
     pipe.expire(key, settings.rate_limit_window_seconds)
-    results = await pipe.execute()
-    if results[0] > settings.rate_limit_requests:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Rate limit exceeded: {settings.rate_limit_requests} req/{settings.rate_limit_window_seconds}s",
-        )
+    try:
+        results = await pipe.execute()
+        if results[0] > settings.rate_limit_requests:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Rate limit exceeded: {settings.rate_limit_requests} req/{settings.rate_limit_window_seconds}s",
+            )
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        logger.warning(f"Redis rate limiting failed: {e}")
 
 
 # ─── JWT Auth (direct decode — fast path, no round-trip to auth service) ──────
 
 
-async def verify_jwt(request: Request) -> dict:
-    """
-    Validates the app JWT from Authorization header.
-    Uses direct decode for performance on every protected request.
-    The auth service is called only for login/register (public routes).
-    """
-    import jwt
-
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or malformed Authorization header.",
-        )
-    token = auth_header.removeprefix("Bearer ").strip()
-    try:
-        payload = jwt.decode(
-            token,
-            settings.app_jwt_secret,
-            algorithms=[settings.app_jwt_algorithm],
-            audience="authenticated",
-            issuer="indicarbon-auth",
-        )
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired.")
-    except jwt.InvalidTokenError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {exc}")
 
 
-# ─── Proxy Helper ─────────────────────────────────────────────────────────────
 
-
-async def _proxy(request: Request, upstream_url: str, strip_prefix: str, token_payload: dict) -> JSONResponse:
-    """Forwards request to internal service, injecting user context headers."""
+async def _proxy(request: Request, upstream_url: str) -> JSONResponse:
+    """Forwards request to internal service."""
     http: httpx.AsyncClient = request.app.state.http
-    path = request.url.path.removeprefix(strip_prefix)
     query = str(request.url.query)
-    target = f"{upstream_url}{path}" + (f"?{query}" if query else "")
+    target = f"{upstream_url}{request.url.path}" + (f"?{query}" if query else "")
     body = await request.body()
 
     headers = {
         k: v
         for k, v in request.headers.items()
-        if k.lower()
-        not in (
-            "x-user-id",
-            "x-user-email",
-            "x-user-roles",
-            "x-organization-ids",
-        )
     }
-    headers["X-User-ID"] = token_payload.get("sub", "")
-    headers["X-User-Email"] = token_payload.get("email", "")
-    headers["X-User-Roles"] = ",".join(token_payload.get("roles") or [])
-    headers["X-Organization-IDs"] = ",".join(token_payload.get("organization_ids") or [])
     headers["X-Request-ID"] = getattr(request.state, "request_id", "")
     for h in ("host", "content-length", "transfer-encoding"):
         headers.pop(h, None)
@@ -223,20 +186,9 @@ async def auth_proxy(request: Request, path: str):
         not in (
             "host",
             "content-length",
-            "x-user-id",
-            "x-user-email",
-            "x-user-roles",
-            "x-organization-ids",
         )
     }
     headers["X-Request-ID"] = getattr(request.state, "request_id", "")
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        token_payload = await verify_jwt(request)
-        headers["X-User-ID"] = token_payload.get("sub", "")
-        headers["X-User-Email"] = token_payload.get("email", "")
-        headers["X-User-Roles"] = ",".join(token_payload.get("roles") or [])
-        headers["X-Organization-IDs"] = ",".join(token_payload.get("organization_ids") or [])
 
     resp = await http.request(method=request.method, url=target, headers=headers, content=body)
     return JSONResponse(content=resp.json(), status_code=resp.status_code)
@@ -251,8 +203,8 @@ async def auth_proxy(request: Request, path: str):
     tags=["Users"],
     dependencies=[Depends(rate_limit)],
 )
-async def users_proxy(request: Request, path: str, token_payload: dict = Depends(verify_jwt)):
-    return await _proxy(request, settings.auth_service_url, "/api/v1/users", token_payload)
+async def users_proxy(request: Request, path: str):
+    return await _proxy(request, settings.auth_service_url)
 
 
 @app.api_route(
@@ -261,8 +213,8 @@ async def users_proxy(request: Request, path: str, token_payload: dict = Depends
     tags=["Organizations"],
     dependencies=[Depends(rate_limit)],
 )
-async def organizations_proxy(request: Request, path: str, token_payload: dict = Depends(verify_jwt)):
-    return await _proxy(request, settings.auth_service_url, "/api/v1/organizations", token_payload)
+async def organizations_proxy(request: Request, path: str):
+    return await _proxy(request, settings.auth_service_url)
 
 
 # ─── Compliance Service ───────────────────────────────────────────────────────
@@ -274,8 +226,8 @@ async def organizations_proxy(request: Request, path: str, token_payload: dict =
     tags=["Compliance"],
     dependencies=[Depends(rate_limit)],
 )
-async def compliance_proxy(request: Request, path: str, token_payload: dict = Depends(verify_jwt)):
-    return await _proxy(request, settings.compliance_service_url, "/api/v1/compliance", token_payload)
+async def compliance_proxy(request: Request, path: str):
+    return await _proxy(request, settings.compliance_service_url)
 
 
 # ─── Marketplace Service ──────────────────────────────────────────────────────
@@ -287,8 +239,8 @@ async def compliance_proxy(request: Request, path: str, token_payload: dict = De
     tags=["Marketplace"],
     dependencies=[Depends(rate_limit)],
 )
-async def marketplace_proxy(request: Request, path: str, token_payload: dict = Depends(verify_jwt)):
-    return await _proxy(request, settings.marketplace_service_url, "/api/v1/marketplace", token_payload)
+async def marketplace_proxy(request: Request, path: str):
+    return await _proxy(request, settings.marketplace_service_url)
 
 
 # ─── AI Agent Service ─────────────────────────────────────────────────────────
@@ -300,5 +252,5 @@ async def marketplace_proxy(request: Request, path: str, token_payload: dict = D
     tags=["AI Agent"],
     dependencies=[Depends(rate_limit)],
 )
-async def ai_agent_proxy(request: Request, path: str, token_payload: dict = Depends(verify_jwt)):
-    return await _proxy(request, settings.ai_agent_service_url, "/api/v1/ai", token_payload)
+async def ai_agent_proxy(request: Request, path: str):
+    return await _proxy(request, settings.ai_agent_service_url)

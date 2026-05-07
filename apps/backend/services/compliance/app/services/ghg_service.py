@@ -1,8 +1,8 @@
 from datetime import timezone
 from datetime import datetime
-from apps.backend.services.compliance.app.models.emission import MonthlyEmissionsSummary
-from apps.backend.services.compliance.app.models.emission import SectorBenchmarks
-from apps.backend.services.compliance.app.registry.auth_registry import get_org_by_id
+from ..models.emission import MonthlyEmissionsSummary
+from ..models.emission import SectorBenchmarks
+from ..registry.auth_registry import get_org_by_id
 from typing import List
 
 import logging
@@ -25,7 +25,7 @@ from ..schemas.emission import (
     GHGScope,
 )
 from shared_logic.schemas.compilance_schema import CalculateScopeEmissionsRequest
-from shared_logic.auth.dependencies import AuthenticatedUser
+from shared_logic.auth import AuthenticatedUser
 logger = logging.getLogger(__name__)
 
 _DEFAULT_FACTORS: dict[str, Decimal] = {
@@ -229,7 +229,7 @@ def brsr_score(total_tco2e:float, revenue_cr:float, target_intensity:float ) ->f
 
 async def calculate_monthly_brsr_score(org_id:str, revenue_crore:float,new_tco2e:float,current_month:date,db:Session):
     org=await get_org_by_id(org_id)
-    sector_benchmark=db.query(SectorBenchmarks).filter(or_(SectorBenchmarks.sector_name==org.industry_sector, SectorBenchmarks.sub_sector==org.industry_sector)).filter(SectorBenchmarks.year==current_month.year).first()
+    sector_benchmark=db.query(SectorBenchmarks).filter(or_(SectorBenchmarks.sector_name==org.industry_sector, SectorBenchmarks.sub_sector==org.industry_sector)).filter(SectorBenchmarks.compliance_year==current_month.year).first()
     if not sector_benchmark:
         return {"message":"benchmark not found"}
     

@@ -19,7 +19,7 @@ In production, load prompts like this:
 
     from langsmith import Client
     client = Client()
-    prompt = client.pull_prompt("indicarbon/emission-extraction-system")
+    prompt = client.pull_prompt("indicarbon-emission-extraction")
 
 For now, the constants below serve as the authoritative source of truth
 and should be pushed to LangSmith via push_prompts_to_langsmith().
@@ -138,13 +138,13 @@ def push_prompts_to_langsmith() -> None:
             SystemMessagePromptTemplate.from_template(EMISSION_EXTRACTION_SYSTEM),
             HumanMessagePromptTemplate.from_template(EMISSION_EXTRACTION_USER),
         ])
-        client.push_prompt("indicarbon/emission-extraction", object=extraction_prompt)
+        client.push_prompt("indicarbon-emission-extraction", object=extraction_prompt)
 
         validation_prompt = ChatPromptTemplate.from_messages([
             SystemMessagePromptTemplate.from_template(VALIDATION_SUMMARY_SYSTEM),
             HumanMessagePromptTemplate.from_template(VALIDATION_SUMMARY_USER),
         ])
-        client.push_prompt("indicarbon/emission-validation-summary", object=validation_prompt)
+        client.push_prompt("indicarbon-emission-validation-summary", object=validation_prompt)
 
         print("[OK] Prompts pushed to LangSmith Hub successfully.")
     except Exception as exc:

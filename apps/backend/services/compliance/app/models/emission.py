@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -68,4 +68,4 @@ class SectorBenchmarks(Base):
     reduction_target_pct = Column(Numeric)  
     is_ccts_obligated = Column(Boolean, default=False)   
     regulatory_framework = Column(String(50))         
-    UNIQUE(sector_name, sub_sector, compliance_year)
+    __table_args__ = (UniqueConstraint('sector_name', 'sub_sector', 'compliance_year'),)

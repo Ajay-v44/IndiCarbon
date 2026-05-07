@@ -15,7 +15,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # Resolve the backend root (4 levels up: settings → config → app → ai-agent → services → backend)
 _HERE = pathlib.Path(__file__).resolve()
 _SERVICE_ROOT = _HERE.parent.parent.parent            # .../ai-agent/
-_BACKEND_ROOT = _SERVICE_ROOT.parent.parent.parent    # .../backend/
+_BACKEND_ROOT = _SERVICE_ROOT.parent.parent           # .../backend/
 _ENVS = _BACKEND_ROOT / ".envs"
 
 
@@ -30,6 +30,7 @@ class Settings(BaseSettings):
             str(_ENVS / ".services.env"),
             str(_ENVS / ".langfuse.env"),
             str(_ENVS / ".supabase.env"),
+            str(_ENVS / ".langsmith.env"),
         ],
         extra="ignore",
     )
@@ -37,7 +38,7 @@ class Settings(BaseSettings):
     # ── Ollama ────────────────────────────────────────────────────────────────
     # Use http://localhost:11434 for local dev; host.docker.internal for Docker
     ollama_base_url: str = "http://localhost:11434"
-    ollama_llm_model: str = "qwen2.5:3b-instruct"
+    ollama_llm_model: str = "qwen2.5-coder:14b"
     ollama_embed_model: str = "nomic-embed-text"
     ollama_temperature: float = 0.1
     ollama_num_predict: int = 2048
@@ -51,7 +52,7 @@ class Settings(BaseSettings):
     # ── LangSmith ────────────────────────────────────────────────────────────
     langsmith_api_key: str = ""
     langsmith_endpoint: str = "https://api.smith.langchain.com"
-    langsmith_project: str = "IndiCarbon-AI-Agent"
+    langsmith_project: str = "IndiCarbon"
     langchain_tracing_v2: bool = True
 
     # ── Downstream Services ───────────────────────────────────────────────────

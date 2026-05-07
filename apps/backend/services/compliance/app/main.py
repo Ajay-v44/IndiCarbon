@@ -28,7 +28,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="IndiCarbon — Compliance Service",
         version=settings.app_version,
-        docs_url="/docs",
+        docs_url="/api/docs",
         redoc_url=None,
         openapi_url="/openapi.json",
         lifespan=lifespan,
