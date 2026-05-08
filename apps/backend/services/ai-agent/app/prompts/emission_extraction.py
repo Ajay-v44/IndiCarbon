@@ -134,18 +134,30 @@ def push_prompts_to_langsmith() -> None:
 
         client = Client()
 
-        extraction_prompt = ChatPromptTemplate.from_messages([
-            SystemMessagePromptTemplate.from_template(EMISSION_EXTRACTION_SYSTEM),
-            HumanMessagePromptTemplate.from_template(EMISSION_EXTRACTION_USER),
-        ])
-        client.push_prompt("indicarbon-emission-extraction", object=extraction_prompt)
+        # List of prompts to push
+        prompts_to_push = {
+            "indicarbon/indicarbon-emission-extraction": ChatPromptTemplate.from_messages([
+                SystemMessagePromptTemplate.from_template(EMISSION_EXTRACTION_SYSTEM),
+                HumanMessagePromptTemplate.from_template(EMISSION_EXTRACTION_USER),
+            ]),
+            "indicarbon/indicarbon-emission-validation-summary": ChatPromptTemplate.from_messages([
+                SystemMessagePromptTemplate.from_template(VALIDATION_SUMMARY_SYSTEM),
+                HumanMessagePromptTemplate.from_template(VALIDATION_SUMMARY_USER),
+            ]),
+            "indicarbon/indicarbon-auditor-agent": ChatPromptTemplate.from_template(AUDITOR_SYSTEM),
+            "indicarbon/indicarbon-strategist-agent": ChatPromptTemplate.from_template(STRATEGIST_SYSTEM),
+        }
 
-        validation_prompt = ChatPromptTemplate.from_messages([
-            SystemMessagePromptTemplate.from_template(VALIDATION_SUMMARY_SYSTEM),
-            HumanMessagePromptTemplate.from_template(VALIDATION_SUMMARY_USER),
-        ])
-        client.push_prompt("indicarbon-emission-validation-summary", object=validation_prompt)
+        for name, prompt_obj in prompts_to_push.items():
+            try:
+                client.push_prompt(name, object=prompt_obj)
+                print(f"[OK] Prompt '{name}' pushed to LangSmith Hub.")
+            except Exception as e:
+                if "Nothing to commit" in str(e) or "409" in str(e):
+                    print(f"[INFO] Prompt '{name}' is already up to date.")
+                else:
+                    print(f"[WARN] Failed to push '{name}': {e}")
 
-        print("[OK] Prompts pushed to LangSmith Hub successfully.")
+        print("[OK] LangSmith prompt sync complete.")
     except Exception as exc:
         print(f"[WARN] Failed to push prompts to LangSmith: {exc}")
