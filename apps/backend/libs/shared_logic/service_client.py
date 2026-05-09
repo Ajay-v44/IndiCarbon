@@ -143,7 +143,7 @@ class ServiceClient:
                     "X-User-ID": str(user.id),
                     "X-User-Email": user.email or "",
                     "X-User-Roles": ",".join(user.roles),
-                    "X-Organization-IDs": ",".join(str(org_id) for org_id in user.organization_ids),
+                    "X-Organization-ID": str(user.organization_id) if user.organization_id else "",
                 }
             )
         return outgoing

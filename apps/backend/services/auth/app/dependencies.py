@@ -6,14 +6,23 @@ import jwt
 from .config import settings
 
 
-def get_requesting_user(x_user_id: str = Header(default="")) -> str:
-    """Extract authenticated user ID injected by the gateway."""
-    if not x_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No user context provided.",
-        )
-    return x_user_id
+def get_requesting_user(
+    x_user_id: str = Header(default=""),
+    authorization: str = Header(default=""),
+) -> str:
+    """
+    Resolve the authenticated user.
+    External callers send Authorization: Bearer <token>; the gateway may also
+    pass X-User-ID after it verifies the token.
+    """
+    if x_user_id:
+        return x_user_id
+
+    payload = verify_token_payload(authorization)
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
+    return str(user_id)
 
 
 def verify_token_payload(authorization: str = Header(default="")) -> dict:

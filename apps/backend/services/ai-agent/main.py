@@ -30,7 +30,6 @@ from app.config.observability import configure_langsmith, get_langfuse_client
 from app.config.settings import get_settings
 from app.graph.document_graph import get_document_analysis_graph
 from app.api.routes import router
-from app.prompts.emission_extraction import push_prompts_to_langsmith
 
 # ─── Logging setup ────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -53,7 +52,6 @@ async def lifespan(app: FastAPI):
       - Configure LangSmith tracing.
       - Pre-compile the LangGraph graph (avoids cold-start latency on first request).
       - Verify Langfuse connectivity.
-      - Push prompts to LangSmith Hub (idempotent).
 
     Shutdown:
       - Flush remaining Langfuse traces.
@@ -76,11 +74,6 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Langfuse connectivity check failed (non-fatal): %s", exc)
 
-    # 4. Push prompts to LangSmith (background, non-blocking)
-    try:
-        push_prompts_to_langsmith()
-    except Exception as exc:
-        logger.warning("LangSmith prompt push failed (non-fatal): %s", exc)
 
     s = get_settings()
     logger.info(

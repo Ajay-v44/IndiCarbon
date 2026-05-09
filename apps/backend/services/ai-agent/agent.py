@@ -30,7 +30,7 @@ from typing import Any, Type
 
 import httpx
 from langchain.agents import AgentExecutor, create_react_agent
-from langchain.prompts import PromptTemplate
+from langchain.prompts import PromptTemplate, ChatPromptTemplate
 from langchain.tools import BaseTool
 from langchain_community.llms import Ollama
 from langfuse import Langfuse
@@ -40,6 +40,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from shared_logic import ServiceName, get_service_client
 from shared_logic.paths import backend_root
 from shared_logic.supabase_client import VectorRepository
+from .app.prompts.emission_extraction import get_auditor_prompt, get_strategist_prompt
 
 logging.basicConfig(
     level=logging.INFO,
@@ -275,61 +276,6 @@ class VectorSearchTool(BaseTool):
 # ─── Prompt Templates ─────────────────────────────────────────────────────────
 
 
-AUDITOR_PROMPT = PromptTemplate.from_template("""
-You are the IndiCarbon AI Auditor Agent — an expert in GHG Protocol (ISO 14064),
-SEBI BRSR reporting, and Indian carbon market regulations.
-
-Your job is to:
-1. Audit the organisation's GHG data for accuracy and completeness.
-2. Identify gaps in Scope 1, 2, or 3 reporting.
-3. Flag anomalies or unusually high emission intensities.
-4. Recommend corrective actions to achieve BRSR compliance.
-
-You have access to the following tools:
-{tools}
-
-Use the ReAct framework. Think step by step before using tools.
-
-Tool names: {tool_names}
-
-Organisation Context:
-- Query: {input}
-- Fiscal Year: Infer from query or ask.
-- Organisation ID: Infer from query or ask.
-
-Scratchpad:
-{agent_scratchpad}
-""")
-
-STRATEGIST_PROMPT = PromptTemplate.from_template("""
-You are the IndiCarbon AI Strategist Agent — a carbon market expert specialising in
-Indian carbon credit markets, PAT scheme, REC markets, and global voluntary carbon standards
-(Verra VCS, Gold Standard, CDM).
-
-Your job is to:
-1. Analyse the organisation's emission profile.
-2. Recommend decarbonisation pathways (renewable energy, efficiency, etc.).
-3. Suggest carbon credit purchase strategies to achieve net-zero targets.
-4. Provide cost-benefit analysis for different offset options.
-
-You have access to the following tools:
-{tools}
-
-Use the ReAct framework. Think step by step before using tools.
-
-Tool names: {tool_names}
-
-Organisation Context:
-- Query: {input}
-
-Scratchpad:
-{agent_scratchpad}
-""")
-
-AGENT_PROMPTS = {
-    "auditor": AUDITOR_PROMPT,
-    "strategist": STRATEGIST_PROMPT,
-}
 
 
 # ─── Agent Factory ────────────────────────────────────────────────────────────
@@ -362,7 +308,10 @@ class IndiCarbonAgentFactory:
         )
 
     def build_executor(self, agent_type: str) -> AgentExecutor:
-        prompt = AGENT_PROMPTS.get(agent_type, AUDITOR_PROMPT)
+        if agent_type == "strategist":
+            prompt = get_strategist_prompt()
+        else:
+            prompt = get_auditor_prompt()
         agent = create_react_agent(self._llm, self._tools, prompt)
         return AgentExecutor(
             agent=agent,

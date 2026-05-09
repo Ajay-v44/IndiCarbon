@@ -1,6 +1,6 @@
-from fastapi import Header
+from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
 from shared_logic import ApiResponse, get_db, get_supabase_client
@@ -14,11 +14,19 @@ router = APIRouter()
 
 @router.get("/me", response_model=ApiResponse[UserProfile], summary="Get authenticated user's profile")
 def get_own_profile(
-    token: str,
+    token: Optional[str] = None,
+    authorization: str = Header(default=""),
+    x_user_id: str = Header(default=""),
     db: Session = Depends(get_db),
 ) -> ApiResponse[UserProfile]:
     supabase_admin = get_supabase_client(use_service_role=True)
-    profile = auth_svc.get_user_profile(token, db, supabase_admin)
+    if x_user_id:
+        profile = auth_svc.get_visible_user_profile(x_user_id, x_user_id, db, supabase_admin)
+    elif token:
+        profile = auth_svc.get_user_profile(token, db, supabase_admin)
+    else:
+        requesting_user = get_requesting_user(authorization=authorization)
+        profile = auth_svc.get_visible_user_profile(requesting_user, requesting_user, db, supabase_admin)
     return ApiResponse(data=profile)
 
 

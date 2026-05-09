@@ -64,7 +64,6 @@ def generate_brsr(
 @router.get("/factors", response_model=ApiResponse[list], summary="List active emission factors")
 def list_factors(
     vintage_year: Optional[int] = Query(None),
-    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ApiResponse[list]:
     factors = ghg_svc.list_emission_factors(vintage_year, db)
@@ -74,13 +73,14 @@ def list_factors(
 @router.post("/calculate_scope_emissions",response_model=schemas.Message, summary="Calculate and store scope emissions")
 async def calculate_scope_emissions(
     revenue_crore:float,
+    document_id:str,
     req:List[CalculateScopeEmissionsRequest],
     user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
         require_organization_access(user, user.organization_id)
-        return ghg_svc.calculate_scope_emissions(req,user,revenue_crore, db)
+        return ghg_svc.calculate_scope_emissions(req,user,revenue_crore,document_id, db)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     

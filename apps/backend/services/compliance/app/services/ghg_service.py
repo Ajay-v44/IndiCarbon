@@ -166,6 +166,7 @@ async def calculate_scope_emissions(
     req: List[CalculateScopeEmissionsRequest],
     user: AuthenticatedUser,
     revenue_crore:float,
+    document_id:str,
     db: Session,
 ) :
     current_month=datetime.now(timezone.utc)
@@ -184,7 +185,7 @@ async def calculate_scope_emissions(
             activity_unit="None",
             calculated_tco2e=None,
             factor_used_id=None,
-            document_evidence_id=data.document_id,
+            document_evidence_id=document_id,
             audit_status="MISSING_FACTOR",
             created_by=uuid.UUID(user.user_id),
            ))
@@ -199,7 +200,7 @@ async def calculate_scope_emissions(
                 activity_unit=data.activity_unit,
                 calculated_tco2e=tco2,
                 factor_used_id=factor_rec.id,
-                document_evidence_id=data.document_id,
+                document_evidence_id=document_id,
                 audit_status="PENDING_AI_VERIFICATION",
                 created_by=uuid.UUID(user.user_id),
             ))

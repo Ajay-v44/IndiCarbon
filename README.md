@@ -133,6 +133,8 @@ Docker will automatically start Redis, all 3 microservices, the API Gateway, and
 | 🧪 Compliance Docs | http://localhost:8001/docs *(internal)* |
 | 🛒 Marketplace Docs | http://localhost:8002/docs *(internal)* |
 | 🤖 AI Agent Docs | http://localhost:8003/docs *(internal)* |
+| 🔧 Auth Service | http://localhost:8004/docs *(internal)* |
+
 
 ---
 

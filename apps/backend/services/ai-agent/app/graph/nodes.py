@@ -29,10 +29,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from ..config.settings import get_settings
 from ..parsers.document_parser import parse_document
 from ..prompts.emission_extraction import (
-    EMISSION_EXTRACTION_SYSTEM,
-    EMISSION_EXTRACTION_USER,
-    VALIDATION_SUMMARY_SYSTEM,
-    VALIDATION_SUMMARY_USER,
+    get_extraction_prompt,
+    get_validation_summary_prompt,
 )
 from ..registry.compliance_registry import calculate_scope_emissions_api
 from .state import AgentState
@@ -124,19 +122,15 @@ async def extract_emissions_node(state: AgentState) -> Dict[str, Any]:
 
     llm = _get_llm()
 
-    user_message = EMISSION_EXTRACTION_USER.format(
-        document_text=raw_text[:80_000],  # Safety limit per LLM call
-        fiscal_year=state.get("fiscal_year") or "unknown",
-        organization_id=state.get("organization_id", ""),
-    )
-
-    messages = [
-        SystemMessage(content=EMISSION_EXTRACTION_SYSTEM),
-        HumanMessage(content=user_message),
-    ]
+    prompt = get_extraction_prompt()
+    chain = prompt | llm
 
     try:
-        raw_output: str = await llm.ainvoke(messages)
+        raw_output: str = await chain.ainvoke({
+            "document_text": raw_text[:80_000],
+            "fiscal_year": state.get("fiscal_year") or "unknown",
+            "organization_id": state.get("organization_id", ""),
+        })
         logger.info("[%s] LLM extraction response: %d chars", state["run_id"], len(raw_output))
 
         emission_items = _parse_llm_json_response(raw_output, state["run_id"])
@@ -355,20 +349,16 @@ async def summarise_node(state: AgentState) -> Dict[str, Any]:
     items_json = json.dumps(state.get("validated_items", []), indent=2, default=str)
     compliance_json = json.dumps(state.get("compliance_result", {}), indent=2, default=str)
 
-    user_message = VALIDATION_SUMMARY_USER.format(
-        emission_items_json=items_json[:5000],
-        compliance_result=compliance_json[:3000],
-        organization_id=state.get("organization_id", ""),
-        fiscal_year=state.get("fiscal_year") or "unknown",
-    )
-
-    messages = [
-        SystemMessage(content=VALIDATION_SUMMARY_SYSTEM),
-        HumanMessage(content=user_message),
-    ]
+    prompt = get_validation_summary_prompt()
+    chain = prompt | llm
 
     try:
-        summary: str = await llm.ainvoke(messages)
+        summary: str = await chain.ainvoke({
+            "emission_items_json": items_json[:5000],
+            "compliance_result": compliance_json[:3000],
+            "organization_id": state.get("organization_id", ""),
+            "fiscal_year": state.get("fiscal_year") or "unknown",
+        })
         logger.info("[%s] Summary generated: %d chars", state["run_id"], len(summary))
         return {"summary": summary.strip(), "graph_steps": steps, "errors": errors}
 

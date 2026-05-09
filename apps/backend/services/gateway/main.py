@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import pathlib
 from contextlib import asynccontextmanager
+from typing import Any
 
 import httpx
 import redis.asyncio as aioredis
@@ -122,9 +123,94 @@ async def rate_limit(request: Request) -> None:
         logger.warning(f"Redis rate limiting failed: {e}")
 
 
-# ─── JWT Auth (direct decode — fast path, no round-trip to auth service) ──────
+# ─── Auth Policy ──────────────────────────────────────────────────────────────
 
 
+PUBLIC_ROUTES: set[tuple[str, str]] = {
+    ("POST", "/api/v1/auth/register"),
+    ("POST", "/api/v1/auth/login"),
+    ("POST", "/api/v1/auth/refresh"),
+    ("POST", "/api/v1/auth/verify"),
+    ("GET", "/api/v1/auth/roles"),
+    ("GET", "/api/v1/emissions/factors"),
+}
+
+
+def _bearer_token(request: Request) -> str:
+    authorization = request.headers.get("Authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or malformed Authorization header.",
+        )
+    return token.strip()
+
+
+async def _verify_token(request: Request) -> dict[str, Any]:
+    http: httpx.AsyncClient = request.app.state.http
+    token = _bearer_token(request)
+    try:
+        resp = await http.post(f"{settings.auth_service_url}/api/v1/auth/verify", json={"token": token})
+    except httpx.HTTPError as exc:
+        logger.warning("Token verification request failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service unavailable.",
+        )
+    if resp.status_code == status.HTTP_401_UNAUTHORIZED:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token.")
+    if resp.status_code >= 400:
+        logger.warning("Token verification failed with status %s: %s", resp.status_code, resp.text)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service unavailable.",
+        )
+    payload = resp.json().get("data") or {}
+    if not payload.get("valid") or not payload.get("user_id"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token.")
+    return payload
+
+
+async def require_auth(request: Request) -> None:
+    request.state.auth_context = await _verify_token(request)
+
+
+async def require_auth_unless_public(request: Request) -> None:
+    if (request.method.upper(), request.url.path.rstrip("/")) in PUBLIC_ROUTES:
+        return
+    await require_auth(request)
+
+
+def _forward_headers(request: Request) -> dict[str, str]:
+    excluded_headers = {
+        "host",
+        "content-length",
+        "transfer-encoding",
+        "x-user-id",
+        "x-user-email",
+        "x-user-roles",
+        "x-organization-id",
+        "x-organization-ids",
+    }
+    headers = {
+        k: v
+        for k, v in request.headers.items()
+        if k.lower() not in excluded_headers
+    }
+
+    headers["X-Request-ID"] = getattr(request.state, "request_id", "")
+    auth_context = getattr(request.state, "auth_context", None)
+    if auth_context:
+        headers["X-User-ID"] = str(auth_context["user_id"])
+        headers["X-User-Email"] = auth_context.get("email") or ""
+        headers["X-User-Roles"] = ",".join(auth_context.get("roles") or [])
+        organization_id = auth_context.get("organization_id")
+        organization_ids = auth_context.get("organization_ids") or []
+        if not organization_id and organization_ids:
+            organization_id = organization_ids[0]
+        headers["X-Organization-ID"] = str(organization_id) if organization_id else ""
+    return headers
 
 
 
@@ -135,13 +221,7 @@ async def _proxy(request: Request, upstream_url: str) -> JSONResponse:
     target = f"{upstream_url}{request.url.path}" + (f"?{query}" if query else "")
     body = await request.body()
 
-    headers = {
-        k: v
-        for k, v in request.headers.items()
-    }
-    headers["X-Request-ID"] = getattr(request.state, "request_id", "")
-    for h in ("host", "content-length", "transfer-encoding"):
-        headers.pop(h, None)
+    headers = _forward_headers(request)
 
     resp = await http.request(method=request.method, url=target, headers=headers, content=body)
     return JSONResponse(
@@ -166,29 +246,19 @@ async def health():
     "/api/v1/auth/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     tags=["Auth"],
-    dependencies=[Depends(rate_limit)],
+    dependencies=[Depends(rate_limit), Depends(require_auth_unless_public)],
 )
 async def auth_proxy(request: Request, path: str):
     """
-    Public gateway to the Auth Service.
-    Login, register, refresh, roles, and token verify do NOT require a JWT.
-    If a JWT is provided, user context is injected for protected auth actions
-    such as role assignment.
+    Gateway to the Auth Service.
+    Public auth endpoints are allowlisted; all other auth endpoints require
+    a verified token and receive gateway-injected user context.
     """
     http: httpx.AsyncClient = request.app.state.http
     query = str(request.url.query)
     target = f"{settings.auth_service_url}/api/v1/auth/{path}" + (f"?{query}" if query else "")
     body = await request.body()
-    headers = {
-        k: v
-        for k, v in request.headers.items()
-        if k.lower()
-        not in (
-            "host",
-            "content-length",
-        )
-    }
-    headers["X-Request-ID"] = getattr(request.state, "request_id", "")
+    headers = _forward_headers(request)
 
     resp = await http.request(method=request.method, url=target, headers=headers, content=body)
     return JSONResponse(content=resp.json(), status_code=resp.status_code)
@@ -201,7 +271,7 @@ async def auth_proxy(request: Request, path: str):
     "/api/v1/users/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     tags=["Users"],
-    dependencies=[Depends(rate_limit)],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
 )
 async def users_proxy(request: Request, path: str):
     return await _proxy(request, settings.auth_service_url)
@@ -211,7 +281,7 @@ async def users_proxy(request: Request, path: str):
     "/api/v1/organizations/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     tags=["Organizations"],
-    dependencies=[Depends(rate_limit)],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
 )
 async def organizations_proxy(request: Request, path: str):
     return await _proxy(request, settings.auth_service_url)
@@ -224,9 +294,19 @@ async def organizations_proxy(request: Request, path: str):
     "/api/v1/compliance/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     tags=["Compliance"],
-    dependencies=[Depends(rate_limit)],
+    dependencies=[Depends(rate_limit), Depends(require_auth_unless_public)],
 )
 async def compliance_proxy(request: Request, path: str):
+    return await _proxy(request, settings.compliance_service_url)
+
+
+@app.api_route(
+    "/api/v1/emissions/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    tags=["Compliance"],
+    dependencies=[Depends(rate_limit), Depends(require_auth_unless_public)],
+)
+async def emissions_proxy(request: Request, path: str):
     return await _proxy(request, settings.compliance_service_url)
 
 
@@ -237,7 +317,7 @@ async def compliance_proxy(request: Request, path: str):
     "/api/v1/marketplace/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     tags=["Marketplace"],
-    dependencies=[Depends(rate_limit)],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
 )
 async def marketplace_proxy(request: Request, path: str):
     return await _proxy(request, settings.marketplace_service_url)
@@ -250,7 +330,7 @@ async def marketplace_proxy(request: Request, path: str):
     "/api/v1/ai/{path:path}",
     methods=["GET", "POST"],
     tags=["AI Agent"],
-    dependencies=[Depends(rate_limit)],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
 )
 async def ai_agent_proxy(request: Request, path: str):
     return await _proxy(request, settings.ai_agent_service_url)
