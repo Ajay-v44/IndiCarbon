@@ -2,7 +2,7 @@
 libs/shared-logic/__init__.py
 Public surface of the shared library — imported by all microservices.
 """
-from .auth import AuthenticatedUser, get_current_user, get_requesting_user, require_organization_access
+from .auth import AuthenticatedUser, get_current_user, require_organization_access
 from .middleware import register_middleware
 from .service_client import (
     ServiceClient,
@@ -64,7 +64,6 @@ __all__ = [
     # Auth context
     "AuthenticatedUser",
     "get_current_user",
-    "get_requesting_user",
     "require_organization_access",
     # Service discovery/client
     "ServiceClient",

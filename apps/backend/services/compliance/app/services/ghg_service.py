@@ -187,7 +187,7 @@ async def calculate_scope_emissions(
             factor_used_id=None,
             document_evidence_id=document_id,
             audit_status="MISSING_FACTOR",
-            created_by=uuid.UUID(user.user_id),
+            created_by=user.id,
            ))
         else:
             tco2=data.raw_quantity * factor_rec.factor_value / Decimal("1000")
@@ -202,7 +202,7 @@ async def calculate_scope_emissions(
                 factor_used_id=factor_rec.id,
                 document_evidence_id=document_id,
                 audit_status="PENDING_AI_VERIFICATION",
-                created_by=uuid.UUID(user.user_id),
+                created_by=user.id,
             ))
             total_tco2e+=tco2
     db.commit()
