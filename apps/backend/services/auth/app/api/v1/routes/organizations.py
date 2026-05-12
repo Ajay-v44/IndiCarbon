@@ -3,9 +3,7 @@ from fastapi import HTTPException
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from shared_logic import ApiResponse, get_db
-
-from ....dependencies import AuthenticatedUser, get_current_user
+from shared_logic import ApiResponse, get_db, AuthenticatedUser, get_current_user
 from ....schemas.organization import OrganizationCreate, OrganizationResponse
 from ....services import organization_service as org_svc
 import logging

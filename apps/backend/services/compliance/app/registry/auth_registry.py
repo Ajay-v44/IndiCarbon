@@ -11,4 +11,4 @@ async def get_org_by_id(user_id:str,org_id:str)->OrganizationResponse:
             "x-user-id": user_id,
         }
     )
-    return response
+    return OrganizationResponse(**response.get("data", response))

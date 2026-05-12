@@ -80,7 +80,7 @@ async def calculate_scope_emissions(
 ):
     try:
         require_organization_access(user, user.organization_id)
-        return ghg_svc.calculate_scope_emissions(req,user,revenue_crore,document_id, db)
+        return await ghg_svc.calculate_scope_emissions(req,user,revenue_crore,document_id, db)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     
