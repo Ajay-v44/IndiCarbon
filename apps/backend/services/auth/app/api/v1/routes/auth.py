@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from shared_logic import ApiResponse, get_db, get_supabase_client
 
-from ....dependencies import get_requesting_user
+from ....dependencies import AuthenticatedUser, get_current_user
 from ....schemas.auth import (
     AssignRoleRequest,
     LoginRequest,
@@ -68,11 +68,11 @@ def verify(
 @router.post("/roles/assign", response_model=ApiResponse[dict], summary="Assign RBAC role (admin only)")
 def assign_role(
     req: AssignRoleRequest,
-    requesting_user: str = Depends(get_requesting_user),
+    user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ApiResponse[dict]:
     result = auth_svc.assign_role_as_admin(
-        requesting_user,
+        str(user.id),
         str(req.user_id),
         req.role_name,
         str(req.organization_id) if req.organization_id else None,

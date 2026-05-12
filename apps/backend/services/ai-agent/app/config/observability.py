@@ -78,18 +78,8 @@ def build_langfuse_handler(
     Returns:
         A LangfuseCallbackHandler ready to be passed to graph.invoke() config.
     """
-    s = get_settings()
-    return LangfuseCallbackHandler(
-        secret_key=s.langfuse_secret_key,
-        public_key=s.langfuse_public_key,
-        host=s.langfuse_host,
-        trace_name=f"indicarbon.{agent_type}",
-        session_id=run_id,
-        user_id=organization_id,
-        tags=["indicarbon", agent_type, "production"],
-        metadata={
-            "agent_type": agent_type,
-            "model": s.ollama_llm_model,
-            "organization_id": organization_id,
-        },
-    )
+    # Langfuse v4+ CallbackHandler doesn't take these in __init__.
+    # It reads credentials from os.environ.
+    # The session_id and user_id should be passed in via LangChain's metadata config
+    # (e.g. langfuse_session_id, langfuse_user_id)
+    return LangfuseCallbackHandler()

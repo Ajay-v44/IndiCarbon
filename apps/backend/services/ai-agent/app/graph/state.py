@@ -11,7 +11,15 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 from typing_extensions import TypedDict
+from langgraph.graph import MessagesState
 
+class AuditorState(MessagesState):
+    """
+    Working Memory state schema (JSON).
+    Stores the 'current_factor' so it can skip tool calls.
+    """
+    current_factor: Optional[Dict[str, Any]]
+    remaining_steps: int
 
 class AgentState(TypedDict, total=False):
     """

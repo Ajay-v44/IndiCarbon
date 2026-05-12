@@ -16,7 +16,8 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status, Depends
+from shared_logic import AuthenticatedUser, get_current_user
 
 from ..schemas.agent_schemas import DocumentAnalysisResult
 from ..services.document_analysis_service import run_document_analysis
@@ -49,23 +50,17 @@ async def health() -> dict:
     description="""
 Upload any sustainability/ESG document (PDF, DOCX, Excel, CSV, HTML, image).
 
-The LangGraph pipeline will:
+The agent will use tools to:
 1. Parse the document into plain text.
-2. Use an LLM (via Ollama) to extract all quantified emission activities.
-3. Validate and normalise the extracted items.
-4. Submit them to the Compliance Service calculate_scope_emissions API.
-5. Generate a human-readable audit summary.
-
-All steps are traced in Langfuse and LangSmith.
+2. Find the fiscal year from the text.
+3. Call emission factors API.
+4. Call calculate emissions API.
     """,
 )
 async def analyse_document(
     file: UploadFile = File(..., description="Sustainability/ESG document to analyse"),
-    organization_id: str = Form(..., description="UUID of the requesting organisation"),
-    document_id: Optional[str] = Form(None, description="Pre-stored document vault UUID"),
-    fiscal_year: Optional[int] = Form(None, description="Reporting fiscal year (e.g. 2024)"),
     revenue_crore: Optional[float] = Form(None, description="Revenue in crore INR for BRSR intensity"),
-    x_user_id: Optional[str] = Form(None, description="Acting user UUID"),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> dict:
     """
     Main document analysis endpoint.
@@ -73,6 +68,7 @@ async def analyse_document(
     Accepts multipart/form-data with the file + metadata fields.
     Returns the full DocumentAnalysisResult.
     """
+    from shared_logic import AuthenticatedUser, get_current_user
     if not file.filename:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No filename provided.")
 
@@ -85,19 +81,16 @@ async def analyse_document(
         )
 
     logger.info(
-        "Document analysis request: org=%s file=%s size=%d bytes fiscal_year=%s",
-        organization_id, file.filename, len(file_bytes), fiscal_year,
+        "Document analysis request: user_id=%s file=%s size=%d bytes",
+        user.id, file.filename, len(file_bytes)
     )
 
     try:
         result: DocumentAnalysisResult = await run_document_analysis(
             document_bytes=file_bytes,
             filename=file.filename,
-            organization_id=organization_id,
-            document_id=document_id,
-            fiscal_year=fiscal_year,
+            user=user,
             revenue_crore=revenue_crore,
-            user_id=x_user_id or "ai-agent-system",
         )
 
         return {

@@ -29,11 +29,11 @@ class EmissionReport(Base):
     __tablename__ = "emission_reports"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    organization_id = Column(UUID(as_uuid=True), nullable=False)
     reporting_period_start = Column(Date, nullable=False)
     reporting_period_end = Column(Date, nullable=False)
     scope_type = Column(String(10))
-    document_evidence_id = Column(UUID(as_uuid=True), ForeignKey("document_vault.id"), nullable=True)
+    document_evidence_id = Column(UUID(as_uuid=True), nullable=True)
     raw_quantity = Column(Numeric)
     activity_unit = Column(String(50))
     calculated_tco2e = Column(Numeric)
@@ -48,7 +48,7 @@ class EmissionReport(Base):
 class MonthlyEmissionsSummary(Base):
     __tablename__ = "monthly_emissions_summary"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    organization_id = Column(UUID(as_uuid=True), nullable=False)
     month_year = Column(Date, nullable=False)
     total_monthly_tco2e = Column(Numeric, nullable=False)
     monthly_revenue_cr = Column(Numeric, nullable=False)

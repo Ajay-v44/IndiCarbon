@@ -171,42 +171,54 @@ async def calculate_scope_emissions(
 ) :
     current_month=datetime.now(timezone.utc)
     total_tco2e=0.0
+    
+    # Safely handle invalid UUIDs (e.g. during testing with "document_id=2")
+    safe_doc_id = None
+    if document_id:
+        try:
+            safe_doc_id = uuid.UUID(document_id)
+        except ValueError:
+            safe_doc_id = None
+
     for data in req:
         emission_factor_repo=EmissionFactorRepository(db)
         
-        factor_rec = emission_factor_repo.find_by_factor_and_year(data.factor_key,data.year)
+        # Ensure year is an integer, whether Pydantic parsed it as a date, string, or int
+        target_year = data.year.year if isinstance(data.year, date) else int(str(data.year)[:4])
+        
+        factor_rec = emission_factor_repo.find_by_factor_and_year(data.factor_key, target_year)
         if not factor_rec:
            db.add(EmissionReport(
             organization_id=user.organization_id,
-            reporting_period_start=date(data.year,1,1),
-            reporting_period_end=date(data.year,12,31),
+            reporting_period_start=date(target_year,1,1),
+            reporting_period_end=date(target_year,12,31),
             scope_type="None",
             raw_quantity=data.raw_quantity,
             activity_unit="None",
             calculated_tco2e=None,
             factor_used_id=None,
-            document_evidence_id=document_id,
+            document_evidence_id=safe_doc_id,
             audit_status="MISSING_FACTOR",
-            created_by=uuid.UUID(user.user_id),
+            created_by=user.id,
            ))
         else:
-            tco2=data.raw_quantity * factor_rec.factor_value / Decimal("1000")
+            tco2 = Decimal(str(data.raw_quantity)) * factor_rec.factor_value / Decimal("1000")
             db.add(EmissionReport(
                 organization_id=user.organization_id,
-                reporting_period_start=date(data.year,1,1),
-                reporting_period_end=date(data.year,12,31),
+                reporting_period_start=date(target_year,1,1),
+                reporting_period_end=date(target_year,12,31),
                 scope_type=factor_rec.scope,
                 raw_quantity=data.raw_quantity,
-                activity_unit=data.activity_unit,
+                activity_unit=factor_rec.unit,
                 calculated_tco2e=tco2,
                 factor_used_id=factor_rec.id,
-                document_evidence_id=document_id,
+                document_evidence_id=safe_doc_id,
                 audit_status="PENDING_AI_VERIFICATION",
-                created_by=uuid.UUID(user.user_id),
+                created_by=user.id,
             ))
-            total_tco2e+=tco2
+            total_tco2e += float(tco2)
     db.commit()
-    await calculate_monthly_brsr_score(user.organization_id,revenue_crore,total_tco2e,current_month,db)
+    await calculate_monthly_brsr_score(str(user.organization_id), str(user.id), revenue_crore, total_tco2e, current_month, db)
     return {"message":"calculation successful"}
 
 
@@ -228,8 +240,8 @@ def brsr_score(total_tco2e:float, revenue_cr:float, target_intensity:float ) ->f
 
     return compliance_score
 
-async def calculate_monthly_brsr_score(org_id:str, revenue_crore:float,new_tco2e:float,current_month:date,db:Session):
-    org=await get_org_by_id(org_id)
+async def calculate_monthly_brsr_score(org_id:str, user_id:str, revenue_crore:float,new_tco2e:float,current_month:date,db:Session):
+    org=await get_org_by_id(user_id, org_id)
     sector_benchmark=db.query(SectorBenchmarks).filter(or_(SectorBenchmarks.sector_name==org.industry_sector, SectorBenchmarks.sub_sector==org.industry_sector)).filter(SectorBenchmarks.compliance_year==current_month.year).first()
     if not sector_benchmark:
         return {"message":"benchmark not found"}

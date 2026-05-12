@@ -166,6 +166,10 @@ uvicorn main:app --reload --port 8002
 cd services/ai-agent
 uvicorn main:app --reload --port 8003
 
+# Run Auth Service (new terminal)
+cd services/auth
+uvicorn main:app --reload --port 8004
+
 # Run Frontend (new terminal)
 cd apps/frontend
 npm install

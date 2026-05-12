@@ -1,94 +1,62 @@
-"""
-app/graph/document_graph.py
-────────────────────────────
-Builds and compiles the IndiCarbon Document Analysis LangGraph.
-
-Graph topology:
-  START
-    │
-    ▼
-  parse_document ──────────────────────────────────────────────┐
-    │                                                           │
-    ▼                                                           │
-  extract_emissions ────────────────────────────────────────── │
-    │                                                           │
-    ▼                                                           │
-  validate_items ──────────────────────────────────────────── │
-    │                                                           │
-    ▼                                                           │
-  call_compliance   (← future: fan-out per scope via Send())   │
-    │                                                           │
-    ▼                                                           │
-  summarise ───────────────────────────────────────────────────┘
-    │
-    ▼
-  END
-
-EXTENSIBILITY
-─────────────
-To add a second parallel API call (e.g. submit to Marketplace):
-  1. Create a new node function in nodes.py.
-  2. Add it as a parallel branch after validate_items using:
-         graph.add_node("call_marketplace", call_marketplace_node)
-         graph.add_edge("validate_items", "call_marketplace")
-         graph.add_edge("validate_items", "call_compliance")
-  3. Add a merge node that waits for both branches.
-  This is the fan-out/fan-in pattern enabled by LangGraph's Send() API.
-"""
 from __future__ import annotations
 
 import logging
 from functools import lru_cache
 
-from langgraph.graph import END, START, StateGraph
+from langgraph.prebuilt import create_react_agent
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.store.memory import InMemoryStore
+from langchain_ollama import ChatOllama
+from langchain_core.messages import SystemMessage
 
-from .nodes import (
-    call_compliance_node,
-    extract_emissions_node,
-    parse_document_node,
-    summarise_node,
-    validate_items_node,
-)
-from .state import AgentState
+from .state import AuditorState
+from .tools import get_emission_factors, calculate_scope_emissions
+from ..config.settings import get_settings
 
 logger = logging.getLogger("ai-agent.graph")
 
-
-def build_document_analysis_graph() -> StateGraph:
+def build_document_analysis_graph():
     """
-    Construct and compile the document analysis LangGraph.
-
-    Returns a compiled graph ready to be invoked with:
-        result = await graph.ainvoke(initial_state, config=config)
+    Construct and compile the document analysis LangGraph agent with the 3-Tier Memory Architecture:
+    1. Working Memory: AuditorState (state_schema)
+    2. Episodic Memory: MemorySaver (checkpointer)
+    3. Semantic Memory: InMemoryStore / Postgres (store)
     """
-    # Create a new StateGraph using our AgentState TypedDict
-    graph = StateGraph(AgentState)
-
-    # ── Register Nodes ────────────────────────────────────────────────────────
-    graph.add_node("parse_document", parse_document_node)
-    graph.add_node("extract_emissions", extract_emissions_node)
-    graph.add_node("validate_items", validate_items_node)
-    graph.add_node("call_compliance", call_compliance_node)
-    graph.add_node("summarise", summarise_node)
-
-    # ── Define Edges (execution order) ────────────────────────────────────────
-    graph.add_edge(START, "parse_document")
-    graph.add_edge("parse_document", "extract_emissions")
-    graph.add_edge("extract_emissions", "validate_items")
-    graph.add_edge("validate_items", "call_compliance")
-    graph.add_edge("call_compliance", "summarise")
-    graph.add_edge("summarise", END)
-
-    compiled = graph.compile()
-    logger.info("Document analysis graph compiled successfully.")
+    s = get_settings()
+    llm = ChatOllama(
+        base_url=s.ollama_base_url,
+        model=s.ollama_llm_model,
+        temperature=s.ollama_temperature,
+    )
+    
+    tools = [get_emission_factors, calculate_scope_emissions]
+    
+    sys_prompt = SystemMessage(content=(
+        "You are an industry standard document analysis agent. "
+        "You will be given the text of a sustainability document along with the organization_id, user_id, revenue_crore, and document_id. "
+        "Your task is to: "
+        "1. Extract the reporting year from the document text. "
+        "2. Call get_emission_factors to get the available emission factors for that year. "
+        "3. Identify all quantified emission activities in the document text. "
+        "4. Map each extracted emission to the correct factor_key from the available emission factors. "
+        "5. Prepare the data and call calculate_scope_emissions with the payload. "
+        "6. Return a summary of the extracted items and the compliance result."
+    ))
+    
+    episodic_memory = MemorySaver()
+    semantic_memory = InMemoryStore() # Can be replaced with PostgresStore for vector_store (Postgres)
+    
+    compiled = create_react_agent(
+        llm, 
+        tools, 
+        prompt=sys_prompt, 
+        state_schema=AuditorState, 
+        checkpointer=episodic_memory,
+        store=semantic_memory
+    )
+    logger.info("Document analysis graph compiled successfully with 3-Tier Memory.")
     return compiled
-
 
 @lru_cache(maxsize=1)
 def get_document_analysis_graph():
-    """
-    Return the singleton compiled graph.
-    The graph is compiled once at startup and reused across requests.
-    Thread-safe because LangGraph compiled graphs are stateless.
-    """
     return build_document_analysis_graph()

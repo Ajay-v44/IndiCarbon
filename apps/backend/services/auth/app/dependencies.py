@@ -2,27 +2,38 @@ from __future__ import annotations
 
 from fastapi import Header, HTTPException, status
 import jwt
+from shared_logic import AuthenticatedUser
 
 from .config import settings
 
 
-def get_requesting_user(
+def get_current_user(
     x_user_id: str = Header(default=""),
+    x_user_email: str = Header(default=""),
+    x_user_roles: str = Header(default=""),
+    x_organization_id: str = Header(default=""),
     authorization: str = Header(default=""),
-) -> str:
-    """
-    Resolve the authenticated user.
-    External callers send Authorization: Bearer <token>; the gateway may also
-    pass X-User-ID after it verifies the token.
-    """
+) -> AuthenticatedUser:
+    """Resolve the authenticated user from gateway context or a bearer token."""
     if x_user_id:
-        return x_user_id
+        return AuthenticatedUser(
+            id=x_user_id,
+            email=x_user_email or None,
+            roles=[role.strip() for role in x_user_roles.split(",") if role.strip()],
+            organization_id=x_organization_id or None,
+        )
 
     payload = verify_token_payload(authorization)
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
-    return str(user_id)
+    organization_ids = payload.get("organization_ids") or []
+    return AuthenticatedUser(
+        id=user_id,
+        email=payload.get("email"),
+        roles=payload.get("roles") or [],
+        organization_id=payload.get("organization_id") or (organization_ids[0] if organization_ids else None),
+    )
 
 
 def verify_token_payload(authorization: str = Header(default="")) -> dict:

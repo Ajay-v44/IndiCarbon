@@ -18,17 +18,20 @@ from decimal import Decimal
 from typing import Any
 
 import redis.asyncio as aioredis
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from shared_logic.paths import backend_root
 
 from shared_logic import (
     ApiResponse,
+    AuthenticatedUser,
     CarbonCredit,
     CreditStatus,
+    get_current_user,
     OrderSide,
     OrderStatus,
     PlaceOrderRequest,
+    require_organization_access,
     TradeReceipt,
     register_middleware,
 )
@@ -269,15 +272,6 @@ class TradeEngine:
             await redis_pool.delete(lock_key)
 
 
-# ─── Auth header ──────────────────────────────────────────────────────────────
-
-
-def get_requesting_user(x_user_id: str = Header(default="")) -> str:
-    if not x_user_id:
-        raise HTTPException(status_code=401, detail="No user context.")
-    return x_user_id
-
-
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
 
@@ -294,11 +288,12 @@ async def health():
 )
 async def place_order(
     req: PlaceOrderRequest,
-    user_id: str = Depends(get_requesting_user),
+    user: AuthenticatedUser = Depends(get_current_user),
     order_repo: OrderRepository = Depends(get_order_repo),
     credit_repo: CreditRepository = Depends(get_credit_repo),
     trade_repo: TradeRepository = Depends(get_trade_repo),
 ) -> ApiResponse[dict]:
+    require_organization_access(user, req.organization_id)
     # Attempt to match with existing counterparty order
     matches = order_repo.get_open_counterparty(
         req.side, str(req.credit_project_id), req.vintage_year, req.price_per_tonne_inr
@@ -358,8 +353,9 @@ async def place_order(
 )
 async def list_credits(
     organization_id: str,
-    user_id: str = Depends(get_requesting_user),
+    user: AuthenticatedUser = Depends(get_current_user),
     credit_repo: CreditRepository = Depends(get_credit_repo),
 ) -> ApiResponse[list]:
+    require_organization_access(user, organization_id)
     credits = credit_repo.list_all(filters={"owner_org_id": organization_id})
     return ApiResponse(data=credits, message=f"{len(credits)} credits found.")

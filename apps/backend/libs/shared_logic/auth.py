@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import HTTPException, Request, status
 from pydantic import BaseModel, Field
 import httpx
 
@@ -84,10 +84,6 @@ async def get_current_user(request: Request) -> AuthenticatedUser:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=f"Invalid user context: {str(e)}",
             )
-
-
-def get_requesting_user(user: AuthenticatedUser = Depends(get_current_user)) -> str:
-    return str(user.id)
 
 
 def _resolve_organization_id(

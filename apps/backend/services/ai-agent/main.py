@@ -105,7 +105,7 @@ app = FastAPI(
         "Integrates with Ollama (local LLM), Langfuse (observability), and LangSmith (prompt versioning)."
     ),
     version="2.0.0",
-    docs_url="/docs",
+    docs_url="/api/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
 )

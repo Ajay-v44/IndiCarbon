@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import HTTPException, Request
-from shared_logic import AuthenticatedUser, get_current_user, get_requesting_user, require_organization_access
+from shared_logic import AuthenticatedUser, get_current_user, require_organization_access
 
 
 def get_redis(request: Request):
@@ -15,7 +15,6 @@ def get_redis(request: Request):
 __all__ = [
     "AuthenticatedUser",
     "get_current_user",
-    "get_requesting_user",
     "require_organization_access",
     "get_redis",
 ]
