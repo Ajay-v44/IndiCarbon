@@ -151,23 +151,23 @@ pip install supabase langfuse fastapi uvicorn httpx redis pydantic-settings \
             PyJWT langchain langchain-community
 
 # Run API Gateway
-cd apps/gateway
+cd apps/backend/services/gateway
 uvicorn main:app --reload --port 8000
 
 # Run Compliance Service (new terminal)
-cd services/compliance
+cd apps/backend/services/compliance
 uvicorn main:app --reload --port 8001
 
 # Run Marketplace Service (new terminal)
-cd services/marketplace
+cd apps/backend/services/marketplace
 uvicorn main:app --reload --port 8002
 
 # Run AI-Agent Service (new terminal)
-cd services/ai-agent
+cd apps/backend/services/ai-agent
 uvicorn main:app --reload --port 8003
 
 # Run Auth Service (new terminal)
-cd services/auth
+cd apps/backend/services/auth
 uvicorn main:app --reload --port 8004
 
 # Run Frontend (new terminal)

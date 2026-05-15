@@ -35,13 +35,22 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # ── LLM Provider ──────────────────────────────────────────────────────────
+    llm_provider: str = "ollama"  # "ollama" or "google"
+
     # ── Ollama ────────────────────────────────────────────────────────────────
     # Use http://localhost:11434 for local dev; host.docker.internal for Docker
     ollama_base_url: str = "http://localhost:11434"
     ollama_llm_model: str = "qwen2.5-coder:14b"
+    ollama_chat_model: str = "llama3.1:8b"
     ollama_embed_model: str = "nomic-embed-text"
     ollama_temperature: float = 0.1
     ollama_num_predict: int = 2048
+
+    # ── Google Gemini ─────────────────────────────────────────────────────────
+    google_api_key: str = ""
+    gemini_chat_model: str = "gemini-2.5-flash"
+    gemini_embed_model: str = "gemini-embedding-2"
 
     # ── Langfuse ─────────────────────────────────────────────────────────────
     langfuse_secret_key: str = ""
@@ -63,6 +72,12 @@ class Settings(BaseSettings):
     # ── Graph ─────────────────────────────────────────────────────────────────
     # Maximum LangGraph node iterations before forced termination
     graph_max_iterations: int = 10
+
+    # ── Chatbot ───────────────────────────────────────────────────────────────
+    chat_memory_turns: int = 8
+    chat_vector_match_count: int = 6
+    chat_vector_match_threshold: float = 0.72
+    chat_llm_timeout_seconds: float = 20.0
 
 
 @lru_cache(maxsize=1)

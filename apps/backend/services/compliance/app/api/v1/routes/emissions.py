@@ -49,15 +49,14 @@ def get_emission_summary(
 
 @router.get("/brsr", response_model=ApiResponse[BRSRReportResponse], summary="Generate SEBI BRSR compliance report")
 def generate_brsr(
-    organization_id: str = Query(...),
     period_start: date = Query(...),
     period_end: date = Query(...),
     revenue_crore: Optional[float] = Query(None),
     user: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ApiResponse[BRSRReportResponse]:
-    require_organization_access(user, organization_id)
-    report = ghg_svc.generate_brsr_report(organization_id, period_start, period_end, revenue_crore, db)
+    require_organization_access(user, user.organization_id)
+    report = ghg_svc.generate_brsr_report(user.organization_id, period_start, period_end, revenue_crore, db)
     return ApiResponse(data=report, message="BRSR report generated.")
 
 

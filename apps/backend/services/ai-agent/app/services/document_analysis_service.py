@@ -22,6 +22,8 @@ pipeline run is queryable at:
 """
 from __future__ import annotations
 
+import asyncio
+import httpx
 import logging
 import time
 import uuid
@@ -34,6 +36,56 @@ from ..schemas.agent_schemas import DocumentAnalysisResult, EmissionLineItem
 from shared_logic import AuthenticatedUser
 
 logger = logging.getLogger("ai-agent.services.document_analysis")
+
+_background_tasks = set()
+
+async def _embed_and_store_document_background(
+    text: str,
+    organization_id: str,
+    document_id: str,
+    filename: str,
+    run_id: str
+):
+    """Chunks the parsed document, embeds it via Ollama, and stores in pgvector."""
+    try:
+        logger.info("[%s] Starting background embedding for document %s", run_id, document_id)
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        from shared_logic.supabase_client import VectorRepository
+        
+        s = get_settings()
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        chunks = splitter.split_text(text)
+        
+        repo = VectorRepository()
+        
+        async with httpx.AsyncClient() as client:
+            for i, chunk in enumerate(chunks):
+                resp = await client.post(
+                    f"{s.ollama_base_url}/api/embeddings",
+                    json={"model": s.ollama_embed_model, "prompt": chunk},
+                    timeout=60.0,
+                )
+                resp.raise_for_status()
+                embedding = resp.json()["embedding"]
+                
+                metadata = {
+                    "organization_id": organization_id,
+                    "document_id": document_id,
+                    "filename": filename,
+                    "chunk_index": i
+                }
+                
+                # Run the synchronous upsert_embedding in a thread to avoid blocking
+                await asyncio.to_thread(
+                    repo.upsert_embedding,
+                    content=chunk,
+                    embedding=embedding,
+                    metadata=metadata
+                )
+        
+        logger.info("[%s] Successfully embedded %d chunks for document %s", run_id, len(chunks), document_id)
+    except Exception as exc:
+        logger.error("[%s] Failed to embed document %s: %s", run_id, document_id, exc, exc_info=True)
 
 
 async def run_document_analysis(
@@ -94,6 +146,20 @@ async def run_document_analysis(
     from ..parsers.document_parser import parse_document
     try:
         raw_text = parse_document(document_bytes, filename)
+        
+        # Fire and forget background embedding job
+        task = asyncio.create_task(
+            _embed_and_store_document_background(
+                text=raw_text,
+                organization_id=organization_id,
+                document_id=document_id,
+                filename=filename,
+                run_id=run_id
+            )
+        )
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
+
         if len(raw_text) > 120_000:
             raw_text = raw_text[:120_000] + "\n\n[DOCUMENT TRUNCATED]"
     except Exception as exc:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
@@ -28,8 +28,8 @@ class AgentInteraction(Base):
     __tablename__ = "agent_interactions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    sender_agent_id = Column(UUID(as_uuid=True), nullable=True)
-    receiver_agent_id = Column(UUID(as_uuid=True), nullable=True)
+    sender_agent_id = Column(UUID(as_uuid=True), ForeignKey("agent_registry.id"), nullable=True)
+    receiver_agent_id = Column(UUID(as_uuid=True), ForeignKey("agent_registry.id"), nullable=True)
     session_id = Column(UUID(as_uuid=True), nullable=True)
     message_payload = Column(JSONB)
     token_usage = Column(Integer)
