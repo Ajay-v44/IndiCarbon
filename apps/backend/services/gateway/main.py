@@ -328,7 +328,7 @@ async def marketplace_proxy(request: Request, path: str):
 
 @app.api_route(
     "/api/v1/ai/{path:path}",
-    methods=["GET", "POST"],
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     tags=["AI Agent"],
     dependencies=[Depends(rate_limit), Depends(require_auth)],
 )

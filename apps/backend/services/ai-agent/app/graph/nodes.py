@@ -33,6 +33,8 @@ from ..prompts.emission_extraction import (
     get_validation_summary_prompt,
 )
 from ..registry.compliance_registry import calculate_scope_emissions_api
+from ..guardrails.pdf_injection_guard import PDFInjectionGuard, InjectionDetectedException
+from ..guardrails.middleware import GuardrailCallbackHandler
 from .state import AgentState
 
 logger = logging.getLogger("ai-agent.graph.nodes")
@@ -53,13 +55,24 @@ def _get_llm() -> OllamaLLM:
 
 # ─── Node 1: Parse Document ───────────────────────────────────────────────────
 
+# Singleton injection guard (stateless, safe to share across requests)
+_PDF_INJECTION_GUARD = PDFInjectionGuard(
+    use_llm_check=True,
+    # Will be overridden at runtime via get_settings() where possible
+    ollama_base_url="http://localhost:11434",
+)
+
 
 async def parse_document_node(state: AgentState) -> Dict[str, Any]:
     """
-    Node 1 — Document Parsing.
+    Node 1 — Document Parsing + PDF Injection Guard.
 
     Reads raw file bytes from state, delegates to the universal document parser,
     and returns extracted plain text.
+
+    SECURITY: After parsing, the raw text is passed through the PDFInjectionGuard
+    to neutralise any prompt injection attempts embedded in the PDF before the
+    text is forwarded to any LLM node.
 
     Handles any format supported by app/parsers/document_parser.py.
     """
@@ -67,13 +80,37 @@ async def parse_document_node(state: AgentState) -> Dict[str, Any]:
 
     steps = list(state.get("graph_steps", []))
     steps.append("parse_document")
+    filename = state["filename"]
 
     try:
-        raw_text = parse_document(state["document_bytes"], state["filename"])
+        raw_text = parse_document(state["document_bytes"], filename)
         logger.info("[%s] Document parsed: %d chars", state["run_id"], len(raw_text))
 
+        # ── GUARDRAIL: PDF Prompt Injection Guard ─────────────────────────────
+        # Re-build guard with the correct Ollama URL from settings
+        s = get_settings()
+        pdf_guard = PDFInjectionGuard(
+            use_llm_check=True,
+            ollama_base_url=s.ollama_base_url,
+        )
+        try:
+            raw_text = pdf_guard.sanitise(raw_text, document_name=filename)
+            logger.info("[%s] PDF injection guard: PASSED for '%s'", state["run_id"], filename)
+        except InjectionDetectedException as inj_exc:
+            logger.error(
+                "[%s] PDF injection guard: BLOCKED document '%s' — %s",
+                state["run_id"], filename, inj_exc,
+            )
+            return {
+                "raw_text": "",
+                "graph_steps": steps,
+                "errors": list(state.get("errors", [])) + [
+                    f"pdf_injection_blocked: {inj_exc}"
+                ],
+            }
+        # ─────────────────────────────────────────────────────────────────────
+
         # Truncate very large documents to stay within LLM context window
-        # qwen2.5:3b has ~32k token context — ~120k chars is safe
         if len(raw_text) > 120_000:
             logger.warning(
                 "[%s] Document too large (%d chars), truncating to 120k",
@@ -125,13 +162,29 @@ async def extract_emissions_node(state: AgentState) -> Dict[str, Any]:
     prompt = get_extraction_prompt()
     chain = prompt | llm
 
+    # ── GUARDRAIL: attach callback middleware ─────────────────────────────────
+    s = get_settings()
+    guardrail_handler = GuardrailCallbackHandler(
+        original_query=f"Extract emissions from document (org={state.get('organization_id', '')}, fy={state.get('fiscal_year', '')})",
+        ollama_base_url=s.ollama_base_url,
+        run_id=state["run_id"],
+    )
+    # ─────────────────────────────────────────────────────────────────────────
+
     try:
-        raw_output: str = await chain.ainvoke({
-            "document_text": raw_text[:80_000],
-            "fiscal_year": state.get("fiscal_year") or "unknown",
-            "organization_id": state.get("organization_id", ""),
-        })
+        raw_output: str = await chain.ainvoke(
+            {
+                "document_text": raw_text[:80_000],
+                "fiscal_year": state.get("fiscal_year") or "unknown",
+                "organization_id": state.get("organization_id", ""),
+            },
+            config={"callbacks": [guardrail_handler]},
+        )
         logger.info("[%s] LLM extraction response: %d chars", state["run_id"], len(raw_output))
+        logger.info(
+            "[%s] Guardrail audit (extract): %s",
+            state["run_id"], guardrail_handler.audit_summary,
+        )
 
         emission_items = _parse_llm_json_response(raw_output, state["run_id"])
 
@@ -352,14 +405,30 @@ async def summarise_node(state: AgentState) -> Dict[str, Any]:
     prompt = get_validation_summary_prompt()
     chain = prompt | llm
 
+    # ── GUARDRAIL: attach callback middleware ─────────────────────────────────
+    s = get_settings()
+    guardrail_handler = GuardrailCallbackHandler(
+        original_query=f"Generate summary for org={state.get('organization_id', '')}, fy={state.get('fiscal_year', '')}",
+        ollama_base_url=s.ollama_base_url,
+        run_id=state["run_id"],
+    )
+    # ─────────────────────────────────────────────────────────────────────────
+
     try:
-        summary: str = await chain.ainvoke({
-            "emission_items_json": items_json[:5000],
-            "compliance_result": compliance_json[:3000],
-            "organization_id": state.get("organization_id", ""),
-            "fiscal_year": state.get("fiscal_year") or "unknown",
-        })
+        summary: str = await chain.ainvoke(
+            {
+                "emission_items_json": items_json[:5000],
+                "compliance_result": compliance_json[:3000],
+                "organization_id": state.get("organization_id", ""),
+                "fiscal_year": state.get("fiscal_year") or "unknown",
+            },
+            config={"callbacks": [guardrail_handler]},
+        )
         logger.info("[%s] Summary generated: %d chars", state["run_id"], len(summary))
+        logger.info(
+            "[%s] Guardrail audit (summarise): %s",
+            state["run_id"], guardrail_handler.audit_summary,
+        )
         return {"summary": summary.strip(), "graph_steps": steps, "errors": errors}
 
     except Exception as exc:

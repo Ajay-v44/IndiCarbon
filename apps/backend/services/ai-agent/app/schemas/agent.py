@@ -43,3 +43,26 @@ class HITLReviewCreate(BaseModel):
 
 class HITLReviewResolve(BaseModel):
     decision: str = Field(..., pattern="^(APPROVED|REJECTED|EDITED)$")
+
+
+class AgentRegistryCreate(BaseModel):
+    agent_name: str = Field(..., min_length=2, max_length=100)
+    agent_type: str = Field(..., min_length=2, max_length=50)
+    model_version: str = Field(..., min_length=1)
+    is_active: bool = True
+
+
+class AgentRegistryUpdate(BaseModel):
+    agent_name: Optional[str] = Field(None, min_length=2, max_length=100)
+    agent_type: Optional[str] = Field(None, min_length=2, max_length=50)
+    model_version: Optional[str] = Field(None, min_length=1)
+    is_active: Optional[bool] = None
+
+
+class AgentRegistryResponse(BaseModel):
+    id: UUID
+    agent_name: Optional[str] = None
+    agent_type: Optional[str] = None
+    model_version: Optional[str] = None
+    is_active: bool = True
+    created_at: Optional[str] = None

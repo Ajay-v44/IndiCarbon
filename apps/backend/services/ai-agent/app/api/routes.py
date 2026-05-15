@@ -16,10 +16,15 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status, Depends
-from shared_logic import AuthenticatedUser, get_current_user
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile, status, Depends
+from sqlalchemy.orm import Session
+from shared_logic import AuthenticatedUser, get_current_user, get_db
 
+from ..schemas.agent import AgentRegistryCreate, AgentRegistryResponse, AgentRegistryUpdate
+from ..schemas.chat import ChatHistoryResponse, ChatRequest, ChatResponse
 from ..schemas.agent_schemas import DocumentAnalysisResult
+from ..services import agent_service as agent_svc
+from ..services.chat_service import get_chat_history, run_chat
 from ..services.document_analysis_service import run_document_analysis
 
 logger = logging.getLogger("ai-agent.api.routes")
@@ -108,6 +113,169 @@ async def analyse_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Analysis pipeline failed: {exc}",
         )
+
+
+# ─── Responsible AI Chatbot ──────────────────────────────────────────────────
+
+
+@router.post(
+    "/api/v1/chat",
+    response_model=dict,
+    tags=["AI Chatbot"],
+    summary="Ask the responsible organization-scoped IndiCarbon chatbot",
+)
+@router.post(
+    "/api/v1/ai/chat",
+    response_model=dict,
+    include_in_schema=False,
+)
+async def chat(
+    req: ChatRequest,
+    background_tasks: BackgroundTasks,
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Token-authenticated RAG chatbot.
+
+    The organization and user are resolved from the token/gateway headers. The
+    request body intentionally does not accept organization_id, preventing users
+    from switching org scope by payload.
+    """
+    try:
+        result: ChatResponse = await run_chat(
+            req=req,
+            user=user,
+            db=db,
+            background_tasks=background_tasks,
+        )
+        return {
+            "success": True,
+            "message": "Chat response generated.",
+            "data": result.model_dump(mode="json"),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Chat endpoint error: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Chatbot failed: {exc}",
+        )
+
+
+@router.get(
+    "/api/v1/chat/history",
+    response_model=dict,
+    tags=["AI Chatbot"],
+    summary="List the authenticated user's persisted chat history",
+)
+@router.get(
+    "/api/v1/ai/chat/history",
+    response_model=dict,
+    include_in_schema=False,
+)
+async def chat_history(
+    limit: int = 50,
+    offset: int = 0,
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    result: ChatHistoryResponse = get_chat_history(user=user, db=db, limit=min(limit, 100), offset=offset)
+    return {
+        "success": True,
+        "message": "Chat history fetched.",
+        "data": result.model_dump(mode="json"),
+    }
+
+
+# ─── Agent Registry CRUD ─────────────────────────────────────────────────────
+
+
+@router.post(
+    "/api/v1/agents/registry",
+    response_model=dict,
+    tags=["AI Agents"],
+    summary="Create an agent registry record",
+)
+@router.post("/api/v1/ai/agents/registry", response_model=dict, include_in_schema=False)
+async def create_agent_registry(
+    req: AgentRegistryCreate,
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    result: AgentRegistryResponse = agent_svc.create_agent_registry(req, db)
+    return {"success": True, "message": "Agent registry record created.", "data": result.model_dump(mode="json")}
+
+
+@router.get(
+    "/api/v1/agents/registry",
+    response_model=dict,
+    tags=["AI Agents"],
+    summary="List agent registry records",
+)
+@router.get("/api/v1/ai/agents/registry", response_model=dict, include_in_schema=False)
+async def list_agent_registry(
+    limit: int = 100,
+    offset: int = 0,
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    result = agent_svc.list_agent_registry(db, limit=min(limit, 200), offset=offset)
+    return {
+        "success": True,
+        "message": "Agent registry records fetched.",
+        "data": [item.model_dump(mode="json") for item in result],
+    }
+
+
+@router.get(
+    "/api/v1/agents/registry/{agent_id}",
+    response_model=dict,
+    tags=["AI Agents"],
+    summary="Get an agent registry record",
+)
+@router.get("/api/v1/ai/agents/registry/{agent_id}", response_model=dict, include_in_schema=False)
+async def get_agent_registry(
+    agent_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    result = agent_svc.get_agent_registry(agent_id, db)
+    return {"success": True, "message": "Agent registry record fetched.", "data": result.model_dump(mode="json")}
+
+
+@router.patch(
+    "/api/v1/agents/registry/{agent_id}",
+    response_model=dict,
+    tags=["AI Agents"],
+    summary="Update an agent registry record",
+)
+@router.patch("/api/v1/ai/agents/registry/{agent_id}", response_model=dict, include_in_schema=False)
+async def update_agent_registry(
+    agent_id: str,
+    req: AgentRegistryUpdate,
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    result = agent_svc.update_agent_registry(agent_id, req, db)
+    return {"success": True, "message": "Agent registry record updated.", "data": result.model_dump(mode="json")}
+
+
+@router.delete(
+    "/api/v1/agents/registry/{agent_id}",
+    response_model=dict,
+    tags=["AI Agents"],
+    summary="Delete an agent registry record",
+)
+@router.delete("/api/v1/ai/agents/registry/{agent_id}", response_model=dict, include_in_schema=False)
+async def delete_agent_registry(
+    agent_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    result = agent_svc.delete_agent_registry(agent_id, db)
+    return {"success": True, "message": "Agent registry record deleted.", "data": result}
 
 
 # ─── Graph Schema (Dev Tool) ──────────────────────────────────────────────────

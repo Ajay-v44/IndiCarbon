@@ -29,18 +29,21 @@ from datetime import datetime
 from typing import Any, Type
 
 import httpx
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.prompts import PromptTemplate, ChatPromptTemplate
-from langchain.tools import BaseTool
+from langchain_classic.agents import AgentExecutor, create_react_agent
+from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
+from langchain_core.tools import BaseTool
 from langchain_community.llms import Ollama
 from langfuse import Langfuse
-from langfuse.callback import CallbackHandler as LangfuseCallbackHandler
+from langfuse.langchain import CallbackHandler as LangfuseCallbackHandler
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from shared_logic import ServiceName, get_service_client
 from shared_logic.paths import backend_root
 from shared_logic.supabase_client import VectorRepository
-from .app.prompts.emission_extraction import get_auditor_prompt, get_strategist_prompt
+from app.prompts.emission_extraction import get_auditor_prompt, get_strategist_prompt
+from app.guardrails.pii_masker import PIIMasker
+from app.guardrails.domain_guard import IndiCarbonDomainGuard, OFF_TOPIC_RESPONSE
+from app.guardrails.middleware import GuardrailCallbackHandler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -102,13 +105,7 @@ def get_langfuse_handler(run_id: str, agent_type: str) -> LangfuseCallbackHandle
     """Creates a per-run Langfuse callback handler with rich trace metadata."""
     s = get_settings()
     return LangfuseCallbackHandler(
-        secret_key=s.langfuse_secret_key,
         public_key=s.langfuse_public_key,
-        host=s.langfuse_host,
-        trace_name=f"indicarbon.{agent_type}",
-        session_id=run_id,
-        tags=["indicarbon", agent_type, "production"],
-        metadata={"agent_type": agent_type, "model": s.ollama_llm_model},
     )
 
 
@@ -333,32 +330,68 @@ class IndiCarbonAgentFactory:
         run_id = run_id or str(uuid.uuid4())
         start_ms = int(time.time() * 1000)
 
-        # ── Langfuse trace ────────────────────────────────────────────────────
-        langfuse = get_langfuse_client()
-        trace = langfuse.trace(
-            id=run_id,
-            name=f"indicarbon.{agent_type}",
-            user_id=organization_id,
-            metadata={
+        # ── GUARDRAIL Step 1: PII masking on raw user input ───────────────────
+        _pii = PIIMasker(use_spacy=False)
+        masked_query, pii_matches = _pii.mask(query)
+        if pii_matches:
+            logger.info(
+                "[%s] Agent PII masked in input — %d entities: %s",
+                run_id, len(pii_matches), [m.pii_type for m in pii_matches],
+            )
+
+        # ── GUARDRAIL Step 2: Domain guard — INPUT gate ─────────────────────
+        s = get_settings()
+        _domain_guard = IndiCarbonDomainGuard(
+            ollama_base_url=s.ollama_base_url,
+            fail_open=True,
+        )
+        input_verdict = _domain_guard.check_input(masked_query)
+        logger.info(
+            "[%s] Domain guard INPUT — verdict=%s reason=%s",
+            run_id, input_verdict.verdict_raw, input_verdict.reason,
+        )
+        if not input_verdict.allowed:
+            logger.warning("[%s] Query blocked as off-topic: %s", run_id, masked_query[:80])
+            return {
+                "run_id": run_id,
                 "agent_type": agent_type,
-                "fiscal_year": fiscal_year,
-                "query_length": len(query),
-            },
-            tags=["indicarbon", agent_type],
-        )
-        generation = trace.generation(
-            name="agent_run",
-            model=get_settings().ollama_llm_model,
-            input=query,
-        )
+                "organization_id": organization_id,
+                "query": masked_query,
+                "answer": OFF_TOPIC_RESPONSE,
+                "tool_calls": [],
+                "trace_url": None,
+                "duration_ms": int(time.time() * 1000) - start_ms,
+                "completed_at": datetime.utcnow().isoformat(),
+                "guardrail_blocked": True,
+                "guardrail_reason": input_verdict.reason,
+            }
 
         handler = get_langfuse_handler(run_id, agent_type)
+        # ── GUARDRAIL Step 3: attach GuardrailCallbackHandler alongside Langfuse ─
+        guardrail_handler = GuardrailCallbackHandler(
+            original_query=masked_query,
+            ollama_base_url=s.ollama_base_url,
+            run_id=run_id,
+        )
         executor = self.build_executor(agent_type)
 
         try:
             result = await executor.ainvoke(
-                {"input": query},
-                config={"callbacks": [handler]},
+                {"input": masked_query},
+                config={
+                    "callbacks": [handler, guardrail_handler],
+                    "run_name": f"indicarbon.{agent_type}.{run_id}",
+                    "metadata": {
+                        "langfuse_session_id": run_id,
+                        "langfuse_user_id": organization_id,
+                        "agent_type": agent_type,
+                        "fiscal_year": fiscal_year,
+                        "query_length": len(masked_query),
+                        "pii_masked_count": len(pii_matches),
+                        "domain_verdict_input": input_verdict.verdict_raw,
+                        "model": get_settings().ollama_llm_model,
+                    },
+                },
             )
 
             answer = result.get("output", "No response generated.")
@@ -373,31 +406,55 @@ class IndiCarbonAgentFactory:
                 if len(step) == 2
             ]
 
-            duration_ms = int(time.time() * 1000) - start_ms
+            # ── GUARDRAIL Step 4: Domain guard — OUTPUT gate ────────────────
+            output_verdict = _domain_guard.check_output(masked_query, answer)
+            logger.info(
+                "[%s] Domain guard OUTPUT — verdict=%s reason=%s",
+                run_id, output_verdict.verdict_raw, output_verdict.reason,
+            )
+            if not output_verdict.allowed:
+                logger.warning("[%s] Agent output blocked as unsafe.", run_id)
+                from app.guardrails.domain_guard import UNSAFE_OUTPUT_RESPONSE
+                answer = UNSAFE_OUTPUT_RESPONSE
 
-            generation.end(output=answer, usage={"total_tokens": len(answer.split())})
-            trace.update(output=answer)
-            langfuse.flush()
+            # ── GUARDRAIL Step 5: PII masking on output ─────────────────────
+            masked_answer, out_pii = _pii.mask(answer)
+            if out_pii:
+                logger.info(
+                    "[%s] Agent PII masked in output — %d entities", run_id, len(out_pii)
+                )
+            answer = masked_answer
+
+            duration_ms = int(time.time() * 1000) - start_ms
+            audit = guardrail_handler.audit_summary
+
+            try:
+                get_langfuse_client().flush()
+            except Exception:
+                pass
 
             logger.info(
-                "Agent run complete: run_id=%s agent=%s duration_ms=%d tool_calls=%d",
-                run_id, agent_type, duration_ms, len(tool_calls),
+                "Agent run complete: run_id=%s agent=%s duration_ms=%d tool_calls=%d guardrail=%s",
+                run_id, agent_type, duration_ms, len(tool_calls), audit,
             )
 
             return {
                 "run_id": run_id,
                 "agent_type": agent_type,
                 "organization_id": organization_id,
-                "query": query,
+                "query": masked_query,
                 "answer": answer,
                 "tool_calls": tool_calls,
                 "trace_url": f"{get_settings().langfuse_host}/trace/{run_id}",
                 "duration_ms": duration_ms,
                 "completed_at": datetime.utcnow().isoformat(),
+                "guardrail_audit": audit,
             }
 
         except Exception as exc:
-            generation.end(level="ERROR", status_message=str(exc))
-            langfuse.flush()
+            try:
+                get_langfuse_client().flush()
+            except Exception:
+                pass
             logger.error("Agent run failed: %s", exc, exc_info=True)
             raise

@@ -14,6 +14,7 @@ from ..repositories.agent_repo import (
     HITLReviewRepository,
 )
 from ..schemas.agent import AgentRunRequest, AgentRunResponse, HITLReviewCreate
+from ..schemas.agent import AgentRegistryCreate, AgentRegistryResponse, AgentRegistryUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -103,3 +104,50 @@ def resolve_hitl_review(review_id: str, decision: str, reviewer_id: str, db: Ses
     if not review:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="HITL review not found.")
     return {"review_id": review_id, "decision": decision, "reviewed_at": str(review.reviewed_at)}
+
+
+def _agent_registry_response(agent) -> AgentRegistryResponse:
+    return AgentRegistryResponse(
+        id=agent.id,
+        agent_name=agent.agent_name,
+        agent_type=agent.agent_type,
+        model_version=agent.model_version,
+        is_active=bool(agent.is_active),
+        created_at=agent.created_at.isoformat() if agent.created_at else None,
+    )
+
+
+def create_agent_registry(req: AgentRegistryCreate, db: Session) -> AgentRegistryResponse:
+    agent = AgentRegistryRepository(db).create(
+        agent_name=req.agent_name,
+        agent_type=req.agent_type,
+        model_version=req.model_version,
+        is_active=req.is_active,
+    )
+    return _agent_registry_response(agent)
+
+
+def list_agent_registry(db: Session, limit: int = 100, offset: int = 0) -> list[AgentRegistryResponse]:
+    agents = AgentRegistryRepository(db).list(limit=limit, offset=offset)
+    return [_agent_registry_response(agent) for agent in agents]
+
+
+def get_agent_registry(agent_id: str, db: Session) -> AgentRegistryResponse:
+    agent = AgentRegistryRepository(db).get(agent_id)
+    if not agent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent registry record not found.")
+    return _agent_registry_response(agent)
+
+
+def update_agent_registry(agent_id: str, req: AgentRegistryUpdate, db: Session) -> AgentRegistryResponse:
+    agent = AgentRegistryRepository(db).update(agent_id, **req.model_dump(exclude_unset=True))
+    if not agent:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent registry record not found.")
+    return _agent_registry_response(agent)
+
+
+def delete_agent_registry(agent_id: str, db: Session) -> dict:
+    deleted = AgentRegistryRepository(db).delete(agent_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent registry record not found.")
+    return {"id": agent_id, "deleted": True, "mode": "soft_delete"}
