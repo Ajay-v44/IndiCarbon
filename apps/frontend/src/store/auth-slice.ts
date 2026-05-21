@@ -1,20 +1,8 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import { loginUser, registerUser, type AuthTokens } from "@/lib/auth-api";
+import { loginUser, registerUser } from "@/lib/api/auth";
+import { AuthTokens, LoginPayload, RegisterPayload } from "@/lib/api/types";
 
 type AuthStatus = "idle" | "loading" | "authenticated" | "error";
-
-type RegisterPayload = {
-  email: string;
-  password: string;
-  full_name: string;
-  phone_number?: string;
-  designation?: string;
-};
-
-type LoginPayload = {
-  email: string;
-  password: string;
-};
 
 type AuthState = {
   tokens: AuthTokens | null;
@@ -32,7 +20,11 @@ export const register = createAsyncThunk<AuthTokens, RegisterPayload, { rejectVa
   "auth/register",
   async (payload, { rejectWithValue }) => {
     try {
-      return await registerUser(payload);
+      const tokens = await registerUser(payload);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("indicarbon_tokens", JSON.stringify(tokens));
+      }
+      return tokens;
     } catch (err) {
       return rejectWithValue(err instanceof Error ? err.message : "Unable to create account.");
     }
@@ -43,7 +35,11 @@ export const login = createAsyncThunk<AuthTokens, LoginPayload, { rejectValue: s
   "auth/login",
   async (payload, { rejectWithValue }) => {
     try {
-      return await loginUser(payload);
+      const tokens = await loginUser(payload);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("indicarbon_tokens", JSON.stringify(tokens));
+      }
+      return tokens;
     } catch (err) {
       return rejectWithValue(err instanceof Error ? err.message : "Unable to sign in.");
     }
@@ -54,6 +50,20 @@ const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
+    initializeAuth(state) {
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("indicarbon_tokens");
+        if (stored) {
+          try {
+            state.tokens = JSON.parse(stored);
+            state.status = "authenticated";
+          } catch (e) {
+            state.tokens = null;
+            state.status = "idle";
+          }
+        }
+      }
+    },
     clearAuthError(state) {
       state.error = null;
       if (state.status === "error") {
@@ -64,6 +74,9 @@ const authSlice = createSlice({
       state.tokens = null;
       state.status = "idle";
       state.error = null;
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("indicarbon_tokens");
+      }
     },
   },
   extraReducers: (builder) => {
@@ -97,5 +110,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearAuthError, logout } = authSlice.actions;
+export const { initializeAuth, clearAuthError, logout } = authSlice.actions;
 export const authReducer = authSlice.reducer;
