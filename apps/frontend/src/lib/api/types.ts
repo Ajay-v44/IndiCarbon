@@ -1,0 +1,260 @@
+export interface AuthTokens {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  user_id: string;
+  email: string;
+  roles?: string[];
+  organization_id?: string;
+  organization_ids?: string[];
+}
+
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  full_name: string;
+  phone_number?: string;
+  designation?: string;
+}
+
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+// ─── Compliance / Emissions ───
+
+export type GHGScope = "scope_1" | "scope_2" | "scope_3";
+
+export type EmissionCategory =
+  | "stationary_combustion"
+  | "mobile_combustion"
+  | "electricity"
+  | "business_travel"
+  | "supply_chain"
+  | "waste";
+
+export interface EmissionReportCreate {
+  organization_id: string;
+  reporting_period_start: string; // YYYY-MM-DD
+  reporting_period_end: string;   // YYYY-MM-DD
+  scope_type: "SCOPE_1" | "SCOPE_2" | "SCOPE_3";
+  raw_quantity: number;
+  activity_unit: string;
+  document_evidence_id?: string;
+  factor_key?: string;
+}
+
+export interface EmissionReportResponse {
+  id: string;
+  organization_id: string;
+  reporting_period_start: string;
+  reporting_period_end: string;
+  scope_type: string;
+  raw_quantity: number;
+  activity_unit: string;
+  calculated_tco2e?: number;
+  factor_used_id?: string;
+  audit_status: string;
+  document_evidence_id?: string;
+}
+
+export interface EmissionSummaryResponse {
+  organization_id: string;
+  period_start: string;
+  period_end: string;
+  scope_totals_tco2e: Record<string, number>;
+  grand_total_tco2e: number;
+  report_count: number;
+}
+
+export interface EmissionFactorResponse {
+  id: string;
+  factor_key: string;
+  factor_value: number;
+  unit: string;
+  vintage_year: number;
+  source_agency?: string;
+  is_active: boolean;
+}
+
+export interface BRSRReportResponse {
+  organization_id: string;
+  period_start: string;
+  period_end: string;
+  scope1_total_tco2e: number;
+  scope2_total_tco2e: number;
+  scope3_total_tco2e: number;
+  grand_total_tco2e: number;
+  intensity_per_revenue_crore?: number;
+}
+
+export interface CalculateScopeEmissionsRequest {
+  year: number;
+  factor_key: string;
+  raw_quantity: number;
+}
+
+// ─── Compliance / Documents ───
+
+export interface DocumentUploadRequest {
+  organization_id: string;
+  doc_type: string;
+  file_path: string;
+  file_hash?: string;
+  mime_type?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface DocumentResponse {
+  id: string;
+  organization_id: string;
+  doc_type: string;
+  bucket_name: string;
+  file_path: string;
+  file_hash?: string;
+  mime_type?: string;
+  is_verified: boolean;
+  metadata?: Record<string, any>;
+}
+
+export interface DocumentVerifyRequest {
+  is_verified: boolean;
+  metadata?: Record<string, any>;
+}
+
+// ─── Marketplace ───
+
+export type CreditStatus = "available" | "reserved" | "retired" | "cancelled";
+export type OrderSide = "buy" | "sell";
+export type OrderStatus = "open" | "filled" | "partially_filled" | "cancelled";
+
+export interface CarbonCredit {
+  id: string; // or credit_id
+  registry_serial: string;
+  project_id: string;
+  vintage_year: number;
+  standard: string;
+  quantity_tonnes: number;
+  status: CreditStatus;
+  owner_org_id: string;
+  issued_at: string;
+  retired_at?: string;
+}
+
+export interface PlaceOrderRequest {
+  organization_id: string;
+  side: OrderSide;
+  credit_project_id: string;
+  vintage_year: number;
+  quantity_tonnes: number;
+  price_per_tonne_inr: number;
+}
+
+export interface PlaceOrderResponse {
+  matched: boolean;
+  order_id?: string;
+  status?: string;
+  trade?: TradeReceipt;
+}
+
+export interface TradeReceipt {
+  trade_id: string;
+  buyer_org_id: string;
+  seller_org_id: string;
+  credit_ids: string[];
+  quantity_tonnes: number;
+  price_per_tonne_inr: number;
+  total_value_inr: number;
+  settled_at: string;
+  registry_serials: string[];
+}
+
+// ─── AI Agent ───
+
+export interface ChatRequest {
+  query: string;
+}
+
+export interface ChatSource {
+  document_id?: string;
+  filename?: string;
+  chunk_index?: number;
+  similarity: number;
+  excerpt: string;
+}
+
+export interface ChatResponse {
+  run_id: string;
+  session_id: string;
+  organization_id: string;
+  user_id: string;
+  answer: string;
+  sources: ChatSource[];
+  duration_ms: number;
+  trace_url?: string;
+  guardrail_audit: Record<string, any>;
+  interaction_id?: string;
+}
+
+export interface ChatHistoryItem {
+  interaction_id: string;
+  session_id?: string;
+  query: string;
+  answer: string;
+  created_at: string;
+  sources: ChatSource[];
+  guardrail_blocked: boolean;
+}
+
+export interface ChatHistoryResponse {
+  items: ChatHistoryItem[];
+}
+
+export interface AgentRegistryCreate {
+  agent_name: string;
+  agent_type: string;
+  model_version: string;
+  is_active?: boolean;
+}
+
+export interface AgentRegistryUpdate {
+  agent_name?: string;
+  agent_type?: string;
+  model_version?: string;
+  is_active?: boolean;
+}
+
+export interface AgentRegistryResponse {
+  id: string;
+  agent_name?: string;
+  agent_type?: string;
+  model_version?: string;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export interface EmissionLineItem {
+  factor_key: string;
+  raw_quantity: number;
+  activity_unit: string;
+  year: number;
+  scope_hint?: string;
+  source_text?: string;
+}
+
+export interface DocumentAnalysisResult {
+  run_id: string;
+  organization_id: string;
+  document_id?: string;
+  fiscal_year?: number;
+  revenue_crore?: number;
+  emission_line_items: EmissionLineItem[];
+  summary: string;
+  compliance_api_result?: Record<string, any>;
+  trace_url?: string;
+  duration_ms: number;
+  completed_at: string;
+  graph_steps: string[];
+}

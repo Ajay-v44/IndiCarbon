@@ -310,6 +310,16 @@ async def emissions_proxy(request: Request, path: str):
     return await _proxy(request, settings.compliance_service_url)
 
 
+@app.api_route(
+    "/api/v1/documents/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    tags=["Compliance"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def documents_proxy(request: Request, path: str):
+    return await _proxy(request, settings.compliance_service_url)
+
+
 # ─── Marketplace Service ──────────────────────────────────────────────────────
 
 
@@ -320,6 +330,26 @@ async def emissions_proxy(request: Request, path: str):
     dependencies=[Depends(rate_limit), Depends(require_auth)],
 )
 async def marketplace_proxy(request: Request, path: str):
+    return await _proxy(request, settings.marketplace_service_url)
+
+
+@app.api_route(
+    "/api/v1/orders/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    tags=["Marketplace"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def orders_proxy(request: Request, path: str):
+    return await _proxy(request, settings.marketplace_service_url)
+
+
+@app.api_route(
+    "/api/v1/credits/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    tags=["Marketplace"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def credits_proxy(request: Request, path: str):
     return await _proxy(request, settings.marketplace_service_url)
 
 

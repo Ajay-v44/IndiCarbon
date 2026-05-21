@@ -62,6 +62,11 @@ The agent will use tools to:
 4. Call calculate emissions API.
     """,
 )
+@router.post(
+    "/api/v1/ai/analyse-document",
+    response_model=dict,
+    include_in_schema=False,
+)
 async def analyse_document(
     file: UploadFile = File(..., description="Sustainability/ESG document to analyse"),
     revenue_crore: Optional[float] = Form(None, description="Revenue in crore INR for BRSR intensity"),
