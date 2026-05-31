@@ -127,6 +127,8 @@ class IndiCarbonDomainGuard:
         "organisation", "organization", "company data", "our data",
         "my data", "report", "electricity", "energy", "fuel",
         "diesel", "petrol", "natural gas", "renewable",
+        "company name", "legal name", "trade name", "roles", "role",
+        "user", "users", "create user", "new user", "approve", "hitl", "review", "assign"
     ])
 
     # Keyword fast-path: these phrases are always off-topic.

@@ -265,14 +265,14 @@ def get_visible_user_profile(
 
 def assign_role_to_user(
     target_user_id: str,
-    role_name: str,
+    role_id: str,
     organization_id: str | None,
     db: Session,
 ) -> dict:
     """Assign an RBAC role to a user, optionally scoped to an organization."""
-    role = RoleRepository(db).find_by_name(role_name)
+    role = RoleRepository(db).find_by_id(role_id)
     if not role:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Role '{role_name}' not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Role ID '{role_id}' not found.")
 
     if role.name in ORG_ROLES and not organization_id:
         raise HTTPException(
@@ -287,23 +287,23 @@ def assign_role_to_user(
 
     user_role_repo = UserRoleRepository(db)
     user_role_repo.assign(target_user_id, str(role.id), organization_id)
-    return {"user_id": target_user_id, "role": role_name, "organization_id": organization_id}
+    return {"user_id": target_user_id, "role": role.name, "role_id": str(role.id), "organization_id": organization_id}
 
 
 def assign_role_as_admin(
     requesting_user_id: str,
     target_user_id: str,
-    role_name: str,
+    role_id: str,
     organization_id: str | None,
     db: Session,
 ) -> dict:
     _require_super_admin(requesting_user_id, db)
-    return assign_role_to_user(target_user_id, role_name, organization_id, db)
+    return assign_role_to_user(target_user_id, role_id, organization_id, db)
 
 
 def list_roles(db: Session) -> list[RoleResponse]:
     return [
-        RoleResponse(id=role.id, name=role.name, description=role.description)
+        RoleResponse(id=role.id, name=role.name, description=role.description, permissions=role.permissions or [])
         for role in RoleRepository(db).list_all()
     ]
 

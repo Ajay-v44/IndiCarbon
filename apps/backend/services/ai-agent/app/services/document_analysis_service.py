@@ -27,7 +27,7 @@ import httpx
 import logging
 import time
 import uuid
-from typing import Optional
+from typing import Any, Optional
 
 from ..config.observability import build_langfuse_handler, get_langfuse_client
 from ..config.settings import get_settings
@@ -38,6 +38,32 @@ from shared_logic import AuthenticatedUser
 logger = logging.getLogger("ai-agent.services.document_analysis")
 
 _background_tasks = set()
+
+
+def _message_content_to_str(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, str):
+                text_parts.append(part)
+            elif isinstance(part, dict):
+                if "text" in part:
+                    text_parts.append(str(part["text"]))
+                elif part.get("type") == "text" and "text" in part:
+                    text_parts.append(str(part["text"]))
+                else:
+                    text_parts.append(str(part))
+            elif hasattr(part, "get") and part.get("text"):
+                text_parts.append(str(part.get("text")))
+            elif hasattr(part, "text"):
+                text_parts.append(str(part.text))
+            else:
+                text_parts.append(str(part))
+        return "".join(text_parts)
+    return str(content) if content is not None else ""
+
 
 async def _embed_and_store_document_background(
     text: str,
@@ -201,7 +227,8 @@ async def run_document_analysis(
         duration_ms = int(time.time() * 1000) - start_ms
 
         # Extract final answer from agent
-        final_message = final_state["messages"][-1].content if "messages" in final_state and final_state["messages"] else ""
+        final_message_raw = final_state["messages"][-1].content if "messages" in final_state and final_state["messages"] else ""
+        final_message = _message_content_to_str(final_message_raw)
 
         result = DocumentAnalysisResult(
             run_id=uuid.UUID(run_id),

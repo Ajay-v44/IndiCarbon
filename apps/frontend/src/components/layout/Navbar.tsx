@@ -12,16 +12,16 @@ import {
   FlaskConical,
   Vault,
   ShieldCheck,
+  MessageSquareText,
   Menu,
   Bell,
-  User,
   ChevronDown,
-  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard",  label: "Dashboard",      icon: LayoutDashboard },
+  { href: "/dashboard/chat", label: "Agenti Chat", icon: MessageSquareText },
   { href: "/simulator",  label: "AI Simulator",    icon: FlaskConical },
   { href: "/portfolio",  label: "Carbon Vault",    icon: Vault },
   { href: "/mission",    label: "Mission",         icon: Leaf },
@@ -57,7 +57,10 @@ export function Navbar() {
         <div className="hidden md:flex lg:hidden items-center gap-1">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = pathname.startsWith(item.href);
+            const active =
+              item.href === "/dashboard"
+                ? pathname === "/dashboard"
+                : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
@@ -138,7 +141,10 @@ export function Navbar() {
               <div className="p-3 space-y-0.5">
                 {navItems.map((item) => {
                   const Icon = item.icon;
-                  const active = pathname.startsWith(item.href);
+                  const active =
+                    item.href === "/dashboard"
+                      ? pathname === "/dashboard"
+                      : pathname.startsWith(item.href);
                   return (
                     <Link
                       key={item.href}
