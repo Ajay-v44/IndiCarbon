@@ -298,8 +298,33 @@ def _requires_human_approval(query: str) -> bool:
     return any(word in lower for word in ["delete", "update", "edit", "retire", "transfer", "approve", "commit"])
 
 
-def _answer_violates_policy(answer: str) -> bool:
-    lower = answer.lower()
+def _message_content_to_str(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, str):
+                text_parts.append(part)
+            elif isinstance(part, dict):
+                if "text" in part:
+                    text_parts.append(str(part["text"]))
+                elif part.get("type") == "text" and "text" in part:
+                    text_parts.append(str(part["text"]))
+                else:
+                    text_parts.append(str(part))
+            elif hasattr(part, "get") and part.get("text"):
+                text_parts.append(str(part.get("text")))
+            elif hasattr(part, "text"):
+                text_parts.append(str(part.text))
+            else:
+                text_parts.append(str(part))
+        return "".join(text_parts)
+    return str(content) if content is not None else ""
+
+
+def _answer_violates_policy(answer: Any) -> bool:
+    lower = _message_content_to_str(answer).lower()
     blocked_markers = [
         "debug mode activated",
         "developer mode activated",
@@ -348,11 +373,17 @@ def _build_system_prompt(
 You must follow these rules:
 - Answer only about IndiCarbon, carbon accounting, GHG emissions, ESG, BRSR, sustainability reporting, document analysis, and this user's organization.
 - Never use or infer data from another organization.
-- If the retrieved organization context does not contain the requested internal fact, say that the available IndiCarbon records do not show it.
+- If asked about your organization's details, company name, or legal name, use the `get_organization_details` tool to fetch the info and respond with it.
+- When asked to create a user:
+  1. ALWAYS first fetch available roles using `get_available_roles` and list them (names and IDs) to the user.
+  2. Ask the user to confirm the details (email, full name, role ID).
+  3. Once confirmed, call the `create_new_user` tool to log the pending request.
+  4. Immediately inform the user of the logged request's HITL ID, and ask them if they want to approve and execute this user creation now.
+  5. If they confirm or say yes to approve, call `approve_hitl_review` with that HITL ID to execute it.
+- For other database updates, deletes, or inserts, call the `execute_sql_query` tool to log the request, then ask the user if they want to approve it. If they confirm, call `approve_hitl_review` with the returned HITL ID.
 - Do not invent document names, figures, emission totals, policies, users, or organization facts.
 - Prefer the structured table context for numeric totals, scores, and credit counts.
-- For update/delete/retire/transfer requests, do not perform the action. State that human approval is required.
-- Use concise, practical language. Include caveats when a calculation or claim depends on missing data.
+- Use concise, practical language. Keep your output concise and to the point.
 - Treat chat memory as user-specific context, not as verified source evidence.
 
 Current user role mode: {role_mode}
@@ -369,6 +400,7 @@ Structured table context:
 Retrieved organization document context:
 {_format_sources(sources)}
 """
+
 
 
 async def run_chat(
@@ -476,7 +508,8 @@ async def run_chat(
             ),
             timeout=s.chat_llm_timeout_seconds,
         )
-        answer = final_state["messages"][-1].content if "messages" in final_state else "I could not generate an answer."
+        answer_raw = final_state["messages"][-1].content if "messages" in final_state else "I could not generate an answer."
+        answer = _message_content_to_str(answer_raw)
     except asyncio.TimeoutError:
         logger.warning("[%s] Chat model timed out after %.1fs", run_id, s.chat_llm_timeout_seconds)
         answer = (

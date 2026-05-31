@@ -9,14 +9,14 @@ import {
   Vault,
   Leaf,
   ShieldCheck,
+  MessageSquareText,
   Settings,
-  User,
-  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const sidebarItems = [
   { href: "/dashboard",  label: "Dashboard",    icon: LayoutDashboard, badge: null },
+  { href: "/dashboard/chat", label: "Agenti Chat", icon: MessageSquareText, badge: "Live" },
   { href: "/simulator",  label: "AI Simulator",  icon: FlaskConical,    badge: "Beta" },
   { href: "/portfolio",  label: "Carbon Vault",  icon: Vault,           badge: null },
   { href: "/mission",    label: "Mission",       icon: Leaf,            badge: null },
@@ -79,7 +79,10 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
         )}
         {sidebarItems.map((item) => {
           const Icon = item.icon;
-          const active = pathname.startsWith(item.href);
+          const active =
+            item.href === "/dashboard"
+              ? pathname === "/dashboard"
+              : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}

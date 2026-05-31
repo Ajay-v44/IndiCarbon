@@ -74,11 +74,11 @@ def assign_role(
     result = auth_svc.assign_role_as_admin(
         str(user.id),
         str(req.user_id),
-        req.role_name,
+        str(req.role_id),
         str(req.organization_id) if req.organization_id else None,
         db,
     )
-    return ApiResponse(data=result, message=f"Role '{req.role_name}' assigned.")
+    return ApiResponse(data=result, message=f"Role ID '{req.role_id}' assigned.")
 
 
 @router.get("/roles", response_model=ApiResponse[list[RoleResponse]], summary="List available RBAC roles")

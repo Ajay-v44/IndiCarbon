@@ -62,7 +62,7 @@ class UserProfile(BaseModel):
 
 class AssignRoleRequest(BaseModel):
     user_id: UUID
-    role_name: str
+    role_id: UUID
     organization_id: Optional[UUID] = None
 
 
@@ -70,3 +70,4 @@ class RoleResponse(BaseModel):
     id: UUID
     name: str
     description: Optional[str] = None
+    permissions: list[str] = Field(default_factory=list)
