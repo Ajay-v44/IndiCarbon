@@ -2,7 +2,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Navbar } from "@/components/layout/Navbar";
 import { AuthGuard } from "@/components/layout/AuthGuard";
 
-export default function SimulatorLayout({ children }: { children: React.ReactNode }) {
+export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <div className="flex h-screen overflow-hidden bg-background text-foreground">

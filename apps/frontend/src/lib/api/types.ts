@@ -258,3 +258,29 @@ export interface DocumentAnalysisResult {
   completed_at: string;
   graph_steps: string[];
 }
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  full_name?: string;
+  phone_number?: string;
+  designation?: string;
+  is_active: boolean;
+  last_login?: string;
+  created_at: string;
+  roles: string[];
+  organization_ids: string[];
+}
+
+export interface RoleResponse {
+  id: string;
+  name: string;
+  description?: string;
+  permissions: string[];
+}
+
+export interface AssignRolePayload {
+  user_id: string;
+  role_id: string;
+  organization_id?: string;
+}

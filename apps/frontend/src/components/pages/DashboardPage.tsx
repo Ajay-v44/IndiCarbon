@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   TrendingDown,
   TrendingUp,
@@ -15,7 +15,6 @@ import {
   CloudUpload,
   Factory,
   ArrowRight,
-  ChevronRight,
 } from "lucide-react";
 import {
   XAxis,
@@ -26,6 +25,13 @@ import {
   AreaChart,
   Area,
 } from "recharts";
+import { useAppDispatch } from "@/store/hooks";
+import { triggerDocumentAnalysis } from "@/store/ai-slice";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 /* ─── Data ──────────────────────────────────────────────────── */
 const emissionsData = [
@@ -91,10 +97,81 @@ function KpiCard({
 
 /* ─── Main Component ────────────────────────────────────────── */
 export function DashboardPage() {
+  const dispatch = useAppDispatch();
   const [state, setState] = useState<State>("success");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Dynamic document uploads state
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
+  const [currentAnalysisResult, setCurrentAnalysisResult] = useState<any>(null);
+  const [uploadedFiles, setUploadedFiles] = useState([
+    { name: "Q1_audit_2026.csv", status: "Verified", statusColor: "text-green-700 bg-green-50 border-green-200" },
+    { name: "facility_report.pdf", status: "Processing", statusColor: "text-amber-700 bg-amber-50 border-amber-200" },
+  ]);
+
+  const triggerUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Add to local state list as Processing
+    const newEntry = {
+      name: file.name,
+      status: "Processing",
+      statusColor: "text-amber-700 bg-amber-50 border-amber-200",
+    };
+    setUploadedFiles((prev) => [newEntry, ...prev]);
+    setUploadingFile(true);
+    toast.info(`Uploading "${file.name}" for sustainability RAG audit...`);
+
+    try {
+      const resultAction = await dispatch(triggerDocumentAnalysis({ file }));
+      if (triggerDocumentAnalysis.fulfilled.match(resultAction)) {
+        const result = resultAction.payload;
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.name === file.name
+              ? { ...f, status: "Verified", statusColor: "text-green-700 bg-green-50 border-green-200" }
+              : f
+          )
+        );
+        setCurrentAnalysisResult(result);
+        setAnalysisModalOpen(true);
+        toast.success(`Analysis complete for "${file.name}"!`);
+      } else {
+        throw new Error(resultAction.payload as string || "Analysis pipeline failed");
+      }
+    } catch (err: any) {
+      setUploadedFiles((prev) =>
+        prev.map((f) =>
+          f.name === file.name
+            ? { ...f, status: "Failed", statusColor: "text-red-700 bg-red-50 border-red-200" }
+            : f
+        )
+      );
+      toast.error(`Error uploading "${file.name}": ${err.message || err}`);
+    } finally {
+      setUploadingFile(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
 
   return (
     <div className="w-full max-w-[1440px] mx-auto space-y-8 pb-12">
+      {/* Hidden File Input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+        accept=".pdf,.csv,.json,.xlsx,.docx"
+      />
 
       {/* ── Page Header ───────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
@@ -131,9 +208,13 @@ export function DashboardPage() {
             <RefreshCw className="w-3.5 h-3.5" />
             Refresh
           </button>
-          <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold shadow-sm transition-all">
+          <button
+            onClick={triggerUploadClick}
+            disabled={uploadingFile}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm font-semibold shadow-sm transition-all"
+          >
             <CloudUpload className="w-3.5 h-3.5" />
-            Upload Data
+            {uploadingFile ? "Uploading..." : "Upload Data"}
           </button>
         </div>
       </div>
@@ -190,6 +271,7 @@ export function DashboardPage() {
                   <span className="w-3 h-0.5 bg-green-600 rounded-full inline-block" />
                   Actual
                 </div>
+
                 <div className="flex items-center gap-1.5 text-xs text-gray-500">
                   <span className="w-3 h-0.5 bg-blue-500 rounded-full inline-block" style={{ borderTop: "2px dashed #2563eb", background: "none", height: 0 }} />
                   NDC Target
@@ -246,22 +328,27 @@ export function DashboardPage() {
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
               <h2 className="text-base font-bold text-gray-900 mb-1">Compliance Lab</h2>
               <p className="text-sm text-gray-400 mb-5">Data upload & audit</p>
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 text-center hover:border-green-400 hover:bg-green-50/50 transition-all cursor-pointer group">
+              <div
+                onClick={triggerUploadClick}
+                className="border-2 border-dashed border-gray-200 rounded-xl p-5 text-center hover:border-green-400 hover:bg-green-50/50 transition-all cursor-pointer group"
+              >
                 <div className="w-10 h-10 rounded-xl bg-gray-100 group-hover:bg-green-100 flex items-center justify-center mx-auto mb-3 transition-all">
                   <Upload className="w-5 h-5 text-gray-400 group-hover:text-green-600 transition-colors" />
                 </div>
-                <p className="text-sm font-semibold text-gray-700 group-hover:text-green-700">Upload Data Logs</p>
+                <p className="text-sm font-semibold text-gray-700 group-hover:text-green-700">
+                  {uploadingFile ? "Uploading File..." : "Upload Data Logs"}
+                </p>
                 <p className="text-xs text-gray-400 mt-0.5">CSV, JSON, PDF supported</p>
-                <button className="mt-3 px-4 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-all">
+                <button
+                  type="button"
+                  className="mt-3 px-4 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-all"
+                >
                   Browse Files
                 </button>
               </div>
-              <div className="mt-4 space-y-2">
-                {[
-                  { name: "Q1_audit_2026.csv",  status: "Verified",   statusColor: "text-green-700 bg-green-50 border-green-200" },
-                  { name: "facility_report.pdf", status: "Processing", statusColor: "text-amber-700 bg-amber-50 border-amber-200" },
-                ].map((file) => (
-                  <div key={file.name} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
+              <div className="mt-4 space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                {uploadedFiles.map((file, idx) => (
+                  <div key={`${file.name}-${idx}`} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
                     <span className="text-xs font-medium text-gray-700 truncate mr-2">{file.name}</span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${file.statusColor}`}>
                       {file.status}
@@ -333,7 +420,10 @@ export function DashboardPage() {
             Upload your first dataset to start monitoring your carbon footprint and generating AI-powered insights.
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
-            <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold shadow-sm transition-all">
+            <button
+              onClick={triggerUploadClick}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold shadow-sm transition-all"
+            >
               <Upload className="w-4 h-4" />
               Upload First Dataset
             </button>
@@ -349,7 +439,11 @@ export function DashboardPage() {
             ].map((opt) => {
               const Icon = opt.icon;
               return (
-                <div key={opt.title} className="p-4 rounded-xl bg-gray-50 border border-gray-200 hover:border-gray-300 hover:shadow-sm cursor-pointer transition-all">
+                <div
+                  key={opt.title}
+                  onClick={opt.title.includes("CSV") ? triggerUploadClick : undefined}
+                  className="p-4 rounded-xl bg-gray-50 border border-gray-200 hover:border-gray-300 hover:shadow-sm cursor-pointer transition-all"
+                >
                   <div className="w-8 h-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center mb-3">
                     <Icon className="w-4 h-4 text-gray-500" />
                   </div>
@@ -425,7 +519,10 @@ export function DashboardPage() {
             ))}
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
-            <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-all">
+            <button
+              onClick={triggerUploadClick}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-all"
+            >
               <Upload className="w-4 h-4" />
               Reupload Corrected File
             </button>
@@ -435,6 +532,93 @@ export function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ── Document Analysis Modal ───────────────────────────── */}
+      <Dialog open={analysisModalOpen} onOpenChange={setAnalysisModalOpen}>
+        <DialogContent className="glass border-border max-w-2xl text-foreground max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              Sustainability Audit Complete
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground text-xs">
+              Extracted carbon intensity parameters and emission factors.
+            </DialogDescription>
+          </DialogHeader>
+
+          {currentAnalysisResult && (
+            <div className="space-y-4 py-3">
+              <div className="grid grid-cols-2 gap-4 bg-muted/30 p-4 rounded-xl border border-border">
+                <div>
+                  <p className="text-xs text-muted-foreground">Fiscal Year Detected</p>
+                  <p className="text-sm font-bold text-foreground">
+                    {currentAnalysisResult.fiscal_year || "Not detected"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">BRSR Revenue Scope</p>
+                  <p className="text-sm font-bold text-foreground">
+                    {currentAnalysisResult.revenue_crore ? `₹${currentAnalysisResult.revenue_crore} Cr` : "Not specified"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Executive Summary</h4>
+                <p className="text-sm text-muted-foreground leading-relaxed bg-muted/20 p-3 rounded-lg border border-border">
+                  {currentAnalysisResult.summary}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Extracted Telemetry Line Items</h4>
+                <div className="border border-border rounded-xl overflow-hidden bg-background">
+                  <Table>
+                    <TableHeader className="bg-muted/40">
+                      <TableRow>
+                        <TableHead className="text-xs text-muted-foreground">Source/Activity</TableHead>
+                        <TableHead className="text-xs text-muted-foreground">Quantity</TableHead>
+                        <TableHead className="text-xs text-muted-foreground">Scope</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {currentAnalysisResult.emission_line_items && currentAnalysisResult.emission_line_items.length > 0 ? (
+                        currentAnalysisResult.emission_line_items.map((item: any, idx: number) => (
+                          <TableRow key={idx} className="hover:bg-muted/10">
+                            <TableCell className="py-2.5 text-xs font-semibold text-foreground">
+                              {item.activity_type || "General activity"}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-xs text-muted-foreground">
+                              {item.raw_quantity} {item.activity_unit}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-xs">
+                              <Badge className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                {item.scope_hint || "Scope 1"}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center py-4 text-xs text-muted-foreground">
+                            No explicit emission line items extracted.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={() => setAnalysisModalOpen(false)} className="bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700 dark:hover:bg-emerald-400 text-white dark:text-black font-bold">
+              Dismiss Audit View
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

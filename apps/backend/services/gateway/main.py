@@ -268,12 +268,32 @@ async def auth_proxy(request: Request, path: str):
 
 
 @app.api_route(
+    "/api/v1/users",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def users_root_proxy(request: Request):
+    return await _proxy(request, settings.auth_service_url)
+
+
+@app.api_route(
     "/api/v1/users/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     tags=["Users"],
     dependencies=[Depends(rate_limit), Depends(require_auth)],
 )
 async def users_proxy(request: Request, path: str):
+    return await _proxy(request, settings.auth_service_url)
+
+
+@app.api_route(
+    "/api/v1/organizations",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def organizations_root_proxy(request: Request):
     return await _proxy(request, settings.auth_service_url)
 
 
@@ -291,6 +311,16 @@ async def organizations_proxy(request: Request, path: str):
 
 
 @app.api_route(
+    "/api/v1/compliance",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit), Depends(require_auth_unless_public)],
+)
+async def compliance_root_proxy(request: Request):
+    return await _proxy(request, settings.compliance_service_url)
+
+
+@app.api_route(
     "/api/v1/compliance/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     tags=["Compliance"],
@@ -301,12 +331,32 @@ async def compliance_proxy(request: Request, path: str):
 
 
 @app.api_route(
+    "/api/v1/emissions",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit), Depends(require_auth_unless_public)],
+)
+async def emissions_root_proxy(request: Request):
+    return await _proxy(request, settings.compliance_service_url)
+
+
+@app.api_route(
     "/api/v1/emissions/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     tags=["Compliance"],
     dependencies=[Depends(rate_limit), Depends(require_auth_unless_public)],
 )
 async def emissions_proxy(request: Request, path: str):
+    return await _proxy(request, settings.compliance_service_url)
+
+
+@app.api_route(
+    "/api/v1/documents",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def documents_root_proxy(request: Request):
     return await _proxy(request, settings.compliance_service_url)
 
 
@@ -324,12 +374,32 @@ async def documents_proxy(request: Request, path: str):
 
 
 @app.api_route(
+    "/api/v1/marketplace",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def marketplace_root_proxy(request: Request):
+    return await _proxy(request, settings.marketplace_service_url)
+
+
+@app.api_route(
     "/api/v1/marketplace/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     tags=["Marketplace"],
     dependencies=[Depends(rate_limit), Depends(require_auth)],
 )
 async def marketplace_proxy(request: Request, path: str):
+    return await _proxy(request, settings.marketplace_service_url)
+
+
+@app.api_route(
+    "/api/v1/orders",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def orders_root_proxy(request: Request):
     return await _proxy(request, settings.marketplace_service_url)
 
 
@@ -344,6 +414,16 @@ async def orders_proxy(request: Request, path: str):
 
 
 @app.api_route(
+    "/api/v1/credits",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def credits_root_proxy(request: Request):
+    return await _proxy(request, settings.marketplace_service_url)
+
+
+@app.api_route(
     "/api/v1/credits/{path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     tags=["Marketplace"],
@@ -354,6 +434,26 @@ async def credits_proxy(request: Request, path: str):
 
 
 # ─── AI Agent Service ─────────────────────────────────────────────────────────
+
+
+@app.api_route(
+    "/api/v1/analyse-document",
+    methods=["POST"],
+    tags=["AI Agent"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def analyse_document_proxy(request: Request):
+    return await _proxy(request, settings.ai_agent_service_url)
+
+
+@app.api_route(
+    "/api/v1/ai",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def ai_agent_root_proxy(request: Request):
+    return await _proxy(request, settings.ai_agent_service_url)
 
 
 @app.api_route(
