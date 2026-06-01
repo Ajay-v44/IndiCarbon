@@ -13,9 +13,9 @@ import {
   Factory,
   ChevronRight,
   Star,
-  Users,
   Award,
 } from "lucide-react";
+import { useAppSelector } from "@/store/hooks";
 
 const stats = [
   { value: "2.4M", label: "tCO₂ Tracked", icon: BarChart2 },
@@ -72,21 +72,16 @@ const testimonials = [
   },
 ];
 
-const sdgGoals = [
-  { number: "SDG 7", title: "Clean Energy", metric: "+12%", desc: "adoption across facilities" },
-  { number: "SDG 9", title: "Innovation", metric: "3 patents", desc: "filed for capture tech" },
-  { number: "SDG 13", title: "Climate Action", metric: "-450t", desc: "CO₂ this quarter" },
-  { number: "SDG 17", title: "Partnerships", metric: "340+", desc: "enterprises aligned" },
-];
-
 export function LandingPage() {
+  const tokens = useAppSelector((state) => state.auth.tokens);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-xl">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between gap-3">
-            <Link href="/" className="flex items-center gap-2 shrink-0">
+            <Link href={tokens ? "/dashboard" : "/"} className="flex items-center gap-2 shrink-0">
               <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-card border border-border overflow-hidden">
                 <Image
                   src="/images/Indicrabon%20logo.png"
@@ -118,17 +113,28 @@ export function LandingPage() {
             </nav>
 
             <div className="flex items-center gap-2">
-              <Link href="/auth/login">
-                <Button variant="ghost" className="hidden sm:inline-flex">
-                  Sign in
-                </Button>
-              </Link>
-              <Link href="/auth/register">
-                <Button className="font-semibold">
-                  Get started
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
+              {tokens ? (
+                <Link href="/dashboard">
+                  <Button className="font-semibold">
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Link href="/auth/login">
+                    <Button variant="ghost" className="hidden sm:inline-flex">
+                      Sign in
+                    </Button>
+                  </Link>
+                  <Link href="/auth/register">
+                    <Button className="font-semibold">
+                      Get started
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -153,17 +159,28 @@ export function LandingPage() {
               </p>
 
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <Link href="/auth/register">
-                  <Button size="lg" className="w-full sm:w-auto font-bold">
-                    Start free trial
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </Link>
-                <Link href="/dashboard">
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                    View live demo
-                  </Button>
-                </Link>
+                {tokens ? (
+                  <Link href="/dashboard">
+                    <Button size="lg" className="w-full sm:w-auto font-bold">
+                      Go to Dashboard
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Button>
+                  </Link>
+                ) : (
+                  <>
+                    <Link href="/auth/register">
+                      <Button size="lg" className="w-full sm:w-auto font-bold">
+                        Start free trial
+                        <ArrowRight className="ml-2 h-5 w-5" />
+                      </Button>
+                    </Link>
+                    <Link href="/dashboard">
+                      <Button size="lg" variant="outline" className="w-full sm:w-auto">
+                        View live demo
+                      </Button>
+                    </Link>
+                  </>
+                )}
               </div>
 
               <div className="mt-10 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
@@ -332,17 +349,28 @@ export function LandingPage() {
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3 lg:justify-end">
-                <Link href="/auth/register">
-                  <Button size="lg" className="w-full sm:w-auto font-bold">
-                    Start free — no card
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </Link>
-                <Link href="/mission">
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                    Read our mission
-                  </Button>
-                </Link>
+                {tokens ? (
+                  <Link href="/dashboard">
+                    <Button size="lg" className="w-full sm:w-auto font-bold">
+                      Go to Dashboard
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </Button>
+                  </Link>
+                ) : (
+                  <>
+                    <Link href="/auth/register">
+                      <Button size="lg" className="w-full sm:w-auto font-bold">
+                        Start free — no card
+                        <ArrowRight className="ml-2 h-5 w-5" />
+                      </Button>
+                    </Link>
+                    <Link href="/mission">
+                      <Button size="lg" variant="outline" className="w-full sm:w-auto">
+                        Read our mission
+                      </Button>
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </div>

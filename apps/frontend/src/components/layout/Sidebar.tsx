@@ -11,20 +11,28 @@ import {
   ShieldCheck,
   MessageSquareText,
   Settings,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { logout } from "@/store/auth-slice";
 
 const sidebarItems = [
   { href: "/dashboard",  label: "Dashboard",    icon: LayoutDashboard, badge: null },
   { href: "/dashboard/chat", label: "Agenti Chat", icon: MessageSquareText, badge: "Live" },
   { href: "/simulator",  label: "AI Simulator",  icon: FlaskConical,    badge: "Beta" },
   { href: "/portfolio",  label: "Carbon Vault",  icon: Vault,           badge: null },
-  { href: "/mission",    label: "Mission",       icon: Leaf,            badge: null },
   { href: "/admin",      label: "Admin Center",  icon: ShieldCheck,     badge: null },
 ];
 
 export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
   const pathname = usePathname();
+  const dispatch = useAppDispatch();
+  const tokens = useAppSelector((state) => state.auth.tokens);
+
+  const email = tokens?.email || "ajay@indicarbon.com";
+  const name = email.split("@")[0].split(/[._-]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+  const initials = email.split("@")[0].slice(0, 2).toUpperCase();
 
   return (
     <aside
@@ -35,7 +43,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
     >
       {/* Logo */}
       <div className="flex h-16 items-center px-5 border-b border-border shrink-0">
-        <Link href="/" className="flex items-center gap-2.5 min-w-0">
+        <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
           <div className="w-10 h-10 rounded-2xl bg-card border border-border overflow-hidden shrink-0 shadow-sm">
             <Image
               src="/images/Indicrabon%20logo.png"
@@ -128,15 +136,26 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
           {!collapsed && <span>Settings</span>}
         </Link>
 
+        <button
+          onClick={() => {
+            dispatch(logout());
+            window.location.href = "/auth/login";
+          }}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-destructive hover:text-destructive hover:bg-destructive/10 transition-all text-left"
+        >
+          <LogOut className="w-4 h-4" />
+          {!collapsed && <span>Log Out</span>}
+        </button>
+
         {!collapsed && (
           <div className="mt-3 p-3 rounded-xl bg-muted border border-border">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full bg-foreground flex items-center justify-center shrink-0">
-                <span className="text-background text-xs font-bold">AV</span>
+                <span className="text-background text-xs font-bold">{initials}</span>
               </div>
               <div className="overflow-hidden">
-                <p className="text-sm font-semibold text-foreground truncate leading-tight">Ajay Verma</p>
-                <p className="text-[11px] text-muted-foreground truncate">Enterprise · Admin</p>
+                <p className="text-sm font-semibold text-foreground truncate leading-tight">{name}</p>
+                <p className="text-[11px] text-muted-foreground truncate">{email}</p>
               </div>
             </div>
           </div>

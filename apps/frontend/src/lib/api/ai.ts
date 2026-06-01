@@ -19,7 +19,7 @@ export function analyseDocument(
   }
 
   return apiCall<DocumentAnalysisResult>({
-    url: "/api/v1/ai/analyse-document",
+    url: "/api/v1/analyse-document",
     method: "POST",
     data: formData,
     headers: {

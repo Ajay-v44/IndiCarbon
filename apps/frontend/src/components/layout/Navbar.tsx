@@ -16,28 +16,39 @@ import {
   Menu,
   Bell,
   ChevronDown,
+  Settings,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { logout } from "@/store/auth-slice";
 
 const navItems = [
   { href: "/dashboard",  label: "Dashboard",      icon: LayoutDashboard },
   { href: "/dashboard/chat", label: "Agenti Chat", icon: MessageSquareText },
   { href: "/simulator",  label: "AI Simulator",    icon: FlaskConical },
   { href: "/portfolio",  label: "Carbon Vault",    icon: Vault },
-  { href: "/mission",    label: "Mission",         icon: Leaf },
   { href: "/admin",      label: "Command Center",  icon: ShieldCheck },
 ];
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const pathname = usePathname();
+  const dispatch = useAppDispatch();
+  const tokens = useAppSelector((state) => state.auth.tokens);
+
+  const email = tokens?.email || "ajay@indicarbon.com";
+  const firstName = email.split("@")[0].split(/[._-]/)[0];
+  const name = email.split("@")[0].split(/[._-]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+  const initials = email.split("@")[0].slice(0, 2).toUpperCase();
 
   return (
     <nav className="sticky top-0 z-50 h-16 bg-background/90 backdrop-blur-xl border-b border-border shadow-sm">
       <div className="h-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
 
         {/* Logo – only shown when sidebar is hidden */}
-        <Link href="/" className="flex items-center gap-2 shrink-0 lg:hidden">
+        <Link href="/dashboard" className="flex items-center gap-2 shrink-0 lg:hidden">
           <div className="w-10 h-10 rounded-2xl bg-card border border-border overflow-hidden shadow-sm">
             <Image
               src="/images/Indicrabon%20logo.png"
@@ -100,14 +111,54 @@ export function Navbar() {
             <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-foreground rounded-full" />
           </Button>
 
-          {/* Avatar */}
-          <button className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-all border border-transparent hover:border-border">
-            <div className="w-7 h-7 rounded-full bg-foreground flex items-center justify-center">
-              <span className="text-background text-xs font-bold">AV</span>
-            </div>
-            <span className="text-sm font-medium text-foreground">Ajay</span>
-            <ChevronDown className="w-3 h-3 text-muted-foreground" />
-          </button>
+          {/* Avatar Dropdown */}
+          <div className="relative">
+            <button 
+              onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-all border border-transparent hover:border-border"
+            >
+              <div className="w-7 h-7 rounded-full bg-foreground flex items-center justify-center">
+                <span className="text-background text-xs font-bold">{initials}</span>
+              </div>
+              <span className="text-sm font-medium text-foreground">{firstName}</span>
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
+            </button>
+            {profileDropdownOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-10" 
+                  onClick={() => setProfileDropdownOpen(false)}
+                />
+                <div className="absolute right-0 mt-2 w-56 rounded-xl border border-border bg-card p-2 shadow-md z-20">
+                  <div className="px-2.5 py-2 border-b border-border">
+                    <p className="text-sm font-semibold text-foreground truncate">{name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{email}</p>
+                  </div>
+                  <div className="py-1">
+                    <Link
+                      href="/settings"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Settings
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        dispatch(logout());
+                        window.location.href = "/auth/login";
+                      }}
+                      className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-sm text-destructive hover:text-destructive hover:bg-destructive/10 transition-all text-left"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Log Out
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Mobile menu */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -120,7 +171,7 @@ export function Navbar() {
             </SheetTrigger>
             <SheetContent side="left" className="w-72 bg-background border-border p-0">
               <div className="p-5 border-b border-border">
-                <Link href="/" className="flex items-center gap-2.5" onClick={() => setMobileOpen(false)}>
+                <Link href="/dashboard" className="flex items-center gap-2.5" onClick={() => setMobileOpen(false)}>
                   <div className="w-10 h-10 rounded-2xl bg-card border border-border overflow-hidden shadow-sm">
                     <Image
                       src="/images/Indicrabon%20logo.png"
@@ -165,14 +216,26 @@ export function Navbar() {
               </div>
 
               <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border">
-                <div className="flex items-center gap-3 px-3 py-2.5">
-                  <div className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center shrink-0">
-                    <span className="text-background text-sm font-bold">AV</span>
+                <div className="flex items-center gap-3 px-3 py-2.5 justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-foreground flex items-center justify-center shrink-0">
+                      <span className="text-background text-sm font-bold">{initials}</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{name}</p>
+                      <p className="text-xs text-muted-foreground">{email}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Ajay Verma</p>
-                    <p className="text-xs text-muted-foreground">Enterprise Plan</p>
-                  </div>
+                  <button
+                    onClick={() => {
+                      setMobileOpen(false);
+                      dispatch(logout());
+                      window.location.href = "/auth/login";
+                    }}
+                    className="p-2 rounded-lg text-destructive hover:bg-destructive/10 transition-all"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             </SheetContent>
