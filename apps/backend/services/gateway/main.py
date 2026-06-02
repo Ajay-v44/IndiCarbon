@@ -53,6 +53,9 @@ class GatewaySettings(BaseSettings):
     app_jwt_algorithm: str = "HS256"
     allowed_origins: str = "http://localhost:3000"
 
+    gateway_client_timeout: float = 30.0
+    ai_service_timeout: float = 120.0
+
     @property
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",")]
@@ -67,7 +70,7 @@ settings = GatewaySettings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.redis = await aioredis.from_url(settings.redis_url, decode_responses=True)
-    app.state.http = httpx.AsyncClient(timeout=httpx.Timeout(30.0))
+    app.state.http = httpx.AsyncClient(timeout=httpx.Timeout(settings.gateway_client_timeout))
     logger.info("Gateway started — env=%s version=%s", settings.app_env, settings.app_version)
     yield
     await app.state.redis.aclose()
@@ -214,7 +217,7 @@ def _forward_headers(request: Request) -> dict[str, str]:
 
 
 
-async def _proxy(request: Request, upstream_url: str) -> JSONResponse:
+async def _proxy(request: Request, upstream_url: str, timeout: float | None = None) -> JSONResponse:
     """Forwards request to internal service."""
     http: httpx.AsyncClient = request.app.state.http
     query = str(request.url.query)
@@ -223,7 +226,11 @@ async def _proxy(request: Request, upstream_url: str) -> JSONResponse:
 
     headers = _forward_headers(request)
 
-    resp = await http.request(method=request.method, url=target, headers=headers, content=body)
+    kwargs = {}
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+
+    resp = await http.request(method=request.method, url=target, headers=headers, content=body, **kwargs)
     return JSONResponse(
         content=resp.json(),
         status_code=resp.status_code,
@@ -443,7 +450,7 @@ async def credits_proxy(request: Request, path: str):
     dependencies=[Depends(rate_limit), Depends(require_auth)],
 )
 async def analyse_document_proxy(request: Request):
-    return await _proxy(request, settings.ai_agent_service_url)
+    return await _proxy(request, settings.ai_agent_service_url, timeout=settings.ai_service_timeout)
 
 
 @app.api_route(
@@ -453,7 +460,7 @@ async def analyse_document_proxy(request: Request):
     dependencies=[Depends(rate_limit), Depends(require_auth)],
 )
 async def ai_agent_root_proxy(request: Request):
-    return await _proxy(request, settings.ai_agent_service_url)
+    return await _proxy(request, settings.ai_agent_service_url, timeout=settings.ai_service_timeout)
 
 
 @app.api_route(
@@ -463,4 +470,4 @@ async def ai_agent_root_proxy(request: Request):
     dependencies=[Depends(rate_limit), Depends(require_auth)],
 )
 async def ai_agent_proxy(request: Request, path: str):
-    return await _proxy(request, settings.ai_agent_service_url)
+    return await _proxy(request, settings.ai_agent_service_url, timeout=settings.ai_service_timeout)
