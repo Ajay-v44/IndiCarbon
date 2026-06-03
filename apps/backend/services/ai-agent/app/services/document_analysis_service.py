@@ -193,7 +193,7 @@ async def run_document_analysis(
         raise ValueError(f"Failed to parse document: {exc}")
 
     # 3. Setup Agent and initial state
-    from langchain_core.messages import HumanMessage
+    from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
     langfuse_handler = build_langfuse_handler(run_id, "document_analysis", organization_id)
     graph = get_document_analysis_graph()
 
@@ -230,18 +230,116 @@ async def run_document_analysis(
         final_message_raw = final_state["messages"][-1].content if "messages" in final_state and final_state["messages"] else ""
         final_message = _message_content_to_str(final_message_raw)
 
+        # Extract variables from messages in final_state
+        fiscal_year = None
+        emission_line_items = []
+        compliance_api_result = {}
+        graph_steps = ["parsing"]
+
+        if "messages" in final_state:
+            # We want to map tool call IDs to their inputs/details
+            tool_calls_map = {}
+            factors_map = {}
+            
+            for msg in final_state["messages"]:
+                # If msg is AIMessage
+                if isinstance(msg, AIMessage) or hasattr(msg, "tool_calls"):
+                    tool_calls = getattr(msg, "tool_calls", None)
+                    if tool_calls:
+                        for tc in tool_calls:
+                            name = tc.get("name")
+                            tc_id = tc.get("id")
+                            args = tc.get("args") or {}
+                            if name == "get_emission_factors" and tc_id:
+                                tool_calls_map[tc_id] = {"name": name}
+                                if "retrieve_factors" not in graph_steps:
+                                    graph_steps.append("retrieve_factors")
+                            elif name == "calculate_scope_emissions" and tc_id:
+                                tool_calls_map[tc_id] = {"name": name, "args": args}
+                                if "calculate_emissions" not in graph_steps:
+                                    graph_steps.append("calculate_emissions")
+
+                # If msg is ToolMessage
+                elif isinstance(msg, ToolMessage) or getattr(msg, "type", None) == "tool":
+                    tc_id = getattr(msg, "tool_call_id", None)
+                    if tc_id in tool_calls_map:
+                        tinfo = tool_calls_map[tc_id]
+                        if tinfo["name"] == "get_emission_factors":
+                            try:
+                                import json
+                                data = []
+                                if isinstance(msg.content, str):
+                                    data = json.loads(msg.content)
+                                elif isinstance(msg.content, list):
+                                    data = msg.content
+                                if isinstance(data, list):
+                                    for f in data:
+                                        fkey = f.get("factor_key")
+                                        if fkey:
+                                            factors_map[fkey] = {
+                                                "unit": f.get("unit", "unit"),
+                                                "scope": f.get("scope", "Scope 1")
+                                            }
+                            except Exception:
+                                pass
+                        elif tinfo["name"] == "calculate_scope_emissions":
+                            args = tinfo.get("args") or {}
+                            items = args.get("items") or []
+                            for item in items:
+                                fkey = item.get("factor_key", "")
+                                mapped_info = factors_map.get(fkey, {})
+                                unit = item.get("activity_unit") or mapped_info.get("unit") or "unit"
+                                scope = item.get("scope_hint") or mapped_info.get("scope") or "Scope 1"
+                                
+                                emission_line_items.append(
+                                    EmissionLineItem(
+                                        factor_key=fkey,
+                                        raw_quantity=float(item.get("raw_quantity", 0.0)),
+                                        activity_unit=unit,
+                                        year=int(item.get("year") or 2026),
+                                        scope_hint=scope,
+                                        source_text=item.get("source_text"),
+                                    )
+                                )
+                            if items:
+                                fiscal_year = int(items[0].get("year") or 2026)
+                            
+                            try:
+                                import json
+                                if isinstance(msg.content, str):
+                                    compliance_api_result = json.loads(msg.content)
+                                elif isinstance(msg.content, dict):
+                                    compliance_api_result = msg.content
+                            except Exception:
+                                compliance_api_result = {"raw_output": str(msg.content)}
+
+        # Fallback for fiscal year from get_emission_factors tool calls if not extracted from calculate_scope_emissions
+        if fiscal_year is None:
+            for msg in final_state.get("messages", []):
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        if tc.get("name") == "get_emission_factors":
+                            args = tc.get("args") or {}
+                            if "year" in args:
+                                try:
+                                    fiscal_year = int(args["year"])
+                                except (ValueError, TypeError):
+                                    pass
+
+        graph_steps.append("summarize")
+
         result = DocumentAnalysisResult(
             run_id=uuid.UUID(run_id),
             organization_id=uuid.UUID(organization_id),
             document_id=uuid.UUID(document_id),
-            fiscal_year=None,
+            fiscal_year=fiscal_year,
             revenue_crore=revenue_crore,
-            emission_line_items=[],
+            emission_line_items=emission_line_items,
             summary=final_message,
-            compliance_api_result={},
+            compliance_api_result=compliance_api_result,
             trace_url=f"{s.langfuse_host}/sessions/{run_id}",
             duration_ms=duration_ms,
-            graph_steps=[],
+            graph_steps=graph_steps,
         )
 
         try:
