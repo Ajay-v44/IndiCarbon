@@ -32,6 +32,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 /* ─── Data ──────────────────────────────────────────────────── */
 const emissionsData = [
@@ -110,13 +112,30 @@ export function DashboardPage() {
     { name: "facility_report.pdf", status: "Processing", statusColor: "text-amber-700 bg-amber-50 border-amber-200" },
   ]);
 
+  // Upload configuration state
+  const [pendingUploadFile, setPendingUploadFile] = useState<File | null>(null);
+  const [uploadConfirmOpen, setUploadConfirmOpen] = useState(false);
+  const [revenueCrore, setRevenueCrore] = useState<string>("0");
+
   const triggerUploadClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setPendingUploadFile(file);
+    setRevenueCrore("0"); // reset to default
+    setUploadConfirmOpen(true);
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!pendingUploadFile) return;
+    const file = pendingUploadFile;
+    setUploadConfirmOpen(false);
+    setPendingUploadFile(null);
+
+    const revenueVal = revenueCrore ? parseFloat(revenueCrore) : 0;
 
     // Add to local state list as Processing
     const newEntry = {
@@ -129,7 +148,7 @@ export function DashboardPage() {
     toast.info(`Uploading "${file.name}" for sustainability RAG audit...`);
 
     try {
-      const resultAction = await dispatch(triggerDocumentAnalysis({ file }));
+      const resultAction = await dispatch(triggerDocumentAnalysis({ file, revenueCrore: revenueVal }));
       if (triggerDocumentAnalysis.fulfilled.match(resultAction)) {
         const result = resultAction.payload;
         setUploadedFiles((prev) =>
@@ -615,6 +634,84 @@ export function DashboardPage() {
           <DialogFooter>
             <Button onClick={() => setAnalysisModalOpen(false)} className="bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700 dark:hover:bg-emerald-400 text-white dark:text-black font-bold">
               Dismiss Audit View
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Upload Confirmation Modal ───────────────────────────── */}
+      <Dialog open={uploadConfirmOpen} onOpenChange={setUploadConfirmOpen}>
+        <DialogContent className="glass border-border max-w-md text-foreground">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
+              <CloudUpload className="w-5 h-5 text-green-600 dark:text-green-400 animate-bounce" />
+              Configure Document Upload
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground text-xs">
+              Provide necessary parameters to process your sustainability document.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {pendingUploadFile && (
+              <div className="bg-muted/30 p-3 rounded-lg border border-border flex items-center justify-between text-xs">
+                <div>
+                  <p className="font-semibold text-foreground truncate max-w-[240px]">
+                    {pendingUploadFile.name}
+                  </p>
+                  <p className="text-muted-foreground mt-0.5">
+                    {(pendingUploadFile.size / (1024 * 1024)).toFixed(2)} MB
+                  </p>
+                </div>
+                <Badge className="text-[10px] bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">
+                  Ready to process
+                </Badge>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="revenue-crore" className="text-xs font-semibold text-foreground">
+                Revenue in Crore (INR)
+              </Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">
+                  ₹
+                </span>
+                <Input
+                  id="revenue-crore"
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 150"
+                  className="pl-7 pr-12 text-sm bg-background/50 border-input"
+                  value={revenueCrore}
+                  onChange={(e) => setRevenueCrore(e.target.value)}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs font-semibold">
+                  Cr
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-normal">
+                Required for calculating BRSR carbon intensity metrics. Use 0 if not applicable.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2 sm:gap-0 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUploadConfirmOpen(false);
+                setPendingUploadFile(null);
+              }}
+              className="border-border text-foreground hover:bg-muted/50"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmUpload}
+              className="bg-green-600 hover:bg-green-700 text-white font-bold"
+            >
+              Analyze Document
             </Button>
           </DialogFooter>
         </DialogContent>
