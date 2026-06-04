@@ -1,7 +1,15 @@
 import { apiCall } from "./axios-client";
-import { AuthTokens, LoginPayload, RegisterPayload, UserProfile, RoleResponse, AssignRolePayload } from "./types";
+import { AuthTokens, LoginPayload, RegisterPayload, UserProfile, RoleResponse, AssignRolePayload, OrganizationResponse } from "./types";
+
+export function listOrganizations(): Promise<OrganizationResponse[]> {
+  return apiCall<OrganizationResponse[]>({
+    url: "/api/v1/organizations",
+    method: "GET",
+  });
+}
 
 export function registerUser(payload: RegisterPayload): Promise<AuthTokens> {
+
   return apiCall<AuthTokens>({
     url: "/api/v1/auth/register",
     method: "POST",
