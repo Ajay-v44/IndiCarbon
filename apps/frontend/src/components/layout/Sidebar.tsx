@@ -85,7 +85,13 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
             Navigation
           </p>
         )}
-        {sidebarItems.map((item) => {
+        {sidebarItems.filter(item => {
+          if (item.href === "/admin") {
+            const roles = tokens?.roles || [];
+            return roles.includes("SUPER_ADMIN") || roles.includes("SALES");
+          }
+          return true;
+        }).map((item) => {
           const Icon = item.icon;
           const active =
             item.href === "/dashboard"

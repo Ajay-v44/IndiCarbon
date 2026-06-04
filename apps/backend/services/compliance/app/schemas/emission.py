@@ -77,3 +77,38 @@ class BRSRReportResponse(BaseModel):
     scope3_total_tco2e: float
     grand_total_tco2e: float
     intensity_per_revenue_crore: Optional[float] = None
+
+
+class SectorBenchmarkCreate(BaseModel):
+    sector_name: str
+    sub_sector: Optional[str] = None
+    target_intensity: Decimal
+    intensity_unit: str = "tCO2e/Crore"
+    compliance_year: int
+    reduction_target_pct: Optional[Decimal] = None
+    is_ccts_obligated: bool = False
+    regulatory_framework: Optional[str] = None
+
+
+class SectorBenchmarkUpdate(BaseModel):
+    sector_name: Optional[str] = None
+    sub_sector: Optional[str] = None
+    target_intensity: Optional[Decimal] = None
+    intensity_unit: Optional[str] = None
+    compliance_year: Optional[int] = None
+    reduction_target_pct: Optional[Decimal] = None
+    is_ccts_obligated: Optional[bool] = None
+    regulatory_framework: Optional[str] = None
+
+
+class SectorBenchmarkResponse(BaseModel):
+    id: UUID
+    sector_name: str
+    sub_sector: Optional[str] = None
+    target_intensity: Decimal
+    intensity_unit: Optional[str] = None
+    compliance_year: Optional[int] = None
+    reduction_target_pct: Optional[Decimal] = None
+    is_ccts_obligated: bool
+    regulatory_framework: Optional[str] = None
+

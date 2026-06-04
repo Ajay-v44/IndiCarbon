@@ -9,7 +9,11 @@ import {
   EmissionReportCreate,
   EmissionReportResponse,
   EmissionSummaryResponse,
+  SectorBenchmarkCreate,
+  SectorBenchmarkUpdate,
+  SectorBenchmarkResponse,
 } from "./types";
+
 
 // ─── Emissions APIs ───
 
@@ -114,3 +118,39 @@ export function getSignedUrl(docId: string): Promise<{ signed_url: string }> {
     method: "GET",
   });
 }
+
+// ─── Sector Benchmarks APIs ───
+
+export function listBenchmarks(): Promise<SectorBenchmarkResponse[]> {
+  return apiCall<SectorBenchmarkResponse[]>({
+    url: "/api/v1/emissions/benchmarks",
+    method: "GET",
+  });
+}
+
+export function createBenchmark(payload: SectorBenchmarkCreate): Promise<SectorBenchmarkResponse> {
+  return apiCall<SectorBenchmarkResponse>({
+    url: "/api/v1/emissions/benchmarks",
+    method: "POST",
+    data: payload,
+  });
+}
+
+export function updateBenchmark(
+  benchmarkId: string,
+  payload: SectorBenchmarkUpdate
+): Promise<SectorBenchmarkResponse> {
+  return apiCall<SectorBenchmarkResponse>({
+    url: `/api/v1/emissions/benchmarks/${benchmarkId}`,
+    method: "PUT",
+    data: payload,
+  });
+}
+
+export function deleteBenchmark(benchmarkId: string): Promise<{ deleted_id: string }> {
+  return apiCall<{ deleted_id: string }>({
+    url: `/api/v1/emissions/benchmarks/${benchmarkId}`,
+    method: "DELETE",
+  });
+}
+

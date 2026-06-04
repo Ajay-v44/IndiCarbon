@@ -284,3 +284,48 @@ export interface AssignRolePayload {
   role_id: string;
   organization_id?: string;
 }
+
+export interface SectorBenchmarkCreate {
+  sector_name: string;
+  sub_sector?: string;
+  target_intensity: number;
+  intensity_unit: string;
+  compliance_year: number;
+  reduction_target_pct?: number;
+  is_ccts_obligated: boolean;
+  regulatory_framework?: string;
+}
+
+export interface SectorBenchmarkUpdate {
+  sector_name?: string;
+  sub_sector?: string;
+  target_intensity?: number;
+  intensity_unit?: string;
+  compliance_year?: number;
+  reduction_target_pct?: number;
+  is_ccts_obligated?: boolean;
+  regulatory_framework?: string;
+}
+
+export interface SectorBenchmarkResponse {
+  id: string;
+  sector_name: string;
+  sub_sector?: string;
+  target_intensity: number;
+  intensity_unit?: string;
+  compliance_year?: number;
+  reduction_target_pct?: number;
+  is_ccts_obligated: boolean;
+  regulatory_framework?: string;
+}
+
+export interface OrganizationResponse {
+  id: string;
+  legal_name: string;
+  trade_name?: string;
+  industry_sector?: string;
+  registration_number?: string;
+  subscription_status: string;
+}
+
+
