@@ -23,7 +23,11 @@ export function LoginForm() {
     dispatch(clearAuthError());
     const result = await dispatch(login({ email, password }));
     if (login.fulfilled.match(result)) {
-      window.location.href = "/dashboard";
+      if (result.payload.is_internal) {
+        window.location.href = "/admin";
+      } else {
+        window.location.href = "/dashboard";
+      }
     }
   };
 

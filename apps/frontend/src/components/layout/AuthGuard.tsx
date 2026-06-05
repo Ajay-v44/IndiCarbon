@@ -22,6 +22,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       const stored = typeof window !== "undefined" ? localStorage.getItem("indicarbon_tokens") : null;
       if (!stored && !tokens) {
         router.push(`/auth/login?redirect=${encodeURIComponent(pathname)}`);
+      } else if (tokens) {
+        const isInternal = tokens.is_internal || tokens.roles?.includes("SUPER_ADMIN");
+        if (isInternal && (pathname === "/dashboard" || pathname.startsWith("/dashboard/"))) {
+          router.push("/admin");
+        } else if (!isInternal && (pathname === "/admin" || pathname.startsWith("/admin/"))) {
+          router.push("/dashboard");
+        }
       }
     }
   }, [tokens, status, router, pathname]);

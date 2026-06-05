@@ -11,6 +11,7 @@ from supabase import Client
 
 from ..config import settings
 from ..repositories.user_repo import ProfileRepository, RoleRepository, UserRoleRepository
+from ..models.user import Role
 from ..schemas.auth import (
     LoginRequest,
     RegisterRequest,
@@ -136,12 +137,18 @@ async def login(
     ProfileRepository(db).update_last_login(str(user.id))
     logger.info("User logged in: %s", user.email)
 
+    user_roles = UserRoleRepository(db).get_roles_for_user(str(user.id))
+    is_internal = any(ur.role.is_internal for ur in user_roles if ur.role)
+    roles_list = [ur.role.name for ur in user_roles if ur.role]
+
     return TokenResponse(
         access_token=_create_user_access_token(str(user.id), user.email or req.email, db),
         refresh_token=session.refresh_token,
         expires_in=settings.app_access_token_expires_in,
         user_id=UUID(str(user.id)),
         email=user.email or req.email,
+        is_internal=is_internal,
+        roles=roles_list,
     )
 
 
@@ -156,12 +163,18 @@ async def refresh_token(refresh_token_str: str, supabase: Client, db: Session) -
     if not user or not session:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Failed to refresh session.")
 
+    user_roles = UserRoleRepository(db).get_roles_for_user(str(user.id))
+    is_internal = any(ur.role.is_internal for ur in user_roles if ur.role)
+    roles_list = [ur.role.name for ur in user_roles if ur.role]
+
     return TokenResponse(
         access_token=_create_user_access_token(str(user.id), user.email or "", db),
         refresh_token=session.refresh_token,
         expires_in=settings.app_access_token_expires_in,
         user_id=UUID(str(user.id)),
         email=user.email or "",
+        is_internal=is_internal,
+        roles=roles_list,
     )
 
 
@@ -179,6 +192,7 @@ def verify_token(token: str, db: Session) -> VerifyTokenResponse:
         role_names = [ur.role.name for ur in user_roles if ur.role]
         organization_ids = [ur.organization_id for ur in user_roles if ur.organization_id]
         primary_role = role_names[0] if role_names else None
+        is_internal = any(ur.role.is_internal for ur in user_roles if ur.role)
 
         return VerifyTokenResponse(
             valid=True,
@@ -188,6 +202,7 @@ def verify_token(token: str, db: Session) -> VerifyTokenResponse:
             roles=role_names,
             organization_ids=organization_ids,
             expires_at=expires_at,
+            is_internal=is_internal,
         )
     except pyjwt.InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token.")
@@ -219,6 +234,7 @@ def _build_user_profile_by_id(user_id: str, db: Session, supabase_admin: Client)
     user_roles = UserRoleRepository(db).get_roles_for_user(user_id)
     role_names = [ur.role.name for ur in user_roles if ur.role]
     organization_ids = [ur.organization_id for ur in user_roles if ur.organization_id]
+    is_internal = any(ur.role.is_internal for ur in user_roles if ur.role)
 
     return UserProfile(
         id=profile.id,
@@ -231,6 +247,7 @@ def _build_user_profile_by_id(user_id: str, db: Session, supabase_admin: Client)
         created_at=profile.created_at,
         roles=role_names,
         organization_ids=organization_ids,
+        is_internal=is_internal,
     )
 
 
@@ -301,11 +318,51 @@ def assign_role_as_admin(
     return assign_role_to_user(target_user_id, role_id, organization_id, db)
 
 
-def list_roles(db: Session) -> list[RoleResponse]:
+def create_role_as_admin(
+    requesting_user_id: str,
+    name: str,
+    description: str | None,
+    permissions: list[str],
+    is_internal: bool,
+    db: Session,
+) -> RoleResponse:
+    _require_super_admin(requesting_user_id, db)
+    role_repo = RoleRepository(db)
+    if role_repo.find_by_name(name):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Role with name '{name}' already exists."
+        )
+    role = role_repo.create(name, description, permissions, is_internal)
+    db.commit()
+    return RoleResponse(
+        id=role.id,
+        name=role.name,
+        description=role.description,
+        permissions=role.permissions or [],
+        is_internal=role.is_internal,
+    )
+
+
+def list_roles(db: Session, exclude_internal: bool = False) -> list[RoleResponse]:
+    query = db.query(Role)
+    if exclude_internal:
+        query = query.filter(Role.is_internal == False)
     return [
-        RoleResponse(id=role.id, name=role.name, description=role.description, permissions=role.permissions or [])
-        for role in RoleRepository(db).list_all()
+        RoleResponse(
+            id=role.id,
+            name=role.name,
+            description=role.description,
+            permissions=role.permissions or [],
+            is_internal=role.is_internal,
+        )
+        for role in query.order_by(Role.name.asc()).all()
     ]
+
+
+def has_internal_role(user_id: str, db: Session) -> bool:
+    user_roles = UserRoleRepository(db).get_roles_for_user(user_id)
+    return any(ur.role.is_internal for ur in user_roles if ur.role)
 
 
 def require_super_admin(user_id: str, db: Session) -> None:

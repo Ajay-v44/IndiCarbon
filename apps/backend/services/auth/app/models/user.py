@@ -17,6 +17,7 @@ class Role(Base):
     name = Column(String(50), unique=True, nullable=False)
     description = Column(Text)
     permissions = Column(JSONB, default=list)
+    is_internal = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user_roles = relationship("UserRole", back_populates="role")

@@ -1,5 +1,5 @@
 import { apiCall } from "./axios-client";
-import { AuthTokens, LoginPayload, RegisterPayload, UserProfile, RoleResponse, AssignRolePayload, OrganizationResponse } from "./types";
+import { AuthTokens, LoginPayload, RegisterPayload, UserProfile, RoleResponse, AssignRolePayload, OrganizationResponse, CreateRolePayload } from "./types";
 
 export function listOrganizations(): Promise<OrganizationResponse[]> {
   return apiCall<OrganizationResponse[]>({
@@ -33,8 +33,8 @@ export function refreshTokens(refreshToken: string): Promise<AuthTokens> {
   });
 }
 
-export function verifyToken(token: string): Promise<{ valid: boolean; user_id: string; email: string; roles: string[] }> {
-  return apiCall<{ valid: boolean; user_id: string; email: string; roles: string[] }>({
+export function verifyToken(token: string): Promise<{ valid: boolean; user_id: string; email: string; roles: string[]; is_internal?: boolean }> {
+  return apiCall<{ valid: boolean; user_id: string; email: string; roles: string[]; is_internal?: boolean }>({
     url: "/api/v1/auth/verify",
     method: "POST",
     data: { token },
@@ -60,5 +60,20 @@ export function assignRole(payload: AssignRolePayload): Promise<{ success: boole
     url: "/api/v1/auth/roles/assign",
     method: "POST",
     data: payload,
+  });
+}
+
+export function createRole(payload: CreateRolePayload): Promise<RoleResponse> {
+  return apiCall<RoleResponse>({
+    url: "/api/v1/auth/roles",
+    method: "POST",
+    data: payload,
+  });
+}
+
+export function verifyInternalRole(): Promise<{ has_internal_role: boolean }> {
+  return apiCall<{ has_internal_role: boolean }>({
+    url: "/api/v1/auth/roles/verify-internal",
+    method: "GET",
   });
 }

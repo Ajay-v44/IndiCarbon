@@ -8,6 +8,7 @@ export interface AuthTokens {
   roles?: string[];
   organization_id?: string;
   organization_ids?: string[];
+  is_internal?: boolean;
 }
 
 export interface RegisterPayload {
@@ -270,6 +271,7 @@ export interface UserProfile {
   created_at: string;
   roles: string[];
   organization_ids: string[];
+  is_internal?: boolean;
 }
 
 export interface RoleResponse {
@@ -277,6 +279,7 @@ export interface RoleResponse {
   name: string;
   description?: string;
   permissions: string[];
+  is_internal?: boolean;
 }
 
 export interface AssignRolePayload {
@@ -326,6 +329,13 @@ export interface OrganizationResponse {
   industry_sector?: string;
   registration_number?: string;
   subscription_status: string;
+}
+
+export interface CreateRolePayload {
+  name: string;
+  description?: string;
+  permissions: string[];
+  is_internal?: boolean;
 }
 
 

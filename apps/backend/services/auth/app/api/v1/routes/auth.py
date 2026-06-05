@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from shared_logic import ApiResponse, get_db, get_supabase_client
@@ -8,6 +8,7 @@ from shared_logic import ApiResponse, get_db, get_supabase_client
 from ....dependencies import AuthenticatedUser, get_current_user
 from ....schemas.auth import (
     AssignRoleRequest,
+    CreateRoleRequest,
     LoginRequest,
     RefreshRequest,
     RegisterRequest,
@@ -82,6 +83,43 @@ def assign_role(
 
 
 @router.get("/roles", response_model=ApiResponse[list[RoleResponse]], summary="List available RBAC roles")
-def list_roles(db: Session = Depends(get_db)) -> ApiResponse[list[RoleResponse]]:
-    roles = auth_svc.list_roles(db)
+def list_roles(
+    exclude_internal: bool = Query(False, description="Whether to exclude internal roles"),
+    db: Session = Depends(get_db),
+) -> ApiResponse[list[RoleResponse]]:
+    roles = auth_svc.list_roles(db, exclude_internal=exclude_internal)
     return ApiResponse(data=roles, message=f"{len(roles)} roles found.")
+
+
+@router.get(
+    "/roles/verify-internal",
+    response_model=ApiResponse[dict],
+    summary="Double check if the current user has any internal role",
+)
+def verify_internal_role(
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ApiResponse[dict]:
+    has_internal = auth_svc.has_internal_role(str(user.id), db)
+    return ApiResponse(data={"has_internal_role": has_internal})
+
+
+@router.post(
+    "/roles",
+    response_model=ApiResponse[RoleResponse],
+    summary="Create a new RBAC role (admin only)",
+)
+def create_role(
+    req: CreateRoleRequest,
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ApiResponse[RoleResponse]:
+    result = auth_svc.create_role_as_admin(
+        requesting_user_id=str(user.id),
+        name=req.name,
+        description=req.description,
+        permissions=req.permissions,
+        is_internal=req.is_internal,
+        db=db,
+    )
+    return ApiResponse(data=result, message=f"Role '{req.name}' created.")
