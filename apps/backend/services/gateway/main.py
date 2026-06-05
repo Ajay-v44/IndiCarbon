@@ -230,7 +230,14 @@ async def _proxy(request: Request, upstream_url: str, timeout: float | None = No
     if timeout is not None:
         kwargs["timeout"] = timeout
 
-    resp = await http.request(method=request.method, url=target, headers=headers, content=body, **kwargs)
+    resp = await http.request(
+        method=request.method,
+        url=target,
+        headers=headers,
+        content=body,
+        follow_redirects=True,
+        **kwargs
+    )
     return JSONResponse(
         content=resp.json(),
         status_code=resp.status_code,

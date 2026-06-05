@@ -27,6 +27,8 @@ class TokenResponse(BaseModel):
     expires_in: int
     user_id: UUID
     email: str
+    is_internal: bool = False
+    roles: list[str] = Field(default_factory=list)
 
 
 class RefreshRequest(BaseModel):
@@ -45,6 +47,7 @@ class VerifyTokenResponse(BaseModel):
     roles: list[str] = Field(default_factory=list)
     organization_ids: list[UUID] = Field(default_factory=list)
     expires_at: Optional[datetime] = None
+    is_internal: bool = False
 
 
 class UserProfile(BaseModel):
@@ -58,6 +61,7 @@ class UserProfile(BaseModel):
     created_at: datetime
     roles: list[str] = Field(default_factory=list)
     organization_ids: list[UUID] = Field(default_factory=list)
+    is_internal: bool = False
 
 
 class AssignRoleRequest(BaseModel):
@@ -71,3 +75,11 @@ class RoleResponse(BaseModel):
     name: str
     description: Optional[str] = None
     permissions: list[str] = Field(default_factory=list)
+    is_internal: bool = False
+
+
+class CreateRoleRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=50)
+    description: Optional[str] = None
+    permissions: list[str] = Field(default_factory=list)
+    is_internal: bool = False

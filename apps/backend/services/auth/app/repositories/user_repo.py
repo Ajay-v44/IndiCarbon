@@ -73,6 +73,17 @@ class RoleRepository:
     def list_all(self) -> list[Role]:
         return self.db.query(Role).order_by(Role.name.asc()).all()
 
+    def create(self, name: str, description: Optional[str], permissions: list[str], is_internal: bool = False) -> Role:
+        role = Role(
+            name=name,
+            description=description,
+            permissions=permissions,
+            is_internal=is_internal,
+        )
+        self.db.add(role)
+        self.db.flush()
+        return role
+
 
 class UserRoleRepository:
     def __init__(self, db: Session) -> None:

@@ -44,13 +44,13 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
       {/* Logo */}
       <div className="flex h-16 items-center px-5 border-b border-border shrink-0">
         <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
-          <div className="w-10 h-10 rounded-2xl bg-card border border-border overflow-hidden shrink-0 shadow-sm">
+          <div className="w-10 h-10 rounded-2xl bg-card border border-border overflow-hidden shrink-0 shadow-sm flex items-center justify-center">
             <Image
               src="/images/Indicrabon%20logo.png"
               alt="IndiCarbon AI logo"
               width={40}
               height={40}
-              className="h-full w-full object-contain"
+              className="h-full w-full object-cover scale-110"
               priority
             />
           </div>
@@ -86,9 +86,13 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
           </p>
         )}
         {sidebarItems.filter(item => {
+          const isInternal = tokens?.is_internal || tokens?.roles?.includes("SUPER_ADMIN");
           if (item.href === "/admin") {
-            const roles = tokens?.roles || [];
-            return roles.includes("SUPER_ADMIN") || roles.includes("SALES");
+            return !!isInternal;
+          }
+          if (isInternal) {
+            // Internal users only see Admin/Command Center and settings (settings is at bottom, not in sidebarItems)
+            return false;
           }
           return true;
         }).map((item) => {

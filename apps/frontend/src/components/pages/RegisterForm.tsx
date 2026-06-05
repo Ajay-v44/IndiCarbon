@@ -68,7 +68,11 @@ export function RegisterForm() {
         designation: [form.company, form.industry].filter(Boolean).join(" - ") || undefined,
       }));
       if (register.fulfilled.match(result)) {
-        window.location.href = "/dashboard";
+        if (result.payload.is_internal) {
+          window.location.href = "/admin";
+        } else {
+          window.location.href = "/dashboard";
+        }
       }
     }
   };

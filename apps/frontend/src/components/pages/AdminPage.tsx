@@ -80,12 +80,14 @@ import {
   Cpu,
   ShieldCheck,
   UserCheck,
+  ChevronLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppSelector } from "@/store/hooks";
-import { listUsers, listOrganizations, assignRole } from "@/lib/api/auth";
+import { cn } from "@/lib/utils";
+import { listUsers, listOrganizations, assignRole, listRoles, createRole } from "@/lib/api/auth";
 import { listBenchmarks, createBenchmark, deleteBenchmark } from "@/lib/api/compliance";
-import { UserProfile, OrganizationResponse, SectorBenchmarkResponse } from "@/lib/api/types";
+import { UserProfile, OrganizationResponse, SectorBenchmarkResponse, RoleResponse } from "@/lib/api/types";
 
 // Mock Telemetry Data
 const requestVolumeData = [
@@ -133,7 +135,18 @@ export function AdminPage() {
 
   // Assign Role State
   const [selectedUserForRole, setSelectedUserForRole] = useState<UserProfile | null>(null);
-  const [newRoleName, setNewRoleName] = useState("ORG_MANAGER");
+  const [selectedRoleId, setSelectedRoleId] = useState("");
+  const [selectedOrgId, setSelectedOrgId] = useState("");
+
+  // Roles State
+  const [rolesList, setRolesList] = useState<RoleResponse[]>([]);
+  const [isNewRoleOpen, setIsNewRoleOpen] = useState(false);
+  const [newRole, setNewRole] = useState({
+    name: "",
+    description: "",
+    is_internal: false,
+    permissions: "",
+  });
 
   // System Health States (Mocked details, live toggle indicators)
   const [systemLogs, setSystemLogs] = useState([
@@ -210,18 +223,26 @@ export function AdminPage() {
   // Selected AI run details
   const [selectedAiRun, setSelectedAiRun] = useState<typeof aiLogs[0] | null>(null);
 
+  // Expanded log stack traces
+  const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
+  const toggleLogExpansion = (id: string) => {
+    setExpandedLogs(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   // Fetch data
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [orgList, userList, benchmarkList] = await Promise.all([
+      const [orgList, userList, benchmarkList, roleList] = await Promise.all([
         listOrganizations(),
         listUsers(),
-        listBenchmarks()
+        listBenchmarks(),
+        listRoles()
       ]);
       setOrganizations(orgList);
       setUsers(userList);
       setBenchmarks(benchmarkList);
+      setRolesList(roleList);
     } catch (err) {
       console.error(err);
       toast.error("Failed to load administration data. Connecting locally.");
@@ -239,6 +260,13 @@ export function AdminPage() {
       setBenchmarks([
         { id: "bc92f9a3-f6e9-4efe-94d9-868f54d1546c", sector_name: "Iron & Steel", sub_sector: "Blast Furnace", target_intensity: 2.375, intensity_unit: "tCO2e/Crore", compliance_year: 2026, reduction_target_pct: 8.5, is_ccts_obligated: true, regulatory_framework: "BEE PAT" },
         { id: "449c09bd-c99e-4721-b571-38f7d041e429", sector_name: "logistics", sub_sector: "Standard", target_intensity: 1.5, intensity_unit: "tCO2e/Crore", compliance_year: 2026, reduction_target_pct: 12.0, is_ccts_obligated: false, regulatory_framework: " Voluntary" }
+      ]);
+      setRolesList([
+        { id: "1", name: "SUPER_ADMIN", description: "Full Platform Control", permissions: ["*"], is_internal: true },
+        { id: "2", name: "SALES", description: "View Orgs & Credits", permissions: ["read:orgs", "read:credits"], is_internal: true },
+        { id: "3", name: "GOVT_AUDITOR", description: "Read Verified Audits", permissions: ["read:audits"], is_internal: true },
+        { id: "4", name: "ORG_MANAGER", description: "Full Organization Control", permissions: ["manage:org"], is_internal: false },
+        { id: "5", name: "ORG_VIEWER", description: "Organization Read Access", permissions: ["read:org"], is_internal: false },
       ]);
     } finally {
       setLoading(false);
@@ -301,28 +329,57 @@ export function AdminPage() {
 
   // Role Assignment handler
   const handleAssignRole = async () => {
-    if (!selectedUserForRole) return;
+    if (!selectedUserForRole || !selectedRoleId) return;
     try {
-      const roleMapping: Record<string, string> = {
-        SUPER_ADMIN: "SUPER_ADMIN",
-        SALES: "SALES",
-        GOVT_AUDITOR: "GOVT_AUDITOR",
-        ORG_MANAGER: "ORG_MANAGER"
-      };
+      const selectedRoleObj = rolesList.find(r => r.id === selectedRoleId);
+      if (!selectedRoleObj) throw new Error("Selected role not found in system.");
 
-      // Mock or call API
+      // Check if role needs organization
+      const needsOrg = !selectedRoleObj.is_internal && !["SUPER_ADMIN", "SALES", "GOVT_AUDITOR"].includes(selectedRoleObj.name);
+
       await assignRole({
         user_id: selectedUserForRole.id,
-        role_id: newRoleName, // Using the role string directly as mapped in auth endpoints
+        role_id: selectedRoleId,
+        organization_id: needsOrg ? (selectedOrgId || undefined) : undefined,
       });
 
       setUsers(prev => prev.map(u => 
-        u.id === selectedUserForRole.id ? { ...u, roles: [newRoleName] } : u
+        u.id === selectedUserForRole.id ? { 
+          ...u, 
+          roles: [selectedRoleObj.name],
+          organization_ids: needsOrg && selectedOrgId ? [selectedOrgId] : u.organization_ids
+        } : u
       ));
-      toast.success(`Assigned role ${newRoleName} to ${selectedUserForRole.full_name || selectedUserForRole.email}`);
+      toast.success(`Assigned role ${selectedRoleObj.name} to ${selectedUserForRole.full_name || selectedUserForRole.email}`);
       setSelectedUserForRole(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to assign role.");
+    }
+  };
+
+  // Create Role handler
+  const handleCreateRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const permsArray = newRole.permissions
+        .split(",")
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+
+      const payload = {
+        name: newRole.name.toUpperCase().replace(/\s+/g, "_"),
+        description: newRole.description || undefined,
+        permissions: permsArray,
+        is_internal: newRole.is_internal,
+      };
+
+      const res = await createRole(payload);
+      setRolesList((prev) => [...prev, res]);
+      setIsNewRoleOpen(false);
+      setNewRole({ name: "", description: "", is_internal: false, permissions: "" });
+      toast.success(`Role '${res.name}' created successfully.`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create role.");
     }
   };
 
@@ -371,7 +428,7 @@ export function AdminPage() {
   return (
     <div className="space-y-6 max-w-[1500px] mx-auto text-foreground">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
+      <header id="admin-header" aria-label="Command Center Header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
         <div className="flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-center justify-center shadow-inner">
             <Crown className="w-6 h-6 text-destructive animate-pulse" />
@@ -383,7 +440,7 @@ export function AdminPage() {
                 SUPER ADMIN
               </Badge>
             </div>
-            <p className="text-sm text-muted-foreground">Platform health, customers database, audit configurations, and logs tracer.</p>
+            <p className="text-sm text-muted-foreground">Platform health, organizations database, compliance configurations, and logs tracer.</p>
           </div>
         </div>
 
@@ -393,6 +450,7 @@ export function AdminPage() {
             size="sm"
             onClick={handleRefresh}
             disabled={refreshing}
+            aria-label="Refresh Dashboard Data"
             className="border-border text-foreground hover:bg-muted font-medium h-9 text-xs"
           >
             <RefreshCw className={`w-3.5 h-3.5 mr-2 ${refreshing ? "animate-spin" : ""}`} />
@@ -414,16 +472,17 @@ export function AdminPage() {
               });
               setIsNewBenchmarkOpen(true);
             }}
+            aria-label="Create New Sector Benchmark"
             className="bg-foreground text-background hover:bg-foreground/90 font-medium h-9 text-xs"
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Benchmark
           </Button>
         </div>
-      </div>
+      </header>
 
       {/* Overview Stats */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <section aria-label="Platform Overview Statistics" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Active Organizations", value: organizations.length || "3", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
           { label: "Platform Users", value: users.length || "2", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
@@ -432,10 +491,10 @@ export function AdminPage() {
         ].map((stat, idx) => {
           const Icon = stat.icon;
           return (
-            <Card key={idx} className="glass border-border shadow-sm">
+            <Card key={idx} className="glass border-border shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-muted-foreground/30">
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{stat.label}</p>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{stat.label}</p>
                   <p className="text-2xl font-black tracking-tight text-foreground mt-1">{stat.value}</p>
                 </div>
                 <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center`}>
@@ -445,37 +504,40 @@ export function AdminPage() {
             </Card>
           );
         })}
-      </div>
+      </section>
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-muted border border-border p-1">
-          <TabsTrigger value="monitoring" className="text-xs font-medium py-1.5 px-3">
-            <Activity className="w-3.5 h-3.5 mr-2" /> Platform Monitoring
-          </TabsTrigger>
-          <TabsTrigger value="organizations" className="text-xs font-medium py-1.5 px-3">
-            <Building2 className="w-3.5 h-3.5 mr-2" /> Organizations
-          </TabsTrigger>
-          <TabsTrigger value="users" className="text-xs font-medium py-1.5 px-3">
-            <Users className="w-3.5 h-3.5 mr-2" /> Users & Roles
-          </TabsTrigger>
-          <TabsTrigger value="benchmarks" className="text-xs font-medium py-1.5 px-3">
-            <Settings className="w-3.5 h-3.5 mr-2" /> Sector Benchmarks
-          </TabsTrigger>
-          <TabsTrigger value="ai-agent" className="text-xs font-medium py-1.5 px-3">
-            <Bot className="w-3.5 h-3.5 mr-2" /> AI Guardrails
-          </TabsTrigger>
-          <TabsTrigger value="exceptions" className="text-xs font-medium py-1.5 px-3">
-            <ShieldAlert className="w-3.5 h-3.5 mr-2" /> Error Tracer
-            {systemLogs.filter(l => !l.resolved).length > 0 && (
-              <Badge className="ml-2 bg-destructive text-destructive-foreground hover:bg-destructive font-black text-[9px] px-1 min-w-4 h-4 justify-center items-center rounded-full">
-                {systemLogs.filter(l => !l.resolved).length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
+      <main id="admin-main-content">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <div className="w-full overflow-x-auto scrollbar-none pb-1">
+            <TabsList className="inline-flex w-max md:w-full min-w-full justify-start bg-muted border border-border p-1">
+              <TabsTrigger value="monitoring" className="text-xs font-medium py-1.5 px-3">
+                <Activity className="w-3.5 h-3.5 mr-2" /> Platform Monitoring
+              </TabsTrigger>
+              <TabsTrigger value="organizations" className="text-xs font-medium py-1.5 px-3">
+                <Building2 className="w-3.5 h-3.5 mr-2" /> Organizations
+              </TabsTrigger>
+              <TabsTrigger value="users" className="text-xs font-medium py-1.5 px-3">
+                <Users className="w-3.5 h-3.5 mr-2" /> Users & Roles
+              </TabsTrigger>
+              <TabsTrigger value="benchmarks" className="text-xs font-medium py-1.5 px-3">
+                <Settings className="w-3.5 h-3.5 mr-2" /> Sector Benchmarks
+              </TabsTrigger>
+              <TabsTrigger value="ai-agent" className="text-xs font-medium py-1.5 px-3">
+                <Bot className="w-3.5 h-3.5 mr-2" /> AI Guardrails
+              </TabsTrigger>
+              <TabsTrigger value="exceptions" className="text-xs font-medium py-1.5 px-3">
+                <ShieldAlert className="w-3.5 h-3.5 mr-2" /> Error Tracer
+                {systemLogs.filter(l => !l.resolved).length > 0 && (
+                  <Badge className="ml-2 bg-destructive text-destructive-foreground hover:bg-destructive font-black text-[9px] px-1 min-w-4 h-4 justify-center items-center rounded-full">
+                    {systemLogs.filter(l => !l.resolved).length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-        {/* tab 1: Platform Monitoring */}
+          {/* tab 1: Platform Monitoring */}
         <TabsContent value="monitoring" className="space-y-4 outline-none">
           <div className="grid lg:grid-cols-3 gap-4">
             {/* Service Health Cards */}
@@ -597,70 +659,128 @@ export function AdminPage() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-b border-border/50 hover:bg-transparent">
-                    <TableHead className="text-xs font-semibold py-3 pl-4">Legal Name</TableHead>
-                    <TableHead className="text-xs font-semibold py-3">CIN</TableHead>
-                    <TableHead className="text-xs font-semibold py-3">Industry Sector</TableHead>
-                    <TableHead className="text-xs font-semibold py-3">Subscription Status</TableHead>
-                    <TableHead className="text-xs font-semibold py-3 text-right pr-4">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-border/30">
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-6 text-xs text-muted-foreground">Loading customer directories...</TableCell>
+              {/* Desktop Table View */}
+              <div className="hidden lg:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-border/50 hover:bg-transparent">
+                      <TableHead className="text-xs font-semibold py-3 pl-4">Legal Name</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">CIN</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Industry Sector</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Subscription Status</TableHead>
+                      <TableHead className="text-xs font-semibold py-3 text-right pr-4">Actions</TableHead>
                     </TableRow>
-                  ) : filteredOrgs.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-6 text-xs text-muted-foreground">No organizations found matching search criteria.</TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredOrgs.map((org) => (
-                      <TableRow key={org.id} className="hover:bg-muted/20 transition-colors">
-                        <TableCell className="py-3 pl-4 font-semibold text-xs text-foreground">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                              {org.legal_name[0]}
-                            </div>
-                            <span>{org.legal_name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-3 text-xs text-muted-foreground font-mono">{org.registration_number || "−"}</TableCell>
-                        <TableCell className="py-3 text-xs text-foreground">
-                          <Badge variant="outline" className="border-border text-muted-foreground capitalize text-[10px]">{org.industry_sector || "Unassigned"}</Badge>
-                        </TableCell>
-                        <TableCell className="py-3 text-xs">
-                          <Badge
-                            className={`text-[9px] font-bold uppercase ${org.subscription_status === "ACTIVE"
-                                ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                                : org.subscription_status === "TRIAL"
-                                  ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
-                                  : "bg-destructive/10 text-destructive border-destructive/20"
-                              }`}
-                          >
-                            {org.subscription_status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="py-3 text-right pr-4">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setInspectedOrg(org);
-                              setIsInspecting(true);
-                            }}
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-border/30">
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-6 text-xs text-muted-foreground">Loading customer directories...</TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : filteredOrgs.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-6 text-xs text-muted-foreground">No organizations found matching search criteria.</TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredOrgs.map((org) => (
+                        <TableRow key={org.id} className="hover:bg-muted/20 transition-colors">
+                          <TableCell className="py-3 pl-4 font-semibold text-xs text-foreground">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                {org.legal_name[0]}
+                              </div>
+                              <span>{org.legal_name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3 text-xs text-muted-foreground font-mono">{org.registration_number || "−"}</TableCell>
+                          <TableCell className="py-3 text-xs text-foreground">
+                            <Badge variant="outline" className="border-border text-muted-foreground capitalize text-[10px]">{org.industry_sector || "Unassigned"}</Badge>
+                          </TableCell>
+                          <TableCell className="py-3 text-xs">
+                            <Badge
+                              className={`text-[9px] font-bold uppercase ${org.subscription_status === "ACTIVE"
+                                  ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                                  : org.subscription_status === "TRIAL"
+                                    ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                                    : "bg-destructive/10 text-destructive border-destructive/20"
+                                }`}
+                            >
+                              {org.subscription_status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="py-3 text-right pr-4">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setInspectedOrg(org);
+                                setIsInspecting(true);
+                              }}
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="lg:hidden p-4 space-y-3">
+                {loading ? (
+                  <p className="text-center py-6 text-xs text-muted-foreground">Loading customer directories...</p>
+                ) : filteredOrgs.length === 0 ? (
+                  <p className="text-center py-6 text-xs text-muted-foreground">No organizations found matching search criteria.</p>
+                ) : (
+                  filteredOrgs.map((org) => (
+                    <Card key={org.id} className="glass border-border p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[11px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                            {org.legal_name[0]}
+                          </div>
+                          <div className="truncate">
+                            <h3 className="font-semibold text-xs text-foreground truncate">{org.legal_name}</h3>
+                            <p className="text-[10px] text-muted-foreground font-mono truncate">{org.registration_number || "No CIN"}</p>
+                          </div>
+                        </div>
+                        <Badge
+                          className={`text-[9px] font-bold uppercase ${
+                            org.subscription_status === "ACTIVE"
+                              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                              : org.subscription_status === "TRIAL"
+                              ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                              : "bg-destructive/10 text-destructive border-destructive/20"
+                          }`}
+                        >
+                          {org.subscription_status}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center justify-between border-t border-border/50 pt-2.5">
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Sector</span>
+                        <Badge variant="outline" className="border-border text-muted-foreground capitalize text-[9px]">{org.industry_sector || "Unassigned"}</Badge>
+                      </div>
+
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setInspectedOrg(org);
+                            setIsInspecting(true);
+                          }}
+                          className="h-8 text-xs px-3 text-foreground border-border hover:bg-muted font-medium w-full"
+                        >
+                          <Eye className="w-3.5 h-3.5 mr-1.5" /> Inspect Details
+                        </Button>
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -686,73 +806,200 @@ export function AdminPage() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-b border-border/50 hover:bg-transparent">
-                    <TableHead className="text-xs font-semibold py-3 pl-4">Full Name</TableHead>
-                    <TableHead className="text-xs font-semibold py-3">Email</TableHead>
-                    <TableHead className="text-xs font-semibold py-3">Registration Date</TableHead>
-                    <TableHead className="text-xs font-semibold py-3">Role Authority</TableHead>
-                    <TableHead className="text-xs font-semibold py-3 text-right pr-4">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-border/30">
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-6 text-xs text-muted-foreground">Loading users database...</TableCell>
+              {/* Desktop Table View */}
+              <div className="hidden lg:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-border/50 hover:bg-transparent">
+                      <TableHead className="text-xs font-semibold py-3 pl-4">Full Name</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Email</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Registration Date</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Role Authority</TableHead>
+                      {currentUser?.roles?.includes("SUPER_ADMIN") && (
+                        <TableHead className="text-xs font-semibold py-3 text-right pr-4">Actions</TableHead>
+                      )}
                     </TableRow>
-                  ) : filteredUsers.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-6 text-xs text-muted-foreground">No users found.</TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredUsers.map((user) => (
-                      <TableRow key={user.id} className="hover:bg-muted/20 transition-colors">
-                        <TableCell className="py-3 pl-4 font-semibold text-xs text-foreground">
-                          <div className="flex items-center gap-2.5">
-                            <Avatar className="w-7 h-7">
-                              <AvatarFallback className="bg-muted text-foreground text-[10px] font-bold">
-                                {user.full_name ? user.full_name.slice(0, 2).toUpperCase() : "U"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span>{user.full_name || "Unassigned"}</span>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-border/30">
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={currentUser?.roles?.includes("SUPER_ADMIN") ? 5 : 4} className="text-center py-6 text-xs text-muted-foreground">Loading users database...</TableCell>
+                      </TableRow>
+                    ) : filteredUsers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={currentUser?.roles?.includes("SUPER_ADMIN") ? 5 : 4} className="text-center py-6 text-xs text-muted-foreground">No users found.</TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredUsers.map((user) => (
+                        <TableRow key={user.id} className="hover:bg-muted/20 transition-colors">
+                          <TableCell className="py-3 pl-4 font-semibold text-xs text-foreground">
+                            <div className="flex items-center gap-2.5">
+                              <Avatar className="w-7 h-7">
+                                <AvatarFallback className="bg-muted text-foreground text-[10px] font-bold">
+                                  {user.full_name ? user.full_name.slice(0, 2).toUpperCase() : "U"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span>{user.full_name || "Unassigned"}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3 text-xs text-muted-foreground font-mono">{user.email}</TableCell>
+                          <TableCell className="py-3 text-xs text-muted-foreground">{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell className="py-3 text-xs">
+                            {user.roles.map((role, idx) => (
+                              <Badge
+                                key={idx}
+                                className={`text-[9px] font-bold uppercase ${role === "SUPER_ADMIN"
+                                    ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse"
+                                    : role === "SALES"
+                                      ? "bg-purple-500/10 text-purple-500 border-purple-500/20"
+                                      : "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                                  }`}
+                              >
+                                {role}
+                              </Badge>
+                            ))}
+                          </TableCell>
+                          {currentUser?.roles?.includes("SUPER_ADMIN") && (
+                            <TableCell className="py-3 text-right pr-4">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setSelectedUserForRole(user);
+                                  const matchingRole = rolesList.find(r => r.name === user.roles[0]);
+                                  setSelectedRoleId(matchingRole ? matchingRole.id : (rolesList[0]?.id || ""));
+                                  setSelectedOrgId(user.organization_ids?.[0] || "");
+                                }}
+                                className="h-8 text-xs border border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                              >
+                                Assign Role
+                              </Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="lg:hidden p-4 space-y-3">
+                {loading ? (
+                  <p className="text-center py-6 text-xs text-muted-foreground">Loading users database...</p>
+                ) : filteredUsers.length === 0 ? (
+                  <p className="text-center py-6 text-xs text-muted-foreground">No users found.</p>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <Card key={user.id} className="glass border-border p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Avatar className="w-8 h-8 shrink-0">
+                            <AvatarFallback className="bg-muted text-foreground text-[10px] font-bold">
+                              {user.full_name ? user.full_name.slice(0, 2).toUpperCase() : "U"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="truncate">
+                            <h3 className="font-semibold text-xs text-foreground truncate">{user.full_name || "Unassigned"}</h3>
+                            <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
                           </div>
-                        </TableCell>
-                        <TableCell className="py-3 text-xs text-muted-foreground font-mono">{user.email}</TableCell>
-                        <TableCell className="py-3 text-xs text-muted-foreground">{new Date(user.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell className="py-3 text-xs">
+                        </div>
+                        <div className="flex flex-wrap gap-1 justify-end max-w-[50%]">
                           {user.roles.map((role, idx) => (
                             <Badge
                               key={idx}
-                              className={`text-[9px] font-bold uppercase ${role === "SUPER_ADMIN"
+                              className={`text-[9px] font-bold uppercase ${
+                                role === "SUPER_ADMIN"
                                   ? "bg-destructive/10 text-destructive border-destructive/20 animate-pulse"
                                   : role === "SALES"
-                                    ? "bg-purple-500/10 text-purple-500 border-purple-500/20"
-                                    : "bg-blue-500/10 text-blue-500 border-blue-500/20"
-                                }`}
+                                  ? "bg-purple-500/10 text-purple-500 border-purple-500/20"
+                                  : "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                              }`}
                             >
                               {role}
                             </Badge>
                           ))}
-                        </TableCell>
-                        <TableCell className="py-3 text-right pr-4">
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between border-t border-border/50 pt-2.5 text-[10px]">
+                        <span className="text-muted-foreground font-semibold">Registered:</span>
+                        <span className="text-muted-foreground font-mono">{new Date(user.created_at).toLocaleDateString()}</span>
+                      </div>
+
+                      {currentUser?.roles?.includes("SUPER_ADMIN") && (
+                        <div className="flex justify-end pt-1">
                           <Button
                             size="sm"
-                            variant="ghost"
+                            variant="outline"
                             onClick={() => {
                               setSelectedUserForRole(user);
-                              setNewRoleName(user.roles[0] || "ORG_MANAGER");
+                              const matchingRole = rolesList.find(r => r.name === user.roles[0]);
+                              setSelectedRoleId(matchingRole ? matchingRole.id : (rolesList[0]?.id || ""));
+                              setSelectedOrgId(user.organization_ids?.[0] || "");
                             }}
-                            className="h-8 text-xs border border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                            className="h-8 text-xs px-3 text-foreground border-border hover:bg-muted font-medium w-full"
                           >
-                            Assign Role
+                            Assign Role Authority
                           </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                        </div>
+                      )}
+                    </Card>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Role Definitions Section */}
+          <Card className="glass border-border mt-6">
+            <CardHeader className="pb-4 border-b border-border/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-sm font-bold text-foreground">Available RBAC Role Definitions</CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground">
+                    System-wide permissions and scopes configured for user authorities.
+                  </CardDescription>
+                </div>
+                {currentUser?.roles?.includes("SUPER_ADMIN") && (
+                  <Button
+                    onClick={() => setIsNewRoleOpen(true)}
+                    className="h-8 text-xs bg-foreground text-background hover:bg-foreground/90 font-semibold"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Create New Role
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {rolesList.map((role) => (
+                  <div key={role.id || role.name} className="border border-border/40 rounded-lg p-3.5 bg-muted/10 hover:bg-muted/20 transition-all flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-xs text-foreground tracking-wider font-mono">{role.name}</span>
+                          <Badge className={`text-[8px] font-bold ${role.is_internal ? "bg-red-500/10 text-red-500 border-red-500/20" : "bg-green-500/10 text-green-500 border-green-500/20"}`}>
+                            {role.is_internal ? "INTERNAL" : "EXTERNAL / ORG"}
+                          </Badge>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-3">{role.description || "No description provided."}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground block font-bold">Permissions ({role.permissions.length})</span>
+                      <div className="flex flex-wrap gap-1">
+                        {role.permissions.map((perm, pIdx) => (
+                          <span key={pIdx} className="text-[9px] font-mono bg-background border border-border px-1.5 py-0.5 rounded text-foreground">
+                            {perm}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -778,59 +1025,113 @@ export function AdminPage() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-b border-border/50 hover:bg-transparent">
-                    <TableHead className="text-xs font-semibold py-3 pl-4">Sector</TableHead>
-                    <TableHead className="text-xs font-semibold py-3">Sub Sector</TableHead>
-                    <TableHead className="text-xs font-semibold py-3">Compliance Year</TableHead>
-                    <TableHead className="text-xs font-semibold py-3">Target Intensity</TableHead>
-                    <TableHead className="text-xs font-semibold py-3">Reduction Target</TableHead>
-                    <TableHead className="text-xs font-semibold py-3">Obligated (CCTS)</TableHead>
-                    <TableHead className="text-xs font-semibold py-3 text-right pr-4">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-border/30">
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-6 text-xs text-muted-foreground">Loading calculations benchmarks...</TableCell>
+              {/* Desktop Table View */}
+              <div className="hidden lg:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-border/50 hover:bg-transparent">
+                      <TableHead className="text-xs font-semibold py-3 pl-4">Sector</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Sub Sector</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Compliance Year</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Target Intensity</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Reduction Target</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Obligated (CCTS)</TableHead>
+                      <TableHead className="text-xs font-semibold py-3 text-right pr-4">Actions</TableHead>
                     </TableRow>
-                  ) : filteredBenchmarks.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-6 text-xs text-muted-foreground">No sector benchmarks declared.</TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredBenchmarks.map((b) => (
-                      <TableRow key={b.id} className="hover:bg-muted/20 transition-colors">
-                        <TableCell className="py-3 pl-4 font-semibold text-xs text-foreground capitalize">{b.sector_name}</TableCell>
-                        <TableCell className="py-3 text-xs text-muted-foreground capitalize">{b.sub_sector || "Standard"}</TableCell>
-                        <TableCell className="py-3 text-xs text-muted-foreground">{b.compliance_year}</TableCell>
-                        <TableCell className="py-3 text-xs font-mono text-foreground font-semibold">
-                          {b.target_intensity} <span className="text-[10px] text-muted-foreground font-sans font-normal">{b.intensity_unit || "tCO2e/Crore"}</span>
-                        </TableCell>
-                        <TableCell className="py-3 text-xs text-foreground font-semibold">
-                          {b.reduction_target_pct ? `${b.reduction_target_pct}%` : "−"}
-                        </TableCell>
-                        <TableCell className="py-3 text-xs">
-                          <Badge variant="outline" className={`text-[9px] font-bold ${b.is_ccts_obligated ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/10" : "border-border text-muted-foreground bg-muted"}`}>
-                            {b.is_ccts_obligated ? "OBLIGATED" : "VOLUNTARY"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="py-3 text-right pr-4">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteBenchmark(b.id)}
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-border/30">
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-6 text-xs text-muted-foreground">Loading calculations benchmarks...</TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : filteredBenchmarks.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-6 text-xs text-muted-foreground">No sector benchmarks declared.</TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredBenchmarks.map((b) => (
+                        <TableRow key={b.id} className="hover:bg-muted/20 transition-colors">
+                          <TableCell className="py-3 pl-4 font-semibold text-xs text-foreground capitalize">{b.sector_name}</TableCell>
+                          <TableCell className="py-3 text-xs text-muted-foreground capitalize">{b.sub_sector || "Standard"}</TableCell>
+                          <TableCell className="py-3 text-xs text-muted-foreground">{b.compliance_year}</TableCell>
+                          <TableCell className="py-3 text-xs font-mono text-foreground font-semibold">
+                            {b.target_intensity} <span className="text-[10px] text-muted-foreground font-sans font-normal">{b.intensity_unit || "tCO2e/Crore"}</span>
+                          </TableCell>
+                          <TableCell className="py-3 text-xs text-foreground font-semibold">
+                            {b.reduction_target_pct ? `${b.reduction_target_pct}%` : "−"}
+                          </TableCell>
+                          <TableCell className="py-3 text-xs">
+                            <Badge variant="outline" className={`text-[9px] font-bold ${b.is_ccts_obligated ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/10" : "border-border text-muted-foreground bg-muted"}`}>
+                              {b.is_ccts_obligated ? "OBLIGATED" : "VOLUNTARY"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="py-3 text-right pr-4">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteBenchmark(b.id)}
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="lg:hidden p-4 space-y-3">
+                {loading ? (
+                  <p className="text-center py-6 text-xs text-muted-foreground">Loading calculations benchmarks...</p>
+                ) : filteredBenchmarks.length === 0 ? (
+                  <p className="text-center py-6 text-xs text-muted-foreground">No sector benchmarks declared.</p>
+                ) : (
+                  filteredBenchmarks.map((b) => (
+                    <Card key={b.id} className="glass border-border p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-semibold text-xs text-foreground capitalize">{b.sector_name}</h3>
+                          <p className="text-[10px] text-muted-foreground capitalize">{b.sub_sector || "Standard"}</p>
+                        </div>
+                        <Badge variant="outline" className={`text-[9px] font-bold ${b.is_ccts_obligated ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/10" : "border-border text-muted-foreground bg-muted"}`}>
+                          {b.is_ccts_obligated ? "OBLIGATED" : "VOLUNTARY"}
+                        </Badge>
+                      </div>
+
+                      <div className="flex justify-between border-t border-border/50 pt-2.5 text-[10px] space-y-1 flex-col">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Compliance Year</span>
+                          <span className="text-foreground font-semibold">{b.compliance_year}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Target Intensity</span>
+                          <span className="text-foreground font-semibold font-mono">
+                            {b.target_intensity} <span className="text-[9px] text-muted-foreground font-sans font-normal">{b.intensity_unit || "tCO2e/Crore"}</span>
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Reduction Target</span>
+                          <span className="text-foreground font-semibold">{b.reduction_target_pct ? `${b.reduction_target_pct}%` : "−"}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteBenchmark(b.id)}
+                          className="h-8 text-xs px-3 text-destructive border-border hover:bg-destructive/10 font-medium w-full flex items-center justify-center gap-1.5"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Delete Benchmark
+                        </Button>
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -839,7 +1140,7 @@ export function AdminPage() {
         <TabsContent value="ai-agent" className="outline-none space-y-4">
           <div className="grid lg:grid-cols-3 gap-4">
             {/* Live trace list */}
-            <Card className="glass border-border lg:col-span-1">
+            <Card className={cn("glass border-border lg:col-span-1", selectedAiRun ? "hidden lg:block" : "block")}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-bold text-foreground">AI Interactions Monitor</CardTitle>
                 <CardDescription className="text-xs text-muted-foreground">Click query log to audit LLM guardrail details</CardDescription>
@@ -872,11 +1173,23 @@ export function AdminPage() {
             </Card>
 
             {/* Trace detail pane */}
-            <Card className="glass border-border lg:col-span-2">
+            <Card className={cn("glass border-border lg:col-span-2", selectedAiRun ? "block" : "hidden lg:block")}>
               {selectedAiRun ? (
                 <>
                   <CardHeader className="border-b border-border/50">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center lg:hidden">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setSelectedAiRun(null)}
+                          className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground border border-border"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5 mr-1" />
+                          Back to List
+                        </Button>
+                      </div>
+                      <div className="flex items-center justify-between">
                       <div>
                         <CardTitle className="text-sm font-bold text-foreground">Audit Trace: {selectedAiRun.id}</CardTitle>
                         <CardDescription className="text-xs text-muted-foreground">Originating Account: {selectedAiRun.org}</CardDescription>
@@ -884,6 +1197,7 @@ export function AdminPage() {
                       <Badge className={`text-xs font-bold uppercase ${selectedAiRun.blocked ? "bg-destructive text-destructive-foreground" : "bg-emerald-500 text-emerald-foreground"}`}>
                         {selectedAiRun.blocked ? "Guardrail Blocked" : "Approved"}
                       </Badge>
+                    </div>
                     </div>
                   </CardHeader>
                   <CardContent className="p-4 space-y-4 h-[420px] overflow-y-auto">
@@ -982,7 +1296,7 @@ export function AdminPage() {
             <CardContent className="space-y-4">
               {systemLogs.map((log) => (
                 <Card key={log.id} className={`glass border-border overflow-hidden ${log.resolved ? "opacity-60" : ""}`}>
-                  <CardHeader className="p-4 bg-muted/40 border-b border-border/50 pb-3 flex flex-row items-center justify-between gap-3">
+                  <CardHeader className="p-4 bg-muted/40 border-b border-border/50 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
                       <Badge className={`text-[9px] font-black uppercase ${
                         log.severity === "ERROR"
@@ -1043,6 +1357,7 @@ export function AdminPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      </main>
 
       {/* Customer Inspection Drawer (Sheet) */}
       <Sheet open={isInspecting} onOpenChange={setIsInspecting}>
@@ -1341,18 +1656,42 @@ export function AdminPage() {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="role_select" className="text-xs text-muted-foreground">Select New RBAC Level</Label>
-                  <Select value={newRoleName} onValueChange={(val) => { if (val) setNewRoleName(val); }}>
+                  <Select value={selectedRoleId} onValueChange={(val) => { if (val) setSelectedRoleId(val); }}>
                     <SelectTrigger className="bg-card border-border text-xs h-9 text-foreground">
                       <SelectValue placeholder="Select role level" />
                     </SelectTrigger>
                     <SelectContent className="bg-card border-border text-foreground">
-                      <SelectItem value="SUPER_ADMIN" className="text-xs">SUPER ADMIN (Full Platform Control)</SelectItem>
-                      <SelectItem value="SALES" className="text-xs">SALES (View Orgs & Credits)</SelectItem>
-                      <SelectItem value="GOVT_AUDITOR" className="text-xs">GOVT AUDITOR (Read Verified Audits)</SelectItem>
-                      <SelectItem value="ORG_MANAGER" className="text-xs">ORG MANAGER (Full Organization Control)</SelectItem>
+                      {rolesList.map((role) => (
+                        <SelectItem key={role.id} value={role.id} className="text-xs">
+                          {role.name} {role.is_internal ? " (Internal)" : ""} {role.description ? ` - ${role.description}` : ""}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {selectedRoleId && (() => {
+                  const selectedRoleObj = rolesList.find(r => r.id === selectedRoleId);
+                  const needsOrg = selectedRoleObj && !selectedRoleObj.is_internal && !["SUPER_ADMIN", "SALES", "GOVT_AUDITOR"].includes(selectedRoleObj.name);
+                  if (!needsOrg) return null;
+                  return (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="org_select" className="text-xs text-muted-foreground">Select Scope Organization</Label>
+                      <Select value={selectedOrgId} onValueChange={(val) => setSelectedOrgId(val || "")}>
+                        <SelectTrigger className="bg-card border-border text-xs h-9 text-foreground">
+                          <SelectValue placeholder="Select organization" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border text-foreground">
+                          {organizations.map((org) => (
+                            <SelectItem key={org.id} value={org.id} className="text-xs">
+                              {org.legal_name} {org.trade_name ? `(${org.trade_name})` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })()}
 
                 <DialogFooter className="pt-2">
                   <Button
@@ -1373,6 +1712,81 @@ export function AdminPage() {
               </>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Role Dialog */}
+      <Dialog open={isNewRoleOpen} onOpenChange={setIsNewRoleOpen}>
+        <DialogContent className="sm:max-w-md bg-background border border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black text-foreground">Create New RBAC Role</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateRole} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="role_name" className="text-xs text-muted-foreground">Role Name</Label>
+              <Input
+                id="role_name"
+                placeholder="e.g. AUDITOR"
+                value={newRole.name}
+                onChange={(e) => setNewRole({ ...newRole, name: e.target.value })}
+                required
+                className="h-9 text-xs bg-card border-border text-foreground"
+              />
+              <p className="text-[10px] text-muted-foreground">Will be auto-formatted to UPPERCASE_WITH_UNDERSCORES.</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="role_desc" className="text-xs text-muted-foreground">Description</Label>
+              <Input
+                id="role_desc"
+                placeholder="e.g. Audit validator for compliance files"
+                value={newRole.description}
+                onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
+                className="h-9 text-xs bg-card border-border text-foreground"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="role_perms" className="text-xs text-muted-foreground">Permissions (comma-separated)</Label>
+              <Input
+                id="role_perms"
+                placeholder="e.g. read:audits, write:audits"
+                value={newRole.permissions}
+                onChange={(e) => setNewRole({ ...newRole, permissions: e.target.value })}
+                className="h-9 text-xs bg-card border-border text-foreground"
+              />
+            </div>
+
+            <div className="flex items-center space-x-2 pt-1">
+              <input
+                type="checkbox"
+                id="role_is_internal"
+                checked={newRole.is_internal}
+                onChange={(e) => setNewRole({ ...newRole, is_internal: e.target.checked })}
+                className="rounded border-border bg-card text-foreground"
+              />
+              <Label htmlFor="role_is_internal" className="text-xs font-semibold text-foreground cursor-pointer">
+                Is Internal Role (IndiCarbon internal operations only)
+              </Label>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsNewRoleOpen(false)}
+                className="border-border text-foreground hover:bg-muted text-xs h-9"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-foreground text-background hover:bg-foreground/90 text-xs h-9"
+              >
+                Create Role
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

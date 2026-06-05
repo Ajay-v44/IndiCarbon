@@ -49,13 +49,13 @@ export function Navbar() {
 
         {/* Logo – only shown when sidebar is hidden */}
         <Link href="/dashboard" className="flex items-center gap-2 shrink-0 lg:hidden">
-          <div className="w-10 h-10 rounded-2xl bg-card border border-border overflow-hidden shadow-sm">
+          <div className="w-10 h-10 rounded-2xl bg-card border border-border overflow-hidden shadow-sm flex items-center justify-center">
             <Image
               src="/images/Indicrabon%20logo.png"
               alt="IndiCarbon AI logo"
               width={40}
               height={40}
-              className="h-full w-full object-contain"
+              className="h-full w-full object-cover scale-110"
               priority
             />
           </div>
@@ -66,7 +66,16 @@ export function Navbar() {
 
         {/* Desktop nav (hidden on desktop – sidebar handles it; shown only if sidebar absent) */}
         <div className="hidden md:flex lg:hidden items-center gap-1">
-          {navItems.map((item) => {
+          {navItems.filter(item => {
+            const isInternal = tokens?.is_internal || tokens?.roles?.includes("SUPER_ADMIN");
+            if (item.href === "/admin") {
+              return !!isInternal;
+            }
+            if (isInternal) {
+              return false;
+            }
+            return true;
+          }).map((item) => {
             const Icon = item.icon;
             const active =
               item.href === "/dashboard"
@@ -172,13 +181,13 @@ export function Navbar() {
             <SheetContent side="left" className="w-72 bg-background border-border p-0">
               <div className="p-5 border-b border-border">
                 <Link href="/dashboard" className="flex items-center gap-2.5" onClick={() => setMobileOpen(false)}>
-                  <div className="w-10 h-10 rounded-2xl bg-card border border-border overflow-hidden shadow-sm">
+                  <div className="w-10 h-10 rounded-2xl bg-card border border-border overflow-hidden shadow-sm flex items-center justify-center">
                     <Image
                       src="/images/Indicrabon%20logo.png"
                       alt="IndiCarbon AI logo"
                       width={40}
                       height={40}
-                      className="h-full w-full object-contain"
+                      className="h-full w-full object-cover scale-110"
                       priority
                     />
                   </div>
@@ -190,7 +199,16 @@ export function Navbar() {
               </div>
 
               <div className="p-3 space-y-0.5">
-                {navItems.map((item) => {
+                {navItems.filter(item => {
+                  const isInternal = tokens?.is_internal || tokens?.roles?.includes("SUPER_ADMIN");
+                  if (item.href === "/admin") {
+                    return !!isInternal;
+                  }
+                  if (isInternal) {
+                    return false;
+                  }
+                  return true;
+                }).map((item) => {
                   const Icon = item.icon;
                   const active =
                     item.href === "/dashboard"
