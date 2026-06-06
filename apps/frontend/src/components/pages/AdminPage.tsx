@@ -508,7 +508,7 @@ export function AdminPage() {
 
       {/* Main Tabs */}
       <main id="admin-main-content">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col space-y-4">
           <div className="w-full overflow-x-auto scrollbar-none pb-1">
             <TabsList className="inline-flex w-max md:w-full min-w-full justify-start bg-muted border border-border p-1">
               <TabsTrigger value="monitoring" className="text-xs font-medium py-1.5 px-3">
