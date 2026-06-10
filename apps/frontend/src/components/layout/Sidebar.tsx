@@ -12,6 +12,7 @@ import {
   MessageSquareText,
   Settings,
   LogOut,
+  ShoppingBag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -22,6 +23,7 @@ const sidebarItems = [
   { href: "/dashboard/chat", label: "Agenti Chat", icon: MessageSquareText, badge: "Live" },
   { href: "/simulator",  label: "AI Simulator",  icon: FlaskConical,    badge: "Beta" },
   { href: "/portfolio",  label: "Carbon Vault",  icon: Vault,           badge: null },
+  { href: "/marketplace", label: "Marketplace",  icon: ShoppingBag,     badge: null },
   { href: "/admin",      label: "Admin Center",  icon: ShieldCheck,     badge: null },
 ];
 
