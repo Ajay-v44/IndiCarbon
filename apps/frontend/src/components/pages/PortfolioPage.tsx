@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,10 +60,12 @@ export function PortfolioPage() {
             <Download className="w-3.5 h-3.5 mr-1.5" />
             Export CSV
           </Button>
-          <Button size="sm" className="bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700 dark:hover:bg-emerald-400 text-white dark:text-black font-semibold">
-            <ArrowUpRight className="w-3.5 h-3.5 mr-1.5" />
-            Trade Credits
-          </Button>
+          <Link href="/marketplace/buy">
+            <Button size="sm" className="bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700 dark:hover:bg-emerald-400 text-white dark:text-black font-semibold">
+              <ArrowUpRight className="w-3.5 h-3.5 mr-1.5" />
+              Trade Credits
+            </Button>
+          </Link>
         </div>
       </div>
 

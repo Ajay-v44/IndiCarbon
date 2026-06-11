@@ -144,7 +144,7 @@ Install the shared library and run each service individually:
 
 ```bash
 # Install shared Python library
-pip install -e libs/shared-logic
+pip install -e libs
 
 # Install Python dependencies
 pip install supabase langfuse fastapi uvicorn httpx redis pydantic-settings \
