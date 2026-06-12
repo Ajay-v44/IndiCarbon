@@ -1,10 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchOrgCredits, submitMarketOrder } from "@/store/marketplace-slice";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import {
   Globe,
   Tag,
@@ -14,30 +18,51 @@ import {
   ArrowRight
 } from "lucide-react";
 
-const portfolioCredits = [
-  {
-    id: "CRED-921",
-    project: "Sundarbans Mangrove REDD+",
-    type: "Forestry & REDD+",
-    icon: TreePine,
-    volumeOwned: "200",
-    verified: true,
-    color: "text-emerald-600 dark:text-emerald-400",
-    bg: "bg-emerald-500/10"
-  },
-  {
-    id: "CRED-855",
-    project: "Rajasthan Wind Farm Phase I",
-    type: "Renewable Energy",
-    icon: Wind,
-    volumeOwned: "150",
-    verified: true,
-    color: "text-teal-600 dark:text-teal-400",
-    bg: "bg-teal-500/10"
-  }
-];
-
 export function MarketplaceSellPage() {
+  const dispatch = useAppDispatch();
+  const { credits, status } = useAppSelector((state) => state.marketplace);
+  const { tokens } = useAppSelector((state) => state.auth);
+  
+  // Organization ID logic - normally from auth, defaulting for testing (EcoRenewables Inc)
+  const orgId = tokens?.user_id || "c4756406-d017-41bf-955f-c0deadc11d12";
+
+  const [sellVolume, setSellVolume] = useState("");
+  const [sellPrice, setSellPrice] = useState("");
+  const [selectedCreditType, setSelectedCreditType] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    dispatch(fetchOrgCredits(orgId));
+  }, [dispatch, orgId]);
+
+  const handleListForSale = async () => {
+    if (!sellVolume || !sellPrice) {
+      toast.error("Please enter volume and price");
+      return;
+    }
+
+    try {
+      await dispatch(submitMarketOrder({
+        organization_id: orgId,
+        order_type: "SELL",
+        quantity: parseInt(sellVolume),
+        price_per_unit: parseFloat(sellPrice),
+        project_type: selectedCreditType
+      })).unwrap();
+      toast.success("Successfully listed on Marketplace!");
+      setSellVolume("");
+      setSellPrice("");
+    } catch (err: any) {
+      toast.error(err || "Failed to list credits");
+    }
+  };
+
+  // Group credits by project_type
+  const groupedCredits = credits.filter(c => c.status === "ISSUED").reduce((acc, credit) => {
+    const type = credit.project_type || "Generic";
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
   return (
     <div className="space-y-6 max-w-[1000px] mx-auto text-foreground">
       {/* Header */}
@@ -68,27 +93,32 @@ export function MarketplaceSellPage() {
           <Card className="glass border-border">
             <CardHeader>
               <CardTitle className="text-base">Select Credits from Portfolio</CardTitle>
-              <CardDescription className="text-xs">Only verified credits can be listed on the public exchange.</CardDescription>
+              <CardDescription className="text-xs">Only verified ISSUED credits can be listed on the public exchange.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {portfolioCredits.map((credit) => {
-                const Icon = credit.icon;
+              {status === "loading" && <p className="text-sm text-muted-foreground">Loading your portfolio...</p>}
+              {Object.keys(groupedCredits).length === 0 && status !== "loading" && <p className="text-sm text-muted-foreground">No available credits in your portfolio to sell.</p>}
+              
+              {Object.entries(groupedCredits).map(([type, count]) => {
+                const isSelected = selectedCreditType === type;
                 return (
-                  <div key={credit.id} className="p-4 rounded-xl border border-border bg-background/50 flex items-center gap-4 hover:border-teal-500/30 transition-all cursor-pointer group">
-                    <div className={`w-12 h-12 rounded-xl ${credit.bg} flex items-center justify-center shrink-0`}>
-                      <Icon className={`w-6 h-6 ${credit.color}`} />
+                  <div 
+                    key={type} 
+                    onClick={() => setSelectedCreditType(type)}
+                    className={`p-4 rounded-xl border ${isSelected ? 'border-teal-500 ring-1 ring-teal-500' : 'border-border'} bg-background/50 flex items-center gap-4 hover:border-teal-500/50 transition-all cursor-pointer group`}
+                  >
+                    <div className={`w-12 h-12 rounded-xl bg-teal-500/10 flex items-center justify-center shrink-0`}>
+                      <TreePine className={`w-6 h-6 text-teal-600`} />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-semibold text-sm text-foreground">{credit.project}</h4>
-                        {credit.verified && (
-                          <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-600 dark:text-emerald-400 uppercase">Verified</Badge>
-                        )}
+                        <h4 className="font-semibold text-sm text-foreground">{type}</h4>
+                        <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-600 dark:text-emerald-400 uppercase">Verified</Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground">{credit.type} · ID: {credit.id}</p>
+                      <p className="text-xs text-muted-foreground">Available to List</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-black text-foreground">{credit.volumeOwned} <span className="text-xs font-normal text-muted-foreground">tCO₂e</span></p>
+                      <p className="text-sm font-black text-foreground">{count} <span className="text-xs font-normal text-muted-foreground">tCO₂e</span></p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">Available Balance</p>
                     </div>
                   </div>
@@ -106,19 +136,27 @@ export function MarketplaceSellPage() {
             <CardContent className="space-y-5">
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-foreground">Volume to Sell (tCO₂e)</label>
-                <Input type="number" placeholder="Enter amount" className="bg-background border-border text-foreground" />
-                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <Info className="w-3 h-3" /> Minimum listing: 10 tCO₂e
-                </p>
+                <Input 
+                  type="number" 
+                  value={sellVolume}
+                  onChange={(e) => setSellVolume(e.target.value)}
+                  placeholder="Enter amount" 
+                  className="bg-background border-border text-foreground" 
+                />
               </div>
 
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-foreground">Asking Price (per tCO₂e)</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
-                  <Input type="number" placeholder="0.00" className="pl-7 bg-background border-border text-foreground" />
+                  <Input 
+                    type="number" 
+                    value={sellPrice}
+                    onChange={(e) => setSellPrice(e.target.value)}
+                    placeholder="0.00" 
+                    className="pl-7 bg-background border-border text-foreground" 
+                  />
                 </div>
-                <p className="text-[10px] text-teal-600/80 dark:text-teal-400/80">Current market avg: ₹1,420</p>
               </div>
 
               <div className="pt-4 border-t border-border/50">
@@ -128,10 +166,16 @@ export function MarketplaceSellPage() {
                 </div>
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-sm font-semibold text-foreground">Estimated Total</span>
-                  <span className="text-sm font-bold text-teal-600 dark:text-teal-400 font-mono">₹ 0.00</span>
+                  <span className="text-sm font-bold text-teal-600 dark:text-teal-400 font-mono">
+                    ₹ {((parseFloat(sellPrice) || 0) * (parseInt(sellVolume) || 0)).toFixed(2)}
+                  </span>
                 </div>
 
-                <Button className="w-full bg-teal-600 dark:bg-teal-500 hover:bg-teal-700 dark:hover:bg-teal-400 text-white dark:text-black font-semibold">
+                <Button 
+                  onClick={handleListForSale}
+                  disabled={!selectedCreditType || !sellVolume || !sellPrice || status === 'loading'}
+                  className="w-full bg-teal-600 dark:bg-teal-500 hover:bg-teal-700 dark:hover:bg-teal-400 text-white dark:text-black font-semibold"
+                >
                   List on Marketplace
                   <ArrowRight className="w-4 h-4 ml-1.5" />
                 </Button>

@@ -51,6 +51,18 @@ class MarketOrderRepository:
             self.db.flush()
         return order
 
+    def list_by_organization(self, organization_id: str) -> list[MarketOrder]:
+        return self.db.query(MarketOrder).filter(
+            MarketOrder.organization_id == organization_id
+        ).order_by(MarketOrder.created_at.desc()).all()
+
+    def list_market_orders(self) -> list[MarketOrder]:
+        """Returns all open SELL orders across the platform for the market book."""
+        return self.db.query(MarketOrder).filter(
+            MarketOrder.order_type == "SELL",
+            MarketOrder.status == "OPEN"
+        ).order_by(MarketOrder.price_per_unit.asc(), MarketOrder.created_at.asc()).all()
+
 
 class TradeRepository:
     def __init__(self, db: Session) -> None:
@@ -61,3 +73,12 @@ class TradeRepository:
         self.db.add(trade)
         self.db.flush()
         return trade
+
+    def list_by_organization(self, organization_id: str) -> list[Trade]:
+        from sqlalchemy import or_
+        return self.db.query(Trade).filter(
+            or_(
+                Trade.buyer_org_id == organization_id,
+                Trade.seller_org_id == organization_id
+            )
+        ).order_by(Trade.settled_at.desc()).all()
