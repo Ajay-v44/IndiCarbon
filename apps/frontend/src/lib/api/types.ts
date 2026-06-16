@@ -127,32 +127,44 @@ export interface DocumentVerifyRequest {
 
 // ─── Marketplace ───
 
-export type CreditStatus = "available" | "reserved" | "retired" | "cancelled";
-export type OrderSide = "buy" | "sell";
-export type OrderStatus = "open" | "filled" | "partially_filled" | "cancelled";
+export type CreditStatus = "ISSUED" | "PENDING_TRANSFER" | "RETIRED";
+export type OrderType = "BUY" | "SELL";
+export type OrderStatus = "OPEN" | "FILLED" | "CANCELLED" | "EXPIRED";
 
+/** A single carbon credit as returned by GET /api/v1/credits */
 export interface CarbonCredit {
-  id: string; // or credit_id
-  registry_serial: string;
-  project_id: string;
+  id: string;
+  serial_number: string;
   vintage_year: number;
-  standard: string;
-  quantity_tonnes: number;
+  project_type?: string;
   status: CreditStatus;
-  owner_org_id: string;
-  issued_at: string;
-  retired_at?: string;
+  current_owner_id?: string;
 }
 
+/** A market order as returned by GET /api/v1/orders/market or GET /api/v1/orders */
+export interface MarketOrder {
+  id: string;
+  organization_id: string;
+  order_type: OrderType;
+  quantity: number;
+  price_per_unit: number;
+  status: OrderStatus;
+  created_at?: string;
+  vintage_year?: number;
+  project_type?: string;
+}
+
+/** Request body for POST /api/v1/orders — matches backend PlaceOrderRequest schema */
 export interface PlaceOrderRequest {
   organization_id: string;
-  side: OrderSide;
-  credit_project_id: string;
-  vintage_year: number;
-  quantity_tonnes: number;
-  price_per_tonne_inr: number;
+  order_type: OrderType;
+  quantity: number;
+  price_per_unit: number;
+  vintage_year?: number;
+  project_type?: string;
 }
 
+/** Response from POST /api/v1/orders */
 export interface PlaceOrderResponse {
   matched: boolean;
   order_id?: string;
@@ -160,16 +172,15 @@ export interface PlaceOrderResponse {
   trade?: TradeReceipt;
 }
 
+/** Settlement receipt returned inside PlaceOrderResponse.trade when matched=true */
 export interface TradeReceipt {
   trade_id: string;
   buyer_org_id: string;
   seller_org_id: string;
-  credit_ids: string[];
-  quantity_tonnes: number;
-  price_per_tonne_inr: number;
-  total_value_inr: number;
-  settled_at: string;
-  registry_serials: string[];
+  quantity: number;
+  price_per_unit: number;
+  total_value: number;
+  serial_numbers: string[];
 }
 
 // ─── AI Agent ───

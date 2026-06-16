@@ -43,6 +43,7 @@ class MarketOrderRepository:
 
     def mark_filled(self, order_id: str) -> None:
         self.db.query(MarketOrder).filter(MarketOrder.id == order_id).update({"status": "FILLED"})
+        self.db.flush()
 
     def mark_cancelled(self, order_id: str) -> MarketOrder:
         order = self.db.query(MarketOrder).filter(MarketOrder.id == order_id).first()

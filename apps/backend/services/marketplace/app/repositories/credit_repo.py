@@ -33,8 +33,10 @@ class CreditRepository:
         self.db.query(CarbonCredit).filter(
             CarbonCredit.id.in_(credit_ids)
         ).update({"status": new_status}, synchronize_session="fetch")
+        self.db.flush()
 
     def transfer_ownership(self, credit_ids: list[str], new_owner_id: str) -> None:
         self.db.query(CarbonCredit).filter(
             CarbonCredit.id.in_(credit_ids)
         ).update({"current_owner_id": new_owner_id, "status": "ISSUED"}, synchronize_session="fetch")
+        self.db.flush()
