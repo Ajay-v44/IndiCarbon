@@ -20,10 +20,11 @@ from sqlalchemy.orm import Session
 from shared_logic import AuthenticatedUser
 from shared_logic.supabase_client import VectorRepository
 
+from langgraph.prebuilt import create_react_agent
+
 from ..config.settings import get_settings
 from ..config.observability import build_langfuse_handler
 from ..graph.chat_tools import build_chat_tools
-from langchain.agents import create_agent
 from ..guardrails.domain_guard import (
     IndiCarbonDomainGuard,
     OFF_TOPIC_RESPONSE,
@@ -481,30 +482,29 @@ async def run_chat(
     structured_context = _fetch_structured_context(masked_query, organization_id, db)
 
     llm = _get_chat_llm()
-    messages = [
-        SystemMessage(content=_build_system_prompt(user, memory, sources, structured_context)),
-        HumanMessage(content=masked_query),
-    ]
-
-    langfuse_handler = build_langfuse_handler(str(run_id), "chat", organization_id)
     tools = build_chat_tools(db, organization_id, user_id)
-    agent = create_agent(
-        llm,
-        tools,
-        system_prompt=_build_system_prompt(user, memory, sources, structured_context)
-    )
+    langfuse_handler = build_langfuse_handler(str(run_id), "chat", organization_id)
+
+    system_prompt = _build_system_prompt(user, memory, sources, structured_context)
+    agent = create_react_agent(llm, tools)
 
     try:
         final_state = await asyncio.wait_for(
             agent.ainvoke(
-                {"messages": [HumanMessage(content=masked_query)]},
+                {
+                    "messages": [
+                        SystemMessage(content=system_prompt),
+                        HumanMessage(content=masked_query),
+                    ]
+                },
                 config={
+                    "recursion_limit": 12,
                     "callbacks": [langfuse_handler],
                     "metadata": {
                         "langfuse_session_id": str(session_id),
                         "langfuse_user_id": user_id,
-                    }
-                }
+                    },
+                },
             ),
             timeout=s.chat_llm_timeout_seconds,
         )

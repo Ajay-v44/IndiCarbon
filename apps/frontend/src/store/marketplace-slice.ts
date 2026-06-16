@@ -1,10 +1,10 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { listCredits, placeOrder, getMarketOrders } from "@/lib/api/marketplace";
-import { CarbonCredit, PlaceOrderRequest, PlaceOrderResponse } from "@/lib/api/types";
+import { CarbonCredit, MarketOrder, PlaceOrderRequest, PlaceOrderResponse } from "@/lib/api/types";
 
 type MarketplaceState = {
   credits: CarbonCredit[];
-  marketBook: PlaceOrderResponse[];
+  marketBook: MarketOrder[];
   status: "idle" | "loading" | "succeeded" | "failed";
   error: string | null;
   lastOrderResponse: PlaceOrderResponse | null;
@@ -31,7 +31,7 @@ export const fetchOrgCredits = createAsyncThunk<
 });
 
 export const fetchMarketBook = createAsyncThunk<
-  PlaceOrderResponse[],
+  MarketOrder[],
   void,
   { rejectValue: string }
 >("marketplace/fetchMarketBook", async (_, { rejectWithValue }) => {
@@ -100,7 +100,7 @@ const marketplaceSlice = createSlice({
         state.error = action.payload ?? "Failed to fetch market book.";
       })
 
-      // Order book placing
+      // Order placement
       .addCase(submitMarketOrder.pending, (state) => {
         state.status = "loading";
         state.error = null;
