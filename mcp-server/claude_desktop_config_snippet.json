@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "indicarbon": {
+      "command": "python",
+      "args": ["-m", "indicarbon_mcp"],
+      "cwd": "D:\\IndiCarbon\\mcp-server",
+      "env": {
+        "INDICARBON_GATEWAY_URL": "http://localhost:8000",
+        "INDICARBON_EMAIL": "",
+        "INDICARBON_PASSWORD": ""
+      }
+    }
+  }
+}

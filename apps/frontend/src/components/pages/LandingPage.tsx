@@ -394,6 +394,8 @@ export function LandingPage() {
               <span className="text-sm">© 2026 IndiCarbon AI · Built for India’s Net-Zero Future</span>
             </div>
             <div className="flex gap-6 text-xs text-muted-foreground">
+              <Link href="/about" className="hover:text-foreground transition-colors">About</Link>
+              <Link href="/integration" className="hover:text-foreground transition-colors">Integration</Link>
               <Link href="#" className="hover:text-foreground transition-colors">Privacy</Link>
               <Link href="#" className="hover:text-foreground transition-colors">Terms</Link>
               <Link href="#" className="hover:text-foreground transition-colors">Contact</Link>
