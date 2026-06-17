@@ -49,28 +49,33 @@ const navItems = [
   { id: "errors", label: "Error Handling" },
 ];
 
-export function IntegrationPage() {
+export function IntegrationPage({ embedded = false }: { embedded?: boolean }) {
   const [activeSection, setActiveSection] = useState("overview");
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Top nav */}
-      <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-card border border-border overflow-hidden">
-              <Image src="/images/Indicrabon%20logo.png" alt="IndiCarbon AI" width={28} height={28} className="h-full w-full object-contain" />
-            </span>
-            <span className="font-black text-base tracking-tight">IndiCarbon AI</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <Link href="/about"><Button variant="ghost" size="sm">About</Button></Link>
-            <Link href="/auth/login"><Button size="sm">Sign in <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button></Link>
+    <div className={embedded ? "bg-background text-foreground" : "min-h-screen bg-background text-foreground"}>
+      {/* Top nav — only for standalone (public) view */}
+      {!embedded && (
+        <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-sm">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-2">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-card border border-border overflow-hidden">
+                <Image src="/images/Indicrabon%20logo.png" alt="IndiCarbon AI" width={28} height={28} className="h-full w-full object-contain" />
+              </span>
+              <span className="font-black text-base tracking-tight">IndiCarbon AI</span>
+            </Link>
+            <div className="flex items-center gap-3">
+              <Link href="/about"><Button variant="ghost" size="sm">About</Button></Link>
+              <Link href="/auth/login"><Button size="sm">Sign in <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button></Link>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 lg:grid lg:grid-cols-[240px_1fr] lg:gap-12">
+      <div className={embedded
+        ? "max-w-7xl mx-auto py-6 lg:grid lg:grid-cols-[240px_1fr] lg:gap-12"
+        : "mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 lg:grid lg:grid-cols-[240px_1fr] lg:gap-12"
+      }>
         {/* Sidebar */}
         <aside className="hidden lg:block">
           <div className="sticky top-24 space-y-1">
@@ -233,41 +238,34 @@ curl http://localhost:8000/api/v1/users/me \\
               end-to-end carbon accounting workflows through natural language.
             </p>
 
-            <h3 className="font-semibold mb-2">Installation</h3>
-            <CodeBlock lang="bash" code={`cd D:\\IndiCarbon\\mcp-server
-pip install -e .
-# or with uv (recommended):
-uv pip install -e .`} />
-
-            <h3 className="font-semibold mt-6 mb-2">Configure environment</h3>
-            <CodeBlock lang="bash" code={`cp .env.example .env
-# Edit .env:`} />
-            <div className="mt-2">
-              <CodeBlock lang="env" code={`INDICARBON_GATEWAY_URL=http://localhost:8000
-INDICARBON_EMAIL=your@email.com
-INDICARBON_PASSWORD=yourpassword`} />
-            </div>
-
-            <h3 className="font-semibold mt-6 mb-2">Add to Claude Desktop</h3>
+            <h3 className="font-semibold mb-2">Add to Claude Desktop / Cursor / Any MCP Client</h3>
             <p className="text-sm text-muted-foreground mb-3">
-              Edit <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">%APPDATA%\Claude\claude_desktop_config.json</code>:
+              The IndiCarbon MCP server is hosted — no local installation required. Add this to your MCP config
+              (e.g. <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">claude_desktop_config.json</code>):
             </p>
             <CodeBlock lang="json" code={`{
   "mcpServers": {
     "indicarbon": {
-      "command": "python",
-      "args": ["-m", "indicarbon_mcp"],
-      "cwd": "D:\\\\IndiCarbon\\\\mcp-server",
-      "env": {
-        "INDICARBON_GATEWAY_URL": "http://localhost:8000",
-        "INDICARBON_EMAIL": "your@email.com",
-        "INDICARBON_PASSWORD": "yourpassword"
+      "url": "https://indicarbon.ajayv.online/mcp/",
+      "headers": {
+        "x-user-email": "your@email.com",
+        "x-user-password": "yourpassword"
       }
     }
   }
 }`} />
 
-            <p className="text-xs text-muted-foreground mt-2">Restart Claude Desktop after saving. The IndiCarbon tools will appear automatically.</p>
+            <div className="mt-3 rounded-xl border border-border bg-card p-4">
+              <p className="text-sm font-semibold mb-2">How authentication works</p>
+              <ul className="text-sm text-muted-foreground space-y-1.5">
+                <li>• Your email and password are sent as headers on the initial MCP connection.</li>
+                <li>• The server authenticates against IndiCarbon's auth service and issues a JWT session.</li>
+                <li>• All subsequent tool calls in the session use the JWT — credentials are not resent.</li>
+                <li>• Token refresh is handled automatically by the server.</li>
+              </ul>
+            </div>
+
+            <p className="text-xs text-muted-foreground mt-3">Restart your AI client after saving. The 30 IndiCarbon tools will appear automatically.</p>
 
             <h3 className="font-semibold mt-6 mb-3">Available MCP Tools</h3>
             <div className="space-y-3">
@@ -484,16 +482,18 @@ INDICARBON_PASSWORD=yourpassword`} />
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-border py-8 mt-10">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <span className="text-sm text-muted-foreground">© 2026 IndiCarbon AI</span>
-          <div className="flex gap-6 text-xs text-muted-foreground">
-            <Link href="/about" className="hover:text-foreground transition-colors">About</Link>
-            <Link href="/integration" className="hover:text-foreground transition-colors font-medium text-foreground">Integration</Link>
-            <Link href="/mission" className="hover:text-foreground transition-colors">Mission</Link>
+      {!embedded && (
+        <footer className="border-t border-border py-8 mt-10">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <span className="text-sm text-muted-foreground">© 2026 IndiCarbon AI</span>
+            <div className="flex gap-6 text-xs text-muted-foreground">
+              <Link href="/about" className="hover:text-foreground transition-colors">About</Link>
+              <Link href="/integration" className="hover:text-foreground transition-colors font-medium text-foreground">Integration</Link>
+              <Link href="/mission" className="hover:text-foreground transition-colors">Mission</Link>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }

@@ -14,14 +14,44 @@ Model Context Protocol (MCP) server that connects any MCP-compatible AI agent
 | **Marketplace** | List credits, buy/sell orders, auto-matching, retire credits |
 | **AI Agents** | Run Auditor/Strategist agents, analyse documents, HITL reviews |
 
-## Quick Start
+## Quick Start (Hosted)
+
+The IndiCarbon MCP server is hosted — no local installation needed.
+
+Add this to your Claude Desktop config (`%APPDATA%\Claude\claude_desktop_config.json` on Windows,
+`~/Library/Application Support/Claude/claude_desktop_config.json` on Mac):
+
+```json
+{
+  "mcpServers": {
+    "indicarbon": {
+      "url": "https://indicarbon.ajayv.online/mcp/",
+      "headers": {
+        "x-user-email": "your@email.com",
+        "x-user-password": "yourpassword"
+      }
+    }
+  }
+}
+```
+
+Restart your AI client. The 30 IndiCarbon tools appear automatically.
+
+## Self-Hosting (Development)
 
 ### 1. Install
 
 ```bash
 cd mcp-server
-pip install -e .
-# or with uv (recommended):
+
+# Create and activate a virtual environment:
+uv venv .venv
+# Windows
+.venv\Scripts\activate
+# macOS / Linux
+source .venv/bin/activate
+
+# Install the package
 uv pip install -e .
 ```
 
@@ -29,41 +59,21 @@ uv pip install -e .
 
 ```bash
 cp .env.example .env
-# Edit .env with your gateway URL and optional credentials
+# Edit .env with your gateway URL and credentials
 ```
 
-### 3. Run standalone (test)
+### 3. Run
 
 ```bash
+# stdio transport (local process — for Claude Desktop local config)
 python -m indicarbon_mcp
-# or
-indicarbon-mcp
+
+# HTTP transport (remote hosting — Streamable HTTP)
+python -m indicarbon_mcp --http --port 8080
+
+# SSE transport (legacy)
+python -m indicarbon_mcp --sse --port 8080
 ```
-
-### 4. Add to Claude Desktop
-
-Edit `%APPDATA%\Claude\claude_desktop_config.json` on Windows
-(or `~/Library/Application Support/Claude/claude_desktop_config.json` on Mac):
-
-```json
-{
-  "mcpServers": {
-    "indicarbon": {
-      "command": "python",
-      "args": ["-m", "indicarbon_mcp"],
-      "cwd": "D:\\IndiCarbon\\mcp-server",
-      "env": {
-        "INDICARBON_GATEWAY_URL": "http://localhost:8000",
-        "INDICARBON_EMAIL": "your@email.com",
-        "INDICARBON_PASSWORD": "yourpassword"
-      }
-    }
-  }
-}
-```
-
-> **Tip:** If you use `uv`, replace `"python"` with `"uv"` and prepend `"run"` to args:
-> `"args": ["run", "python", "-m", "indicarbon_mcp"]`
 
 ## Available Tools (30 total)
 
