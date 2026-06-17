@@ -15,6 +15,11 @@ import {
   CloudUpload,
   Factory,
   ArrowRight,
+  Terminal,
+  Copy,
+  Check,
+  ExternalLink,
+  Plug,
 } from "lucide-react";
 import {
   XAxis,
@@ -93,6 +98,141 @@ function KpiCard({
         {value}
         <span className="text-sm font-normal text-gray-400 ml-1.5">{unit}</span>
       </p>
+    </div>
+  );
+}
+
+/* ─── MCP Section ──────────────────────────────────────────── */
+const mcpToolGroups = [
+  { group: "Auth & Orgs", count: 10, desc: "Login, register, RBAC roles, org management" },
+  { group: "Documents", count: 5, desc: "Register, verify, list docs, presigned URLs" },
+  { group: "Emissions", count: 6, desc: "Submit GHG data, BRSR reports, emission factors" },
+  { group: "Marketplace", count: 7, desc: "Buy/sell orders, credits, trades, retirement" },
+  { group: "AI Agents", count: 7, desc: "Auditor, Strategist, document analysis, HITL" },
+];
+
+const mcpConfigSnippet = `{
+  "mcpServers": {
+    "indicarbon": {
+      "url": "https://indicarbon.ajayv.online/mcp/",
+      "headers": {
+        "x-user-email": "your@email.com",
+        "x-user-password": "yourpassword"
+      }
+    }
+  }
+}`;
+
+function McpSection() {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(mcpConfigSnippet);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
+            <Plug className="w-5 h-5 text-violet-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-gray-900">MCP Integration</h2>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">
+                30 Tools
+              </span>
+            </div>
+            <p className="text-sm text-gray-400 mt-0.5">Connect Claude or any AI agent to your carbon data</p>
+          </div>
+        </div>
+        <a
+          href="/dashboard/integration#mcp"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all shrink-0"
+        >
+          Full Docs
+          <ExternalLink className="w-3.5 h-3.5" />
+        </a>
+      </div>
+
+      <div className="p-6">
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Quick Setup */}
+          <div>
+            <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <Terminal className="w-4 h-4 text-gray-500" />
+              Quick Setup
+            </h3>
+
+            {/* Steps */}
+            <div className="space-y-2.5 mb-4">
+              {[
+                { step: "1", label: "Copy the config below", cmd: "Add to your Claude Desktop or Cursor MCP settings" },
+                { step: "2", label: "Restart your AI client", cmd: "The IndiCarbon tools will appear automatically" },
+                { step: "3", label: "Say \"login to IndiCarbon\"", cmd: "The agent authenticates and you're ready to go" },
+              ].map((s) => (
+                <div key={s.step} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-green-100 border border-green-200 flex items-center justify-center text-[10px] font-bold text-green-700 mt-0.5">
+                    {s.step}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-gray-700">{s.label}</p>
+                    <p className="text-[11px] text-gray-500">{s.cmd}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* MCP config */}
+            <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
+                <span className="text-[11px] font-mono text-gray-500">claude_desktop_config.json</span>
+                <button
+                  onClick={handleCopy}
+                  className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-700 transition-colors"
+                >
+                  {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <pre className="p-3 text-[11px] font-mono text-gray-700 overflow-x-auto leading-relaxed whitespace-pre bg-white">
+                {mcpConfigSnippet}
+              </pre>
+            </div>
+          </div>
+
+          {/* Available Tools */}
+          <div>
+            <h3 className="text-sm font-bold text-gray-900 mb-3">Available Tool Groups</h3>
+            <div className="space-y-2">
+              {mcpToolGroups.map((g) => (
+                <div key={g.group} className="flex items-center justify-between p-3.5 rounded-xl bg-gray-50 border border-gray-100 hover:border-gray-200 transition-all">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-800">{g.group}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{g.desc}</p>
+                  </div>
+                  <span className="text-lg font-black text-gray-300 shrink-0 ml-3">{g.count}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Supported hosts */}
+            <div className="mt-4 p-3.5 rounded-xl bg-violet-50 border border-violet-100">
+              <p className="text-xs font-semibold text-violet-800 mb-1.5">Works with</p>
+              <div className="flex flex-wrap gap-1.5">
+                {["Claude Desktop", "Claude Code", "Cursor", "Windsurf", "Any MCP Host"].map((host) => (
+                  <span key={host} className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white text-violet-700 border border-violet-200">
+                    {host}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -400,6 +540,9 @@ export function DashboardPage() {
               </div>
             </div>
           </div>
+
+          {/* MCP Integration */}
+          <McpSection />
 
           {/* AI Simulator CTA */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-700 to-emerald-600 p-6 shadow-lg">

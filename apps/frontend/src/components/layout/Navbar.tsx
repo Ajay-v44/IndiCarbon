@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Settings,
   LogOut,
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -28,6 +29,7 @@ const navItems = [
   { href: "/dashboard/chat", label: "Agenti Chat", icon: MessageSquareText },
   { href: "/simulator",  label: "AI Simulator",    icon: FlaskConical },
   { href: "/portfolio",  label: "Carbon Vault",    icon: Vault },
+  { href: "/dashboard/integration", label: "MCP & API", icon: Plug },
   { href: "/admin",      label: "Command Center",  icon: ShieldCheck },
 ];
 
@@ -70,6 +72,9 @@ export function Navbar() {
             const isInternal = tokens?.is_internal || tokens?.roles?.includes("SUPER_ADMIN");
             if (item.href === "/admin") {
               return !!isInternal;
+            }
+            if (item.href === "/dashboard/integration") {
+              return true;
             }
             if (isInternal) {
               return false;

@@ -14,6 +14,11 @@ import {
   ChevronRight,
   Star,
   Award,
+  Plug,
+  Bot,
+  Terminal,
+  FileText,
+  TrendingUp,
 } from "lucide-react";
 import { useAppSelector } from "@/store/hooks";
 
@@ -106,6 +111,9 @@ export function LandingPage() {
               </Link>
               <Link href="/portfolio" className="text-muted-foreground hover:text-foreground transition-colors">
                 Carbon Vault
+              </Link>
+              <Link href="/integration" className="text-muted-foreground hover:text-foreground transition-colors">
+                Integration
               </Link>
               <Link href="/admin" className="text-muted-foreground hover:text-foreground transition-colors">
                 Enterprise
@@ -293,6 +301,115 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* MCP / AI Agent Integration */}
+      <section className="py-12">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="max-w-2xl mb-8">
+            <Badge className="bg-muted text-foreground border-border">
+              <Plug className="h-3 w-3 mr-1" /> MCP-Native
+            </Badge>
+            <h2 className="mt-3 text-3xl sm:text-4xl font-black tracking-tight">
+              Connect any AI agent to your carbon data
+            </h2>
+            <p className="mt-3 text-muted-foreground leading-relaxed">
+              IndiCarbon ships a built-in MCP server with 30+ tools. Claude, Cursor, or any
+              MCP-compatible agent can run compliance audits, trade credits, and generate BRSR
+              reports through natural language.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-4 mb-6">
+            {[
+              {
+                icon: Bot,
+                title: "AI-Callable Tools",
+                value: "30+",
+                desc: "Auth, emissions, marketplace, documents, and AI agent tools — all exposed as structured MCP functions.",
+              },
+              {
+                icon: FileText,
+                title: "End-to-End Workflows",
+                desc: "Upload a sustainability report and get a complete BRSR disclosure — without writing a single line of code.",
+                value: "Zero-code",
+              },
+              {
+                icon: TrendingUp,
+                title: "Live Carbon Trading",
+                desc: "Place buy/sell orders, auto-match counterparties, and retire credits — all through conversational AI.",
+                value: "Real-time",
+              },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.title} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="h-11 w-11 rounded-xl bg-muted border border-border flex items-center justify-center">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className="text-2xl font-black text-muted-foreground/50">{item.value}</span>
+                  </div>
+                  <h3 className="text-lg font-bold">{item.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Config snippet */}
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="grid md:grid-cols-[1fr_auto] items-center">
+              <div className="p-6 sm:p-8">
+                <div className="flex items-center gap-2 mb-3">
+                  <Terminal className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold">Add one config block — no install needed</span>
+                </div>
+                <div className="rounded-xl bg-muted border border-border p-4 font-mono text-xs leading-relaxed text-muted-foreground">
+                  <p className="text-foreground/40 mb-1">{"// claude_desktop_config.json"}</p>
+                  <p>{"{"}</p>
+                  <p className="pl-4">{'"mcpServers": {'}</p>
+                  <p className="pl-8">{'"indicarbon": {'}</p>
+                  <p className="pl-12"><span className="text-foreground font-semibold">{'"url"'}</span>{': "https://indicarbon.ajayv.online/mcp/",'}</p>
+                  <p className="pl-12">{'"headers": {'}</p>
+                  <p className="pl-16">{'"x-user-email": "your@email.com",'}</p>
+                  <p className="pl-16">{'"x-user-password": "yourpassword"'}</p>
+                  <p className="pl-12">{"}"}</p>
+                  <p className="pl-8">{"}"}</p>
+                  <p className="pl-4">{"}"}</p>
+                  <p>{"}"}</p>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {["Claude Desktop", "Claude Code", "Cursor", "Windsurf", "Any MCP Host"].map((h) => (
+                    <span key={h} className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-muted text-foreground border border-border">
+                      {h}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="hidden md:flex flex-col items-center justify-center px-8 py-6 border-l border-border bg-muted/30">
+                <Link href="/integration#mcp">
+                  <Button size="lg" variant="outline" className="font-bold">
+                    View full docs
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+                <p className="text-xs text-muted-foreground mt-3 text-center max-w-[180px]">
+                  Tool reference and workflow examples
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 md:hidden flex justify-center">
+            <Link href="/integration#mcp">
+              <Button size="lg" variant="outline" className="font-bold">
+                View MCP documentation
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Testimonials */}
       <section className="py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -394,8 +511,10 @@ export function LandingPage() {
               <span className="text-sm">© 2026 IndiCarbon AI · Built for India’s Net-Zero Future</span>
             </div>
             <div className="flex gap-6 text-xs text-muted-foreground">
-              <Link href="#" className="hover:text-foreground transition-colors">Privacy</Link>
-              <Link href="#" className="hover:text-foreground transition-colors">Terms</Link>
+              <Link href="/about" className="hover:text-foreground transition-colors">About</Link>
+              <Link href="/integration" className="hover:text-foreground transition-colors">Integration</Link>
+              <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+              <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
               <Link href="#" className="hover:text-foreground transition-colors">Contact</Link>
             </div>
           </div>

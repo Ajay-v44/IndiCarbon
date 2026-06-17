@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut,
   ShoppingBag,
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -24,6 +25,7 @@ const sidebarItems = [
   { href: "/simulator",  label: "AI Simulator",  icon: FlaskConical,    badge: "Beta" },
   { href: "/portfolio",  label: "Carbon Vault",  icon: Vault,           badge: null },
   { href: "/marketplace", label: "Marketplace",  icon: ShoppingBag,     badge: null },
+  { href: "/dashboard/integration", label: "MCP & API", icon: Plug, badge: "New" },
   { href: "/admin",      label: "Admin Center",  icon: ShieldCheck,     badge: null },
 ];
 
@@ -92,8 +94,10 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
           if (item.href === "/admin") {
             return !!isInternal;
           }
+          if (item.href === "/dashboard/integration") {
+            return true;
+          }
           if (isInternal) {
-            // Internal users only see Admin/Command Center and settings (settings is at bottom, not in sidebarItems)
             return false;
           }
           return true;
