@@ -447,6 +447,29 @@ async def credits_proxy(request: Request, path: str):
     return await _proxy(request, settings.marketplace_service_url)
 
 
+# ─── Wallet ──────────────────────────────────────────────────────────────────
+
+
+@app.api_route(
+    "/api/v1/wallet",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def wallet_root_proxy(request: Request):
+    return await _proxy(request, settings.marketplace_service_url)
+
+
+@app.api_route(
+    "/api/v1/wallet/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    tags=["Marketplace"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def wallet_proxy(request: Request, path: str):
+    return await _proxy(request, settings.marketplace_service_url)
+
+
 # ─── AI Agent Service ─────────────────────────────────────────────────────────
 
 

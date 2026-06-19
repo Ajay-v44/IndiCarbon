@@ -81,13 +81,17 @@ import {
   ShieldCheck,
   UserCheck,
   ChevronLeft,
+  Wallet,
+  ArrowDownRight,
+  IndianRupee,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppSelector } from "@/store/hooks";
 import { cn } from "@/lib/utils";
 import { listUsers, listOrganizations, assignRole, listRoles, createRole } from "@/lib/api/auth";
 import { listBenchmarks, createBenchmark, deleteBenchmark } from "@/lib/api/compliance";
-import { UserProfile, OrganizationResponse, SectorBenchmarkResponse, RoleResponse } from "@/lib/api/types";
+import { getAllWallets, adminAddFunds, getAllWalletTransactions } from "@/lib/api/wallet";
+import { UserProfile, OrganizationResponse, SectorBenchmarkResponse, RoleResponse, WalletResponse, WalletTransactionResponse } from "@/lib/api/types";
 
 // Mock Telemetry Data
 const requestVolumeData = [
@@ -147,6 +151,15 @@ export function AdminPage() {
     is_internal: false,
     permissions: "",
   });
+
+  // Wallet State
+  const [wallets, setWallets] = useState<WalletResponse[]>([]);
+  const [walletTransactions, setWalletTransactions] = useState<WalletTransactionResponse[]>([]);
+  const [isAddFundsOpen, setIsAddFundsOpen] = useState(false);
+  const [addFundsOrgId, setAddFundsOrgId] = useState("");
+  const [addFundsAmount, setAddFundsAmount] = useState("");
+  const [addFundsDescription, setAddFundsDescription] = useState("");
+  const [walletSearchTerm, setWalletSearchTerm] = useState("");
 
   // System Health States (Mocked details, live toggle indicators)
   const [systemLogs, setSystemLogs] = useState([
@@ -233,16 +246,20 @@ export function AdminPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [orgList, userList, benchmarkList, roleList] = await Promise.all([
+      const [orgList, userList, benchmarkList, roleList, walletList, txnList] = await Promise.all([
         listOrganizations(),
         listUsers(),
         listBenchmarks(),
-        listRoles()
+        listRoles(),
+        getAllWallets().catch(() => []),
+        getAllWalletTransactions().catch(() => []),
       ]);
       setOrganizations(orgList);
       setUsers(userList);
       setBenchmarks(benchmarkList);
       setRolesList(roleList);
+      setWallets(walletList);
+      setWalletTransactions(txnList);
     } catch (err) {
       console.error(err);
       toast.error("Failed to load administration data. Connecting locally.");
@@ -487,7 +504,7 @@ export function AdminPage() {
           { label: "Active Organizations", value: organizations.length || "3", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
           { label: "Platform Users", value: users.length || "2", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
           { label: "Calculations Benchmarks", value: benchmarks.length || "2", icon: Settings, color: "text-purple-500", bg: "bg-purple-500/10" },
-          { label: "Unresolved Exceptions", value: systemLogs.filter(l => !l.resolved).length, icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10", animate: true },
+          { label: "Platform Wallet Balance", value: `₹${wallets.reduce((a, w) => a + w.balance, 0).toLocaleString()}`, icon: Wallet, color: "text-teal-500", bg: "bg-teal-500/10" },
         ].map((stat, idx) => {
           const Icon = stat.icon;
           return (
@@ -498,7 +515,7 @@ export function AdminPage() {
                   <p className="text-2xl font-black tracking-tight text-foreground mt-1">{stat.value}</p>
                 </div>
                 <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center`}>
-                  <Icon className={`w-5 h-5 ${stat.color} ${stat.animate ? "animate-bounce" : ""}`} />
+                  <Icon className={`w-5 h-5 ${stat.color} ${"animate" in stat && stat.animate ? "animate-bounce" : ""}`} />
                 </div>
               </CardContent>
             </Card>
@@ -522,6 +539,9 @@ export function AdminPage() {
               </TabsTrigger>
               <TabsTrigger value="benchmarks" className="text-xs font-medium py-1.5 px-3">
                 <Settings className="w-3.5 h-3.5 mr-2" /> Sector Benchmarks
+              </TabsTrigger>
+              <TabsTrigger value="wallets" className="text-xs font-medium py-1.5 px-3">
+                <Wallet className="w-3.5 h-3.5 mr-2" /> Wallets & Ledger
               </TabsTrigger>
               <TabsTrigger value="ai-agent" className="text-xs font-medium py-1.5 px-3">
                 <Bot className="w-3.5 h-3.5 mr-2" /> AI Guardrails
@@ -1136,7 +1156,320 @@ export function AdminPage() {
           </Card>
         </TabsContent>
 
-        {/* tab 5: AI Guardrails */}
+        {/* tab 5: Wallets & Transaction Ledger */}
+        <TabsContent value="wallets" className="outline-none space-y-4">
+          {/* Wallet Stats Overview */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card className="glass border-border">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total Wallets</p>
+                  <p className="text-2xl font-black tracking-tight text-foreground mt-1">{wallets.length}</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <Wallet className="w-5 h-5 text-emerald-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="glass border-border">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total Platform Balance</p>
+                  <p className="text-2xl font-black tracking-tight text-foreground mt-1">
+                    ₹{wallets.reduce((acc, w) => acc + w.balance, 0).toLocaleString()}
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                  <IndianRupee className="w-5 h-5 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="glass border-border">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total Transactions</p>
+                  <p className="text-2xl font-black tracking-tight text-foreground mt-1">{walletTransactions.length}</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-purple-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Wallets Table + Add Funds */}
+          <Card className="glass border-border">
+            <CardHeader className="pb-4 border-b border-border/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-sm font-bold text-foreground">Organization Wallets</CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground">View balances and add funds to organization wallets.</CardDescription>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setAddFundsOrgId(organizations[0]?.id || "");
+                    setAddFundsAmount("");
+                    setAddFundsDescription("");
+                    setIsAddFundsOpen(true);
+                  }}
+                  className="bg-foreground text-background hover:bg-foreground/90 font-medium h-9 text-xs"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Funds
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="hidden lg:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-border/50 hover:bg-transparent">
+                      <TableHead className="text-xs font-semibold py-3 pl-4">Organization</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Wallet ID</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Currency</TableHead>
+                      <TableHead className="text-xs font-semibold py-3 text-right">Balance</TableHead>
+                      <TableHead className="text-xs font-semibold py-3 text-right pr-4">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-border/30">
+                    {wallets.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-6 text-xs text-muted-foreground">
+                          No wallets created yet. Add funds to an organization to create one.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      wallets.map((w) => {
+                        const org = organizations.find((o) => o.id === w.organization_id);
+                        return (
+                          <TableRow key={w.id} className="hover:bg-muted/20 transition-colors">
+                            <TableCell className="py-3 pl-4 font-semibold text-xs text-foreground">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                  {org ? org.legal_name[0] : "?"}
+                                </div>
+                                <span>{org?.legal_name || w.organization_id.substring(0, 8)}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-3 text-xs text-muted-foreground font-mono">{w.id.substring(0, 12)}…</TableCell>
+                            <TableCell className="py-3 text-xs text-muted-foreground">{w.currency}</TableCell>
+                            <TableCell className="py-3 text-right">
+                              <span className={`text-sm font-bold font-mono ${w.balance > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
+                                ₹{w.balance.toLocaleString()}
+                              </span>
+                            </TableCell>
+                            <TableCell className="py-3 text-right pr-4">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setAddFundsOrgId(w.organization_id);
+                                  setAddFundsAmount("");
+                                  setAddFundsDescription("");
+                                  setIsAddFundsOpen(true);
+                                }}
+                                className="h-8 text-xs border border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                              >
+                                <Plus className="w-3 h-3 mr-1" /> Add Funds
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile */}
+              <div className="lg:hidden p-4 space-y-3">
+                {wallets.length === 0 ? (
+                  <p className="text-center py-6 text-xs text-muted-foreground">No wallets created yet.</p>
+                ) : (
+                  wallets.map((w) => {
+                    const org = organizations.find((o) => o.id === w.organization_id);
+                    return (
+                      <Card key={w.id} className="glass border-border p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[11px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                              {org ? org.legal_name[0] : "?"}
+                            </div>
+                            <div className="truncate">
+                              <h3 className="font-semibold text-xs text-foreground truncate">{org?.legal_name || "Unknown Org"}</h3>
+                              <p className="text-[10px] text-muted-foreground font-mono truncate">{w.id.substring(0, 12)}…</p>
+                            </div>
+                          </div>
+                          <span className={`text-sm font-bold font-mono ${w.balance > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
+                            ₹{w.balance.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-end pt-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setAddFundsOrgId(w.organization_id);
+                              setAddFundsAmount("");
+                              setAddFundsDescription("");
+                              setIsAddFundsOpen(true);
+                            }}
+                            className="h-8 text-xs px-3 text-foreground border-border hover:bg-muted font-medium w-full"
+                          >
+                            <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Funds
+                          </Button>
+                        </div>
+                      </Card>
+                    );
+                  })
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Transaction Ledger */}
+          <Card className="glass border-border">
+            <CardHeader className="pb-4 border-b border-border/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-sm font-bold text-foreground">Transaction Ledger</CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground">Complete wallet transaction history across all organizations.</CardDescription>
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by type or description..."
+                    value={walletSearchTerm}
+                    onChange={(e) => setWalletSearchTerm(e.target.value)}
+                    className="pl-8 h-8 text-xs w-64 bg-background border-border text-foreground placeholder:text-muted-foreground/50"
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="hidden lg:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-border/50 hover:bg-transparent">
+                      <TableHead className="text-xs font-semibold py-3 pl-4">Date</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Organization</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Type</TableHead>
+                      <TableHead className="text-xs font-semibold py-3 text-right">Amount</TableHead>
+                      <TableHead className="text-xs font-semibold py-3 text-right">Balance After</TableHead>
+                      <TableHead className="text-xs font-semibold py-3 pr-4">Description</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-border/30">
+                    {walletTransactions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-6 text-xs text-muted-foreground">No transactions yet.</TableCell>
+                      </TableRow>
+                    ) : (
+                      walletTransactions
+                        .filter(
+                          (t) =>
+                            !walletSearchTerm ||
+                            t.txn_type.toLowerCase().includes(walletSearchTerm.toLowerCase()) ||
+                            (t.description && t.description.toLowerCase().includes(walletSearchTerm.toLowerCase()))
+                        )
+                        .map((txn) => {
+                          const org = organizations.find((o) => o.id === txn.organization_id);
+                          const isCredit = txn.amount > 0;
+                          return (
+                            <TableRow key={txn.id} className="hover:bg-muted/20 transition-colors">
+                              <TableCell className="py-3 pl-4 text-xs text-muted-foreground font-mono">
+                                {txn.created_at ? new Date(txn.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                              </TableCell>
+                              <TableCell className="py-3 text-xs text-foreground font-semibold">
+                                {org?.legal_name || txn.organization_id.substring(0, 8)}
+                              </TableCell>
+                              <TableCell className="py-3">
+                                <Badge
+                                  className={`text-[9px] font-bold uppercase ${
+                                    txn.txn_type === "ADMIN_CREDIT"
+                                      ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                                      : txn.txn_type === "TRADE_CREDIT"
+                                      ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                                      : txn.txn_type === "TRADE_DEBIT"
+                                      ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                      : "bg-destructive/10 text-destructive border-destructive/20"
+                                  }`}
+                                >
+                                  {txn.txn_type.replace("_", " ")}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="py-3 text-right">
+                                <span className={`text-xs font-bold font-mono flex items-center justify-end gap-1 ${isCredit ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                                  {isCredit ? <ArrowDownRight className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
+                                  {isCredit ? "+" : ""}₹{Math.abs(txn.amount).toLocaleString()}
+                                </span>
+                              </TableCell>
+                              <TableCell className="py-3 text-right text-xs font-mono text-muted-foreground">₹{txn.balance_after.toLocaleString()}</TableCell>
+                              <TableCell className="py-3 pr-4 text-xs text-muted-foreground truncate max-w-[200px]">{txn.description || "—"}</TableCell>
+                            </TableRow>
+                          );
+                        })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile */}
+              <div className="lg:hidden p-4 space-y-3">
+                {walletTransactions.length === 0 ? (
+                  <p className="text-center py-6 text-xs text-muted-foreground">No transactions yet.</p>
+                ) : (
+                  walletTransactions
+                    .filter(
+                      (t) =>
+                        !walletSearchTerm ||
+                        t.txn_type.toLowerCase().includes(walletSearchTerm.toLowerCase()) ||
+                        (t.description && t.description.toLowerCase().includes(walletSearchTerm.toLowerCase()))
+                    )
+                    .map((txn) => {
+                      const org = organizations.find((o) => o.id === txn.organization_id);
+                      const isCredit = txn.amount > 0;
+                      return (
+                        <Card key={txn.id} className="glass border-border p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Badge
+                                className={`text-[9px] font-bold uppercase shrink-0 ${
+                                  txn.txn_type === "ADMIN_CREDIT"
+                                    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                                    : txn.txn_type === "TRADE_CREDIT"
+                                    ? "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                                    : txn.txn_type === "TRADE_DEBIT"
+                                    ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                    : "bg-destructive/10 text-destructive border-destructive/20"
+                                }`}
+                              >
+                                {txn.txn_type.replace("_", " ")}
+                              </Badge>
+                              <span className="text-xs font-semibold text-foreground truncate">{org?.legal_name || "Unknown"}</span>
+                            </div>
+                            <span className={`text-sm font-bold font-mono ${isCredit ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                              {isCredit ? "+" : ""}₹{Math.abs(txn.amount).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[10px] text-muted-foreground">
+                            <span>{txn.description || "—"}</span>
+                            <span className="font-mono">Bal: ₹{txn.balance_after.toLocaleString()}</span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground font-mono">
+                            {txn.created_at ? new Date(txn.created_at).toLocaleString("en-IN") : "—"}
+                          </div>
+                        </Card>
+                      );
+                    })
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* tab 6: AI Guardrails */}
         <TabsContent value="ai-agent" className="outline-none space-y-4">
           <div className="grid lg:grid-cols-3 gap-4">
             {/* Live trace list */}
@@ -1712,6 +2045,108 @@ export function AdminPage() {
               </>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Funds to Wallet Dialog */}
+      <Dialog open={isAddFundsOpen} onOpenChange={setIsAddFundsOpen}>
+        <DialogContent className="sm:max-w-md bg-background border border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black text-foreground">Add Funds to Organization Wallet</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!addFundsOrgId || !addFundsAmount) return;
+              try {
+                const res = await adminAddFunds({
+                  organization_id: addFundsOrgId,
+                  amount: parseFloat(addFundsAmount),
+                  description: addFundsDescription || undefined,
+                });
+                setWallets((prev) => {
+                  const exists = prev.find((w) => w.organization_id === addFundsOrgId);
+                  if (exists) {
+                    return prev.map((w) =>
+                      w.organization_id === addFundsOrgId ? { ...w, balance: res.new_balance } : w
+                    );
+                  }
+                  return [
+                    ...prev,
+                    { id: res.wallet_id, organization_id: addFundsOrgId, balance: res.new_balance, currency: "INR" },
+                  ];
+                });
+                const txns = await getAllWalletTransactions().catch(() => []);
+                setWalletTransactions(txns);
+                setIsAddFundsOpen(false);
+                const org = organizations.find((o) => o.id === addFundsOrgId);
+                toast.success(`₹${parseFloat(addFundsAmount).toLocaleString()} added to ${org?.legal_name || "wallet"}. New balance: ₹${res.new_balance.toLocaleString()}`);
+              } catch (err: any) {
+                toast.error(err.message || "Failed to add funds.");
+              }
+            }}
+            className="space-y-4 py-2"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="fund_org" className="text-xs text-muted-foreground">Select Organization</Label>
+              <Select value={addFundsOrgId} onValueChange={(val) => { if (val) setAddFundsOrgId(val); }}>
+                <SelectTrigger className="bg-card border-border text-xs h-9 text-foreground">
+                  <SelectValue placeholder="Select organization" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border text-foreground">
+                  {organizations.map((org) => (
+                    <SelectItem key={org.id} value={org.id} className="text-xs">
+                      {org.legal_name} {org.trade_name ? `(${org.trade_name})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="fund_amount" className="text-xs text-muted-foreground">Amount (₹)</Label>
+              <Input
+                id="fund_amount"
+                type="number"
+                step="0.01"
+                min="1"
+                placeholder="e.g. 50000"
+                value={addFundsAmount}
+                onChange={(e) => setAddFundsAmount(e.target.value)}
+                required
+                className="bg-card border-border text-xs h-9 text-foreground"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="fund_desc" className="text-xs text-muted-foreground">Description (optional)</Label>
+              <Input
+                id="fund_desc"
+                placeholder="e.g. Initial funding for Q2 trading"
+                value={addFundsDescription}
+                onChange={(e) => setAddFundsDescription(e.target.value)}
+                className="bg-card border-border text-xs h-9 text-foreground"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddFundsOpen(false)}
+                className="border-border text-foreground hover:bg-muted text-xs h-9"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-emerald-600 text-white hover:bg-emerald-700 text-xs h-9"
+              >
+                <IndianRupee className="w-3.5 h-3.5 mr-1" />
+                Add Funds
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

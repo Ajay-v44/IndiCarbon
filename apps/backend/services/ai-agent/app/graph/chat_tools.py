@@ -1,8 +1,9 @@
 import logging
 import json
+import re
 import secrets
 import uuid
-from typing import List
+from typing import Dict, List, Optional
 from datetime import datetime, timezone
 from langchain_core.tools import tool
 from sqlalchemy.orm import Session
@@ -12,8 +13,32 @@ from shared_logic import get_supabase_client
 
 logger = logging.getLogger("ai-agent.graph.chat_tools")
 
-def build_chat_tools(db: Session, organization_id: str, user_id: str) -> List:
-    """Build toolset injected with request context for the Chatbot Agent."""
+_PII_TOKEN_RE = re.compile(
+    r"\[(?:EMAIL|PHONE|PHONE_IN|PAN|AADHAAR|GSTIN|SSN|CREDIT_CARD|IP_ADDRESS|PERSON|ORG):([a-f0-9]{8})\]"
+)
+
+
+def _unmask_pii(value: str, pii_map: Dict[str, str]) -> str:
+    """Reverse PII masking: replace [TYPE:hash] tokens and bare hashes with originals."""
+    result = _PII_TOKEN_RE.sub(
+        lambda m: pii_map.get(m.group(1), m.group(0)),
+        value,
+    )
+    if result == value:
+        stripped = value.strip()
+        if stripped in pii_map:
+            return pii_map[stripped]
+    return result
+
+
+def build_chat_tools(db: Session, organization_id: str, user_id: str, pii_unmask_map: Optional[Dict[str, str]] = None) -> List:
+    """Build toolset injected with request context for the Chatbot Agent.
+
+    Args:
+        pii_unmask_map: hash_token -> original_value mapping from PIIMasker,
+                        used to reverse PII masking in HITL tool inputs.
+    """
+    _pii_map = pii_unmask_map or {}
 
     @tool
     def get_compliance_reports() -> str:
@@ -90,12 +115,17 @@ def build_chat_tools(db: Session, organization_id: str, user_id: str) -> List:
             if not role:
                 return f"Error: Role ID '{role_id}' does not exist in the system. Use get_available_roles tool to find valid roles first."
 
+            real_email = _unmask_pii(email, _pii_map)
+            real_full_name = _unmask_pii(full_name, _pii_map)
+
             suggestion_data = {
                 "action": "create_user",
-                "email": email,
-                "full_name": full_name,
+                "email": real_email,
+                "full_name": real_full_name,
                 "role_id": role_id,
-                "role_name": role["name"]
+                "role_name": role["name"],
+                "requested_at": datetime.now(timezone.utc).isoformat(),
+                "requested_by": user_id,
             }
             
             review = HITLReview(
@@ -121,7 +151,9 @@ def build_chat_tools(db: Session, organization_id: str, user_id: str) -> List:
             suggestion_data = {
                 "action": "execute_sql",
                 "query": query,
-                "sql_action": action.upper()
+                "sql_action": action.upper(),
+                "requested_at": datetime.now(timezone.utc).isoformat(),
+                "requested_by": user_id,
             }
             review = HITLReview(
                 organization_id=organization_id,

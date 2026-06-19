@@ -173,7 +173,7 @@ class IndiCarbonDomainGuard:
     def __init__(
         self,
         ollama_base_url: str = "http://localhost:11434",
-        evaluator_model: str = "llama3.1:8b",
+        evaluator_model: str = "qwen2.5:3b-instruct",
         fail_open: bool = True,
         timeout_seconds: float = 8.0,
     ) -> None:

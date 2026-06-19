@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..repositories.credit_repo import CreditRepository
 from ..repositories.order_repo import MarketOrderRepository, TradeRepository
 from ..schemas.market import OrderType, PlaceOrderRequest, TradeReceiptResponse
+from . import wallet_service
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,10 @@ async def _settle_trade(
         credit_repo.transfer_ownership(reserved_ids, buyer_org_id)
 
         total_value = Decimal(quantity) * price_per_unit
+
+        # Debit buyer wallet before settlement
+        wallet_service.debit_buyer(buyer_org_id, total_value, UUID("00000000-0000-0000-0000-000000000000"), db)
+
         trade = trade_repo.create(
             buyer_org_id=UUID(buyer_org_id),
             seller_org_id=UUID(seller_org_id),
@@ -74,6 +79,16 @@ async def _settle_trade(
             price_per_unit=price_per_unit,
             total_value=total_value,
         )
+
+        # Update the wallet transaction reference to the real trade id
+        from ..repositories.wallet_repo import WalletTransactionRepository
+        wtxn_repo = WalletTransactionRepository(db)
+        buyer_txns = wtxn_repo.list_by_org(buyer_org_id, limit=1)
+        if buyer_txns and buyer_txns[0].txn_type == "TRADE_DEBIT":
+            buyer_txns[0].reference_id = trade.id
+
+        # Credit seller wallet
+        wallet_service.credit_seller(seller_org_id, total_value, trade.id, db)
 
         order_repo.mark_filled(buy_order_id)
         order_repo.mark_filled(sell_order_id)

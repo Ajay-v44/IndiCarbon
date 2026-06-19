@@ -3,6 +3,7 @@ import { authReducer } from "./auth-slice";
 import { complianceReducer } from "./compliance-slice";
 import { marketplaceReducer } from "./marketplace-slice";
 import { aiReducer } from "./ai-slice";
+import { walletReducer } from "./wallet-slice";
 
 export const makeStore = () =>
   configureStore({
@@ -11,6 +12,7 @@ export const makeStore = () =>
       compliance: complianceReducer,
       marketplace: marketplaceReducer,
       ai: aiReducer,
+      wallet: walletReducer,
     },
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware({
