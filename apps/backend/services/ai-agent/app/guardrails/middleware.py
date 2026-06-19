@@ -184,6 +184,7 @@ class GuardrailCallbackHandler(BaseCallbackHandler):
         self,
         original_query: str = "",
         ollama_base_url: str = "http://localhost:11434",
+        evaluator_model: str = "qwen2.5:3b-instruct",
         run_id: Optional[str] = None,
     ) -> None:
         super().__init__()
@@ -193,6 +194,7 @@ class GuardrailCallbackHandler(BaseCallbackHandler):
         self._pii = PIIMasker(use_spacy=False)
         self._domain_guard = IndiCarbonDomainGuard(
             ollama_base_url=ollama_base_url,
+            evaluator_model=evaluator_model,
             fail_open=True,
         )
         self._input_pii_matches: list = []

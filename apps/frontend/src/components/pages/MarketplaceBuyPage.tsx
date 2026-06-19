@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchMarketBook, submitMarketOrder, clearLastOrderResponse } from "@/store/marketplace-slice";
+import { fetchWallet } from "@/store/wallet-slice";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,19 +18,22 @@ import {
   Building2,
   TreePine,
   ArrowRight,
+  Wallet,
 } from "lucide-react";
 
 export function MarketplaceBuyPage() {
   const dispatch = useAppDispatch();
   const { marketBook, status, lastOrderResponse } = useAppSelector((s) => s.marketplace);
   const { tokens } = useAppSelector((s) => s.auth);
+  const { wallet } = useAppSelector((s) => s.wallet);
 
   // Prefer organization_id from the JWT; fall back to user_id for demo/testing
   const orgId = tokens?.organization_id ?? tokens?.user_id ?? "";
 
   useEffect(() => {
     dispatch(fetchMarketBook());
-  }, [dispatch]);
+    if (orgId) dispatch(fetchWallet(orgId));
+  }, [dispatch, orgId]);
 
   // Show trade result toast whenever a new order response arrives
   useEffect(() => {
@@ -50,6 +54,11 @@ export function MarketplaceBuyPage() {
       toast.error("Organization ID not found. Please log in again.");
       return;
     }
+    const cost = order.price_per_unit * 1;
+    if (wallet && wallet.balance < cost) {
+      toast.error(`Insufficient wallet balance. You need ₹${cost.toLocaleString()} but have ₹${wallet.balance.toLocaleString()}.`);
+      return;
+    }
     try {
       await dispatch(
         submitMarketOrder({
@@ -62,6 +71,7 @@ export function MarketplaceBuyPage() {
         })
       ).unwrap();
       dispatch(fetchMarketBook());
+      dispatch(fetchWallet(orgId));
     } catch (err: unknown) {
       toast.error(typeof err === "string" ? err : "Failed to buy credits");
     }
@@ -95,7 +105,18 @@ export function MarketplaceBuyPage() {
       </div>
 
       {/* Market Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="glass border-border border-emerald-500/20 bg-emerald-500/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Wallet className="w-3.5 h-3.5 text-emerald-500" />
+              <p className="text-xs text-muted-foreground">Wallet Balance</p>
+            </div>
+            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+              ₹{wallet ? wallet.balance.toLocaleString() : "0"}
+            </p>
+          </CardContent>
+        </Card>
         <Card className="glass border-border">
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Global Avg Price</p>

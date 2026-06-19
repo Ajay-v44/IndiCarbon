@@ -349,4 +349,40 @@ export interface CreateRolePayload {
   is_internal?: boolean;
 }
 
+// ─── Wallet ───
+
+export interface WalletResponse {
+  id: string;
+  organization_id: string;
+  balance: number;
+  currency: string;
+}
+
+export interface WalletTransactionResponse {
+  id: string;
+  wallet_id: string;
+  organization_id: string;
+  txn_type: string;
+  amount: number;
+  balance_after: number;
+  reference_id?: string;
+  description?: string;
+  created_by?: string;
+  created_at?: string;
+}
+
+export interface AdminAddFundsRequest {
+  organization_id: string;
+  amount: number;
+  description?: string;
+}
+
+export interface AdminAddFundsResponse {
+  wallet_id: string;
+  organization_id: string;
+  amount_added: number;
+  new_balance: number;
+  transaction_id: string;
+}
+
 

@@ -428,6 +428,7 @@ async def run_chat(
 
     domain_guard = IndiCarbonDomainGuard(
         ollama_base_url=s.ollama_base_url,
+        evaluator_model=s.ollama_llm_model,
         fail_open=False,
         timeout_seconds=10.0,
     )
@@ -482,7 +483,8 @@ async def run_chat(
     structured_context = _fetch_structured_context(masked_query, organization_id, db)
 
     llm = _get_chat_llm()
-    tools = build_chat_tools(db, organization_id, user_id)
+    pii_unmask_map = {m.hash_token: m.original for m in input_pii}
+    tools = build_chat_tools(db, organization_id, user_id, pii_unmask_map=pii_unmask_map)
     langfuse_handler = build_langfuse_handler(str(run_id), "chat", organization_id)
 
     system_prompt = _build_system_prompt(user, memory, sources, structured_context)

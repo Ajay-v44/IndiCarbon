@@ -78,9 +78,10 @@ class PDFInjectionGuard:
         # Raises InjectionDetectedException if hard block matched.
     """
 
-    def __init__(self, use_llm_check: bool = True, ollama_base_url: str = "http://localhost:11434") -> None:
+    def __init__(self, use_llm_check: bool = True, ollama_base_url: str = "http://localhost:11434", evaluator_model: str = "qwen2.5:3b-instruct") -> None:
         self._use_llm_check = use_llm_check
         self._ollama_base_url = ollama_base_url
+        self._evaluator_model = evaluator_model
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -197,7 +198,7 @@ Verdict:"""
                 resp = httpx.post(
                     f"{self._ollama_base_url}/api/generate",
                     json={
-                        "model": "llama3.1:8b",
+                        "model": self._evaluator_model,
                         "prompt": classifier_prompt,
                         "stream": False,
                         "options": {"temperature": 0, "num_predict": 10},

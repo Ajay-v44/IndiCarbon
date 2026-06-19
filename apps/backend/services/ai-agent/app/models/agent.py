@@ -51,3 +51,4 @@ class HITLReview(Base):
     human_decision = Column(String(50))
     reviewer_id = Column(UUID(as_uuid=True), nullable=True)
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
