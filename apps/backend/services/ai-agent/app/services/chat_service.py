@@ -14,6 +14,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.language_models import BaseChatModel
 from langchain_ollama import ChatOllama
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -42,7 +43,14 @@ _background_tasks: set = set()
 @lru_cache(maxsize=1)
 def _get_chat_llm() -> BaseChatModel:
     s = get_settings()
-    if s.llm_provider == "google":
+    if s.llm_provider == "openai":
+        return ChatOpenAI(
+            model=s.openai_chat_model,
+            api_key=s.openai_api_key,
+            temperature=s.openai_temperature,
+            max_tokens=min(s.openai_max_tokens, 1024),
+        )
+    elif s.llm_provider == "google":
         return ChatGoogleGenerativeAI(
             model=s.gemini_chat_model,
             google_api_key=s.google_api_key,
@@ -95,7 +103,13 @@ def _extract_chat_memory(
 
 async def _embed_query(query: str) -> list[float]:
     s = get_settings()
-    if s.llm_provider == "google":
+    if s.llm_provider == "openai":
+        embeddings = OpenAIEmbeddings(
+            model=s.openai_embed_model,
+            api_key=s.openai_api_key,
+        )
+        return await embeddings.aembed_query(query)
+    elif s.llm_provider == "google":
         embeddings = GoogleGenerativeAIEmbeddings(
             model=s.gemini_embed_model,
             google_api_key=s.google_api_key,

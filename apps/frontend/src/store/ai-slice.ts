@@ -140,9 +140,9 @@ const aiSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Chat history
+      // Chat history — backend returns DESC (newest first), reverse for chronological display
       .addCase(fetchChatHistory.fulfilled, (state, action) => {
-        state.chatHistory = action.payload;
+        state.chatHistory = [...action.payload].reverse();
       })
 
       // Send Chat Message

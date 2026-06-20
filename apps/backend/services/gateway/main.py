@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from shared_logic import ApiResponse, register_middleware
+from shared_logic.database import get_db
+from shared_logic.system_logger import SystemLogRepository
 from shared_logic.paths import backend_root
 
 logging.basicConfig(
@@ -501,3 +503,132 @@ async def ai_agent_root_proxy(request: Request):
 )
 async def ai_agent_proxy(request: Request, path: str):
     return await _proxy(request, settings.ai_agent_service_url, timeout=settings.ai_service_timeout)
+
+
+# ─── System Logs (Admin-Only) ────────────────────────────────────────────────
+
+
+def _require_admin(request: Request) -> None:
+    """Raise 403 unless the authenticated user has an admin role."""
+    auth_ctx = getattr(request.state, "auth_context", None)
+    if not auth_ctx:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
+    roles = auth_ctx.get("roles") or []
+    if not any(r.upper() in {"ADMIN", "ORG_ADMIN", "SUPER_ADMIN"} for r in roles):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
+
+
+@app.get(
+    "/api/v1/system-logs",
+    tags=["System Logs"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def list_system_logs(
+    request: Request,
+    organization_id: str | None = None,
+    service: str | None = None,
+    level: str | None = None,
+    is_resolved: bool | None = None,
+    search: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    _require_admin(request)
+    db = next(get_db())
+    try:
+        repo = SystemLogRepository(db)
+        logs = repo.list_logs(
+            organization_id=organization_id,
+            service=service,
+            level=level,
+            is_resolved=is_resolved,
+            search=search,
+            limit=min(limit, 200),
+            offset=offset,
+        )
+        total = repo.count_logs(
+            organization_id=organization_id,
+            service=service,
+            level=level,
+            is_resolved=is_resolved,
+            search=search,
+        )
+        return ApiResponse(data={
+            "logs": [entry.to_dict() for entry in logs],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        })
+    finally:
+        db.close()
+
+
+@app.get(
+    "/api/v1/system-logs/stats",
+    tags=["System Logs"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def system_log_stats(
+    request: Request,
+    organization_id: str | None = None,
+):
+    _require_admin(request)
+    db = next(get_db())
+    try:
+        repo = SystemLogRepository(db)
+        stats = repo.get_stats(organization_id=organization_id)
+        return ApiResponse(data=stats)
+    finally:
+        db.close()
+
+
+@app.post(
+    "/api/v1/system-logs/{log_id}/resolve",
+    tags=["System Logs"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def resolve_system_log(request: Request, log_id: str):
+    _require_admin(request)
+    auth_ctx = getattr(request.state, "auth_context", {})
+    db = next(get_db())
+    try:
+        repo = SystemLogRepository(db)
+        entry = repo.resolve(log_id, resolved_by=auth_ctx.get("user_id"))
+        if not entry:
+            raise HTTPException(status_code=404, detail="Log entry not found.")
+        db.commit()
+        return ApiResponse(data=entry.to_dict(), message="Log resolved.")
+    except HTTPException:
+        raise
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@app.post(
+    "/api/v1/system-logs/bulk-resolve",
+    tags=["System Logs"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def bulk_resolve_system_logs(request: Request):
+    _require_admin(request)
+    auth_ctx = getattr(request.state, "auth_context", {})
+    body = await request.json()
+    log_ids = body.get("log_ids", [])
+    if not log_ids:
+        raise HTTPException(status_code=400, detail="log_ids required.")
+    db = next(get_db())
+    try:
+        repo = SystemLogRepository(db)
+        count = repo.bulk_resolve(log_ids, resolved_by=auth_ctx.get("user_id"))
+        db.commit()
+        return ApiResponse(data={"resolved_count": count}, message=f"{count} logs resolved.")
+    except HTTPException:
+        raise
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()

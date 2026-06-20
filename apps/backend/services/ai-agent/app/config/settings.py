@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     )
 
     # ── LLM Provider ──────────────────────────────────────────────────────────
-    llm_provider: str = "ollama"  # "ollama" or "google"
+    llm_provider: str = "ollama"  # "ollama", "google", or "openai"
 
     # ── Ollama ────────────────────────────────────────────────────────────────
     # Use http://localhost:11434 for local dev; host.docker.internal for Docker
@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     google_api_key: str = ""
     gemini_chat_model: str = "gemini-2.5-flash"
     gemini_embed_model: str = "gemini-embedding-2"
+
+    # ── OpenAI ────────────────────────────────────────────────────────────────
+    openai_api_key: str = ""
+    openai_chat_model: str = "gpt-5.4-mini"
+    openai_embed_model: str = "text-embedding-3-small"
+    openai_temperature: float = 0.1
+    openai_max_tokens: int = 2048
 
     # ── Langfuse ─────────────────────────────────────────────────────────────
     langfuse_secret_key: str = ""
