@@ -37,6 +37,14 @@ def __getattr__(name: str):
         from .database import Base, get_db
 
         return {"Base": Base, "get_db": get_db}[name]
+    if name in {"SystemLogger", "SystemLogRepository", "SystemLogEntry"}:
+        from .system_logger import SystemLogger, SystemLogRepository, SystemLogEntry
+
+        return {
+            "SystemLogger": SystemLogger,
+            "SystemLogRepository": SystemLogRepository,
+            "SystemLogEntry": SystemLogEntry,
+        }[name]
     if name in {
         "BaseRepository",
         "VectorRepository",
@@ -97,4 +105,8 @@ __all__ = [
     "get_supabase_settings",
     "BaseRepository",
     "VectorRepository",
+    # System Logger
+    "SystemLogger",
+    "SystemLogRepository",
+    "SystemLogEntry",
 ]

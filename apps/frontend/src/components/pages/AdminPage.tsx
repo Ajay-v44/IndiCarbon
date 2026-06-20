@@ -91,7 +91,8 @@ import { cn } from "@/lib/utils";
 import { listUsers, listOrganizations, assignRole, listRoles, createRole } from "@/lib/api/auth";
 import { listBenchmarks, createBenchmark, deleteBenchmark } from "@/lib/api/compliance";
 import { getAllWallets, adminAddFunds, getAllWalletTransactions } from "@/lib/api/wallet";
-import { UserProfile, OrganizationResponse, SectorBenchmarkResponse, RoleResponse, WalletResponse, WalletTransactionResponse } from "@/lib/api/types";
+import { getSystemLogs, getSystemLogStats, resolveSystemLog, bulkResolveSystemLogs } from "@/lib/api/system-logs";
+import { UserProfile, OrganizationResponse, SectorBenchmarkResponse, RoleResponse, WalletResponse, WalletTransactionResponse, SystemLogEntry, SystemLogStats, SystemLogFilters } from "@/lib/api/types";
 
 // Mock Telemetry Data
 const requestVolumeData = [
@@ -161,36 +162,14 @@ export function AdminPage() {
   const [addFundsDescription, setAddFundsDescription] = useState("");
   const [walletSearchTerm, setWalletSearchTerm] = useState("");
 
-  // System Health States (Mocked details, live toggle indicators)
-  const [systemLogs, setSystemLogs] = useState([
-    {
-      id: "err-1",
-      service: "Compliance",
-      message: "Calculation failed: Sector benchmark not found for industry sector 'logistics' (FY2026)",
-      severity: "ERROR",
-      timestamp: "2026-06-04 11:42:15",
-      resolved: false,
-      payload: "SQLAlchemy.orm.exc.NoResultFound: No row was found when one was required.\n  File 'ghg_service.py', line 250, in calculate_monthly_brsr_score\n    raise ValueError('benchmark not found')"
-    },
-    {
-      id: "err-2",
-      service: "AI Agent",
-      message: "Langfuse reporting: Connection timeout to host http://langfuse:3000",
-      severity: "WARNING",
-      timestamp: "2026-06-04 10:15:33",
-      resolved: false,
-      payload: "httpx.ConnectTimeout: timed out\n  File 'chat_service.py', line 125, in trigger_llm_run"
-    },
-    {
-      id: "err-3",
-      service: "Marketplace",
-      message: "Supabase storage: Access denied on registry serial file mapping",
-      severity: "ERROR",
-      timestamp: "2026-06-04 08:30:12",
-      resolved: true,
-      payload: "AuthApiError: Invalid credentials on bucket resource request"
-    }
-  ]);
+  // System Logs State (live from API)
+  const [systemLogs, setSystemLogs] = useState<SystemLogEntry[]>([]);
+  const [systemLogStats, setSystemLogStats] = useState<SystemLogStats | null>(null);
+  const [systemLogsTotal, setSystemLogsTotal] = useState(0);
+  const [systemLogsLoading, setSystemLogsLoading] = useState(false);
+  const [logFilters, setLogFilters] = useState<SystemLogFilters>({ limit: 50, offset: 0 });
+  const [logSearchInput, setLogSearchInput] = useState("");
+  const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
 
   // AI Agent Trace Logs
   const [aiLogs, setAiLogs] = useState([
@@ -240,6 +219,65 @@ export function AdminPage() {
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
   const toggleLogExpansion = (id: string) => {
     setExpandedLogs(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Fetch system logs
+  const fetchSystemLogs = async (filters: SystemLogFilters = logFilters) => {
+    try {
+      setSystemLogsLoading(true);
+      const [logsData, statsData] = await Promise.all([
+        getSystemLogs(filters),
+        getSystemLogStats(filters.organization_id),
+      ]);
+      setSystemLogs(logsData.logs);
+      setSystemLogsTotal(logsData.total);
+      setSystemLogStats(statsData);
+      setSelectedLogIds(new Set());
+    } catch (err) {
+      console.error("Failed to load system logs:", err);
+    } finally {
+      setSystemLogsLoading(false);
+    }
+  };
+
+  const handleLogFilterChange = (updates: Partial<SystemLogFilters>) => {
+    const newFilters = { ...logFilters, ...updates, offset: 0 };
+    setLogFilters(newFilters);
+    fetchSystemLogs(newFilters);
+  };
+
+  const handleLogSearch = () => {
+    handleLogFilterChange({ search: logSearchInput || undefined });
+  };
+
+  const handleResolveSystemLog = async (logId: string) => {
+    try {
+      await resolveSystemLog(logId);
+      toast.success("Log entry resolved.");
+      fetchSystemLogs();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to resolve log.");
+    }
+  };
+
+  const handleBulkResolve = async () => {
+    if (selectedLogIds.size === 0) return;
+    try {
+      const result = await bulkResolveSystemLogs(Array.from(selectedLogIds));
+      toast.success(`${result.resolved_count} log(s) resolved.`);
+      fetchSystemLogs();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to bulk resolve.");
+    }
+  };
+
+  const toggleLogSelection = (id: string) => {
+    setSelectedLogIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   // Fetch data
@@ -292,6 +330,7 @@ export function AdminPage() {
 
   useEffect(() => {
     fetchData();
+    fetchSystemLogs();
   }, []);
 
   const handleRefresh = async () => {
@@ -400,12 +439,9 @@ export function AdminPage() {
     }
   };
 
-  // Resolve Error log helper
+  // Resolve Error log helper (delegates to API)
   const handleResolveLog = (id: string) => {
-    setSystemLogs(prev => prev.map(log => 
-      log.id === id ? { ...log, resolved: true } : log
-    ));
-    toast.success("Error status marked as resolved.");
+    handleResolveSystemLog(id);
   };
 
   // Preset benchmark form for logistics
@@ -547,10 +583,10 @@ export function AdminPage() {
                 <Bot className="w-3.5 h-3.5 mr-2" /> AI Guardrails
               </TabsTrigger>
               <TabsTrigger value="exceptions" className="text-xs font-medium py-1.5 px-3">
-                <ShieldAlert className="w-3.5 h-3.5 mr-2" /> Error Tracer
-                {systemLogs.filter(l => !l.resolved).length > 0 && (
+                <ShieldAlert className="w-3.5 h-3.5 mr-2" /> System Logs
+                {(systemLogStats?.unresolved ?? 0) > 0 && (
                   <Badge className="ml-2 bg-destructive text-destructive-foreground hover:bg-destructive font-black text-[9px] px-1 min-w-4 h-4 justify-center items-center rounded-full">
-                    {systemLogs.filter(l => !l.resolved).length}
+                    {systemLogStats!.unresolved}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -1619,73 +1655,307 @@ export function AdminPage() {
           </div>
         </TabsContent>
 
-        {/* tab 6: Error Tracer exceptions */}
-        <TabsContent value="exceptions" className="outline-none">
-          <Card className="glass border-border">
-            <CardHeader>
-              <CardTitle className="text-sm font-bold text-foreground">System Exception & Calculation Crashes Tracer</CardTitle>
-              <CardDescription className="text-xs text-muted-foreground">Troubleshoot pipeline crashes, missing settings parameters, and database query faults.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {systemLogs.map((log) => (
-                <Card key={log.id} className={`glass border-border overflow-hidden ${log.resolved ? "opacity-60" : ""}`}>
-                  <CardHeader className="p-4 bg-muted/40 border-b border-border/50 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <Badge className={`text-[9px] font-black uppercase ${
-                        log.severity === "ERROR"
-                          ? "bg-destructive text-destructive-foreground"
-                          : "bg-amber-500 text-background"
-                      }`}>
-                        {log.severity}
-                      </Badge>
-                      <span className="text-xs font-semibold text-foreground">{log.service} Service Exception</span>
-                      <span className="text-[10px] text-muted-foreground font-mono">{log.timestamp}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {!log.resolved ? (
-                        <>
-                          {log.message.includes("logistics") && (
-                            <Button
-                              size="sm"
-                              onClick={handlePresetLogisticsBenchmark}
-                              className="bg-emerald-600 text-white hover:bg-emerald-700 h-7 text-[10px] font-bold px-2.5"
-                            >
-                              <Plus className="w-3 h-3 mr-1" />
-                              Configure Sector Benchmark
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleResolveLog(log.id)}
-                            className="border-border text-foreground hover:bg-muted h-7 text-[10px] font-bold px-2.5"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-500" />
-                            Resolve
-                          </Button>
-                        </>
-                      ) : (
-                        <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 bg-emerald-500/10 text-[9px] font-bold">
-                          RESOLVED
-                        </Badge>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-4 space-y-3">
-                    <p className="text-xs text-foreground font-bold leading-snug">{log.message}</p>
+        {/* tab 7: System Logs (live from API) */}
+        <TabsContent value="exceptions" className="outline-none space-y-4">
+          {/* Stats Overview */}
+          {systemLogStats && (
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {[
+                { label: "Total Logs", value: systemLogStats.total, color: "text-blue-500", bg: "bg-blue-500/10" },
+                { label: "Unresolved", value: systemLogStats.unresolved, color: "text-destructive", bg: "bg-destructive/10" },
+                { label: "Errors", value: systemLogStats.errors, color: "text-red-500", bg: "bg-red-500/10" },
+                { label: "Warnings", value: systemLogStats.warnings, color: "text-amber-500", bg: "bg-amber-500/10" },
+                { label: "Critical", value: systemLogStats.criticals, color: "text-rose-600", bg: "bg-rose-600/10" },
+              ].map((stat, idx) => (
+                <Card key={idx} className="glass border-border">
+                  <CardContent className="p-3 flex items-center justify-between">
                     <div>
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-                        <span className="font-bold flex items-center gap-1"><Terminal className="w-3 h-3 text-muted-foreground" /> Stack Trace details</span>
-                        <span>Trace ID: {log.id}</span>
-                      </div>
-                      <pre className="p-3 bg-card border border-border rounded-xl text-[10px] text-muted-foreground font-mono overflow-x-auto whitespace-pre leading-relaxed shadow-inner">
-                        {log.payload}
-                      </pre>
+                      <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">{stat.label}</p>
+                      <p className="text-xl font-black tracking-tight text-foreground mt-0.5">{stat.value}</p>
+                    </div>
+                    <div className={`w-8 h-8 rounded-lg ${stat.bg} flex items-center justify-center`}>
+                      <ShieldAlert className={`w-4 h-4 ${stat.color}`} />
                     </div>
                   </CardContent>
                 </Card>
               ))}
+            </div>
+          )}
+
+          {/* Filters Bar */}
+          <Card className="glass border-border">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center flex-wrap">
+                {/* Search */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search error messages..."
+                    value={logSearchInput}
+                    onChange={(e) => setLogSearchInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleLogSearch()}
+                    className="pl-8 h-8 text-xs bg-background border-border text-foreground placeholder:text-muted-foreground/50"
+                  />
+                </div>
+
+                {/* Organization Filter */}
+                <Select
+                  value={logFilters.organization_id || "_all"}
+                  onValueChange={(val) => handleLogFilterChange({ organization_id: val === "_all" ? undefined : val || undefined })}
+                >
+                  <SelectTrigger className="bg-background border-border text-xs h-8 w-[180px] text-foreground">
+                    <SelectValue placeholder="All Organizations" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border text-foreground">
+                    <SelectItem value="_all" className="text-xs">All Organizations</SelectItem>
+                    {organizations.map((org) => (
+                      <SelectItem key={org.id} value={org.id} className="text-xs">{org.legal_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Service Filter */}
+                <Select
+                  value={logFilters.service || "_all"}
+                  onValueChange={(val) => handleLogFilterChange({ service: val === "_all" ? undefined : val || undefined })}
+                >
+                  <SelectTrigger className="bg-background border-border text-xs h-8 w-[140px] text-foreground">
+                    <SelectValue placeholder="All Services" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border text-foreground">
+                    <SelectItem value="_all" className="text-xs">All Services</SelectItem>
+                    {(systemLogStats?.services || []).map((svc) => (
+                      <SelectItem key={svc} value={svc} className="text-xs capitalize">{svc}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Level Filter */}
+                <Select
+                  value={logFilters.level || "_all"}
+                  onValueChange={(val) => handleLogFilterChange({ level: val === "_all" ? undefined : val || undefined })}
+                >
+                  <SelectTrigger className="bg-background border-border text-xs h-8 w-[120px] text-foreground">
+                    <SelectValue placeholder="All Levels" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border text-foreground">
+                    <SelectItem value="_all" className="text-xs">All Levels</SelectItem>
+                    <SelectItem value="CRITICAL" className="text-xs">Critical</SelectItem>
+                    <SelectItem value="ERROR" className="text-xs">Error</SelectItem>
+                    <SelectItem value="WARNING" className="text-xs">Warning</SelectItem>
+                    <SelectItem value="INFO" className="text-xs">Info</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Resolved Filter */}
+                <Select
+                  value={logFilters.is_resolved === undefined ? "_all" : logFilters.is_resolved ? "true" : "false"}
+                  onValueChange={(val) => handleLogFilterChange({ is_resolved: val === "_all" ? undefined : val === "true" })}
+                >
+                  <SelectTrigger className="bg-background border-border text-xs h-8 w-[120px] text-foreground">
+                    <SelectValue placeholder="All Status" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border text-foreground">
+                    <SelectItem value="_all" className="text-xs">All Status</SelectItem>
+                    <SelectItem value="false" className="text-xs">Unresolved</SelectItem>
+                    <SelectItem value="true" className="text-xs">Resolved</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => fetchSystemLogs(logFilters)}
+                  className="border-border text-foreground hover:bg-muted h-8 text-xs px-3"
+                >
+                  <RefreshCw className={`w-3 h-3 mr-1.5 ${systemLogsLoading ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+
+                {selectedLogIds.size > 0 && (
+                  <Button
+                    size="sm"
+                    onClick={handleBulkResolve}
+                    className="bg-emerald-600 text-white hover:bg-emerald-700 h-8 text-xs px-3"
+                  >
+                    <CheckCircle2 className="w-3 h-3 mr-1.5" />
+                    Resolve {selectedLogIds.size} Selected
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Log Entries */}
+          <Card className="glass border-border">
+            <CardHeader className="pb-2 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-bold text-foreground">System Error & Event Log</CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground">
+                    Showing {systemLogs.length} of {systemLogsTotal} entries — captured in background across all services.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {systemLogsLoading && systemLogs.length === 0 ? (
+                <div className="text-center py-12 text-xs text-muted-foreground">Loading system logs...</div>
+              ) : systemLogs.length === 0 ? (
+                <div className="text-center py-12 text-xs text-muted-foreground flex flex-col items-center gap-2">
+                  <ShieldCheck className="w-10 h-10 text-emerald-500/30" />
+                  <p className="font-semibold">No log entries match your filters.</p>
+                  <p>All systems running clean.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border/30">
+                  {systemLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className={cn(
+                        "p-4 transition-all hover:bg-muted/20",
+                        log.is_resolved && "opacity-60"
+                      )}
+                    >
+                      {/* Header row */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <input
+                            type="checkbox"
+                            checked={selectedLogIds.has(log.id)}
+                            onChange={() => toggleLogSelection(log.id)}
+                            className="rounded border-border bg-card"
+                          />
+                          <Badge className={`text-[9px] font-black uppercase ${
+                            log.level === "CRITICAL" ? "bg-rose-600 text-white" :
+                            log.level === "ERROR" ? "bg-destructive text-destructive-foreground" :
+                            log.level === "WARNING" ? "bg-amber-500 text-background" :
+                            "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                          }`}>
+                            {log.level}
+                          </Badge>
+                          <Badge variant="outline" className="text-[9px] font-semibold border-border text-muted-foreground capitalize">
+                            {log.service}
+                          </Badge>
+                          {log.http_method && log.http_path && (
+                            <span className="text-[10px] font-mono text-muted-foreground">
+                              {log.http_method} {log.http_path}
+                            </span>
+                          )}
+                          {log.http_status && (
+                            <Badge variant="outline" className={`text-[9px] font-mono ${
+                              parseInt(log.http_status) >= 500 ? "border-destructive/30 text-destructive" :
+                              parseInt(log.http_status) >= 400 ? "border-amber-500/30 text-amber-500" :
+                              "border-border text-muted-foreground"
+                            }`}>
+                              {log.http_status}
+                            </Badge>
+                          )}
+                          {log.duration_ms && (
+                            <span className="text-[10px] text-muted-foreground">{log.duration_ms}ms</span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {log.created_at ? new Date(log.created_at).toLocaleString("en-IN", {
+                              day: "2-digit", month: "short", year: "numeric",
+                              hour: "2-digit", minute: "2-digit", second: "2-digit",
+                            }) : "—"}
+                          </span>
+                          {!log.is_resolved ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleResolveLog(log.id)}
+                              className="border-border text-foreground hover:bg-muted h-6 text-[10px] font-bold px-2"
+                            >
+                              <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-500" />
+                              Resolve
+                            </Button>
+                          ) : (
+                            <Badge variant="outline" className="border-emerald-500/30 text-emerald-500 bg-emerald-500/10 text-[9px] font-bold">
+                              RESOLVED
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Message */}
+                      <p className="text-xs text-foreground font-semibold leading-snug mb-1">{log.message}</p>
+
+                      {/* Org + Request ID context */}
+                      <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground mb-1">
+                        {log.organization_id && (
+                          <span>
+                            Org: <span className="font-mono font-semibold text-foreground">
+                              {organizations.find(o => o.id === log.organization_id)?.legal_name || log.organization_id.substring(0, 12) + "…"}
+                            </span>
+                          </span>
+                        )}
+                        {log.request_id && (
+                          <span>Request: <span className="font-mono">{log.request_id.substring(0, 12)}…</span></span>
+                        )}
+                      </div>
+
+                      {/* Expandable Stack Trace */}
+                      {log.stack_trace && (
+                        <div>
+                          <button
+                            onClick={() => toggleLogExpansion(log.id)}
+                            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground font-bold mt-1 transition-colors"
+                          >
+                            <Terminal className="w-3 h-3" />
+                            {expandedLogs[log.id] ? "Hide" : "Show"} Stack Trace
+                          </button>
+                          {expandedLogs[log.id] && (
+                            <pre className="mt-2 p-3 bg-card border border-border rounded-xl text-[10px] text-muted-foreground font-mono overflow-x-auto whitespace-pre leading-relaxed shadow-inner max-h-[300px] overflow-y-auto">
+                              {log.stack_trace}
+                            </pre>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Pagination */}
+              {systemLogsTotal > (logFilters.limit || 50) && (
+                <div className="flex items-center justify-between p-4 border-t border-border/50">
+                  <span className="text-[10px] text-muted-foreground">
+                    Page {Math.floor((logFilters.offset || 0) / (logFilters.limit || 50)) + 1} of {Math.ceil(systemLogsTotal / (logFilters.limit || 50))}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={(logFilters.offset || 0) === 0}
+                      onClick={() => {
+                        const newFilters = { ...logFilters, offset: Math.max(0, (logFilters.offset || 0) - (logFilters.limit || 50)) };
+                        setLogFilters(newFilters);
+                        fetchSystemLogs(newFilters);
+                      }}
+                      className="h-7 text-xs border-border text-foreground"
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={(logFilters.offset || 0) + (logFilters.limit || 50) >= systemLogsTotal}
+                      onClick={() => {
+                        const newFilters = { ...logFilters, offset: (logFilters.offset || 0) + (logFilters.limit || 50) };
+                        setLogFilters(newFilters);
+                        fetchSystemLogs(newFilters);
+                      }}
+                      className="h-7 text-xs border-border text-foreground"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

@@ -385,4 +385,50 @@ export interface AdminAddFundsResponse {
   transaction_id: string;
 }
 
+// ─── System Logs ───
 
+export interface SystemLogEntry {
+  id: string;
+  level: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
+  service: string;
+  message: string;
+  organization_id: string | null;
+  user_id: string | null;
+  request_id: string | null;
+  http_method: string | null;
+  http_path: string | null;
+  http_status: string | null;
+  duration_ms: string | null;
+  stack_trace: string | null;
+  metadata: Record<string, any> | null;
+  is_resolved: boolean;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string | null;
+}
+
+export interface SystemLogListResponse {
+  logs: SystemLogEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface SystemLogStats {
+  total: number;
+  unresolved: number;
+  errors: number;
+  warnings: number;
+  criticals: number;
+  services: string[];
+}
+
+export interface SystemLogFilters {
+  organization_id?: string;
+  service?: string;
+  level?: string;
+  is_resolved?: boolean;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}

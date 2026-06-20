@@ -21,6 +21,7 @@ from langgraph.store.memory import InMemoryStore
 from langchain_core.language_models import BaseChatModel
 from langchain_ollama import ChatOllama
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
 from .state import AuditorState
 from .tools import get_emission_factors, calculate_scope_emissions
@@ -89,7 +90,13 @@ def build_document_analysis_graph():
     """
     s = get_settings()
     llm: BaseChatModel
-    if s.llm_provider == "google":
+    if s.llm_provider == "openai":
+        llm = ChatOpenAI(
+            model=s.openai_chat_model,
+            api_key=s.openai_api_key,
+            temperature=s.openai_temperature,
+        )
+    elif s.llm_provider == "google":
         llm = ChatGoogleGenerativeAI(
             model=s.gemini_chat_model,
             google_api_key=s.google_api_key,

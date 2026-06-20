@@ -182,7 +182,19 @@ Verdict:"""
             from ..config.settings import get_settings
             s = get_settings()
 
-            if s.llm_provider == "google":
+            if s.llm_provider == "openai":
+                from langchain_openai import ChatOpenAI
+                from langchain_core.messages import HumanMessage
+                llm = ChatOpenAI(
+                    model=s.openai_chat_model,
+                    api_key=s.openai_api_key,
+                    temperature=0.0,
+                    max_tokens=10,
+                    timeout=15.0,
+                )
+                resp = llm.invoke([HumanMessage(content=classifier_prompt)])
+                verdict = resp.content.strip().upper()
+            elif s.llm_provider == "google":
                 from langchain_google_genai import ChatGoogleGenerativeAI
                 from langchain_core.messages import HumanMessage
                 llm = ChatGoogleGenerativeAI(
