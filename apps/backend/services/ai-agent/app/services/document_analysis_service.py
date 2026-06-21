@@ -168,11 +168,28 @@ async def run_document_analysis(
     except Exception as exc:
         logger.error("[%s] Failed to insert into document_vault: %s", run_id, exc)
 
-    # 2. Parse document text
+    # 2. Parse document text + PDF injection guard
     from ..parsers.document_parser import parse_document
+    from ..guardrails.pdf_injection_guard import PDFInjectionGuard, InjectionDetectedException
     try:
         raw_text = parse_document(document_bytes, filename)
-        
+
+        # Layer: PDF injection guard — sanitise before LLM sees the text
+        pdf_guard = PDFInjectionGuard(
+            use_llm_check=True,
+            ollama_base_url=s.ollama_base_url,
+            evaluator_model=s.ollama_llm_model,
+        )
+        try:
+            raw_text = pdf_guard.sanitise(raw_text, document_name=filename)
+            logger.info("[%s] PDF injection guard passed for '%s'", run_id, filename)
+        except InjectionDetectedException as exc:
+            logger.error("[%s] PDF injection guard BLOCKED document '%s': %s", run_id, filename, exc)
+            raise ValueError(
+                f"Document '{filename}' was rejected by the security scanner: {exc}. "
+                "Please upload a clean document without embedded instructions."
+            )
+
         # Fire and forget background embedding job
         task = asyncio.create_task(
             _embed_and_store_document_background(

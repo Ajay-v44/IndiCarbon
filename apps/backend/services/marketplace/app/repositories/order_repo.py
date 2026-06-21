@@ -6,7 +6,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from ..models.order import MarketOrder, Trade
+from ..models.order import MarketOrder, Proposal, Trade
 
 
 class MarketOrderRepository:
@@ -83,3 +83,45 @@ class TradeRepository:
                 Trade.seller_org_id == organization_id
             )
         ).order_by(Trade.settled_at.desc()).all()
+
+
+class ProposalRepository:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def create(self, **kwargs) -> Proposal:
+        proposal = Proposal(id=uuid.uuid4(), **kwargs)
+        self.db.add(proposal)
+        self.db.flush()
+        return proposal
+
+    def get_by_id(self, proposal_id: str) -> Optional[Proposal]:
+        return self.db.query(Proposal).filter(Proposal.id == proposal_id).first()
+
+    def list_by_buyer(self, buyer_org_id: str, limit: int = 100) -> list[Proposal]:
+        return self.db.query(Proposal).filter(
+            Proposal.buyer_org_id == buyer_org_id
+        ).order_by(Proposal.created_at.desc()).limit(limit).all()
+
+    def list_by_seller(self, seller_org_id: str, limit: int = 100) -> list[Proposal]:
+        return self.db.query(Proposal).filter(
+            Proposal.seller_org_id == seller_org_id
+        ).order_by(Proposal.created_at.desc()).limit(limit).all()
+
+    def list_by_organization(self, org_id: str, limit: int = 100) -> list[Proposal]:
+        from sqlalchemy import or_
+        return self.db.query(Proposal).filter(
+            or_(
+                Proposal.buyer_org_id == org_id,
+                Proposal.seller_org_id == org_id,
+            )
+        ).order_by(Proposal.created_at.desc()).limit(limit).all()
+
+    def update_status(self, proposal_id: str, status: str, **kwargs) -> Optional[Proposal]:
+        proposal = self.get_by_id(proposal_id)
+        if proposal:
+            proposal.status = status
+            for k, v in kwargs.items():
+                setattr(proposal, k, v)
+            self.db.flush()
+        return proposal

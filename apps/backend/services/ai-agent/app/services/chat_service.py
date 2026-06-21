@@ -5,7 +5,6 @@ import asyncio
 import time
 import uuid
 from datetime import datetime
-from functools import lru_cache
 from typing import Any
 
 import httpx
@@ -40,30 +39,41 @@ logger = logging.getLogger("ai-agent.services.chat")
 _background_tasks: set = set()
 
 
-@lru_cache(maxsize=1)
+_chat_llm_cache: dict[str, BaseChatModel] = {}
+
+
 def _get_chat_llm() -> BaseChatModel:
     s = get_settings()
+    cache_key = f"{s.llm_provider}:{s.openai_chat_model}:{s.gemini_chat_model}:{s.ollama_chat_model}"
+    if cache_key in _chat_llm_cache:
+        return _chat_llm_cache[cache_key]
+
+    _chat_llm_cache.clear()
+
     if s.llm_provider == "openai":
-        return ChatOpenAI(
+        llm = ChatOpenAI(
             model=s.openai_chat_model,
             api_key=s.openai_api_key,
             temperature=s.openai_temperature,
             max_tokens=min(s.openai_max_tokens, 1024),
         )
     elif s.llm_provider == "google":
-        return ChatGoogleGenerativeAI(
+        llm = ChatGoogleGenerativeAI(
             model=s.gemini_chat_model,
             google_api_key=s.google_api_key,
             temperature=s.ollama_temperature,
             max_output_tokens=min(s.ollama_num_predict, 1024),
         )
     else:
-        return ChatOllama(
+        llm = ChatOllama(
             base_url=s.ollama_base_url,
             model=s.ollama_chat_model,
             temperature=s.ollama_temperature,
-            num_predict=min(s.ollama_num_predict, 420),
+            num_predict=min(s.ollama_num_predict, 1024),
         )
+
+    _chat_llm_cache[cache_key] = llm
+    return llm
 
 
 def _default_session_id(user: AuthenticatedUser) -> uuid.UUID:
@@ -543,6 +553,13 @@ async def run_chat(
     if _answer_violates_policy(answer):
         answer = UNSAFE_OUTPUT_RESPONSE
         output_verdict_raw = "blocked_deterministic_output"
+    else:
+        output_verdict = domain_guard.check_output(masked_query, answer)
+        output_verdict_raw = output_verdict.verdict_raw
+        if not output_verdict.allowed:
+            logger.warning("[%s] Chat output blocked by domain guard: %s", run_id, output_verdict.reason)
+            answer = UNSAFE_OUTPUT_RESPONSE
+            output_verdict_raw = f"blocked_llm_output:{output_verdict.reason}"
 
     masked_answer, output_pii = pii.mask(answer)
     answer = masked_answer

@@ -10,10 +10,14 @@ import {
   Sparkles,
   MessageSquareText,
   ChevronDown,
+  SquarePen,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   clearAIError,
+  clearChatHistory,
   fetchChatHistory,
   sendChatMessageThunk,
 } from "@/store/ai-slice";
@@ -105,7 +109,9 @@ function AgentMessage({
               <span className="text-xs">Thinking...</span>
             </div>
           ) : (
-            <p className="whitespace-pre-wrap">{text}</p>
+            <div className="prose prose-sm prose-emerald dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+            </div>
           )}
         </div>
         {!isStreaming && (
@@ -278,9 +284,21 @@ export function SimpleAgentChatPage() {
             AI-powered carbon intelligence
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]" />
-          <span className="text-[11px] font-medium text-emerald-600">Live</span>
+        <div className="flex items-center gap-2">
+          {hasMessages && (
+            <button
+              onClick={() => dispatch(clearChatHistory())}
+              className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              aria-label="New conversation"
+            >
+              <SquarePen className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">New Chat</span>
+            </button>
+          )}
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]" />
+            <span className="text-[11px] font-medium text-emerald-600">Live</span>
+          </div>
         </div>
       </header>
 

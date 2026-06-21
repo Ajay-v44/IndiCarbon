@@ -349,6 +349,43 @@ export interface CreateRolePayload {
   is_internal?: boolean;
 }
 
+// ─── Proposals (RFQ / Negotiated Orders) ───
+
+export type ProposalStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED" | "EXPIRED";
+
+export interface CreateProposalRequest {
+  sell_order_id: string;
+  buyer_org_id: string;
+  quantity: number;
+  proposed_price: number;
+  buyer_note?: string;
+}
+
+export interface ProposalResponse {
+  id: string;
+  sell_order_id: string;
+  buyer_org_id: string;
+  seller_org_id: string;
+  quantity: number;
+  asking_price: number;
+  proposed_price: number;
+  total_value: number;
+  status: ProposalStatus;
+  buyer_note?: string;
+  rejection_reason?: string;
+  trade_id?: string;
+  created_at?: string;
+  responded_at?: string;
+  expires_at?: string;
+  project_type?: string;
+  vintage_year?: number;
+}
+
+export interface ProposalAcceptResponse {
+  proposal: ProposalResponse;
+  trade: TradeReceipt;
+}
+
 // ─── Wallet ───
 
 export interface WalletResponse {

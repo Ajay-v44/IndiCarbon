@@ -430,6 +430,26 @@ async def orders_proxy(request: Request, path: str):
 
 
 @app.api_route(
+    "/api/v1/proposals",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def proposals_root_proxy(request: Request):
+    return await _proxy(request, settings.marketplace_service_url)
+
+
+@app.api_route(
+    "/api/v1/proposals/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    tags=["Marketplace"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def proposals_proxy(request: Request, path: str):
+    return await _proxy(request, settings.marketplace_service_url)
+
+
+@app.api_route(
     "/api/v1/credits",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     include_in_schema=False,

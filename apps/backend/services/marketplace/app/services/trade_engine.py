@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Optional
 from uuid import UUID
@@ -11,8 +12,8 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..repositories.credit_repo import CreditRepository
-from ..repositories.order_repo import MarketOrderRepository, TradeRepository
-from ..schemas.market import OrderType, PlaceOrderRequest, TradeReceiptResponse
+from ..repositories.order_repo import MarketOrderRepository, ProposalRepository, TradeRepository
+from ..schemas.market import CreateProposalRequest, OrderType, PlaceOrderRequest, ProposalResponse, TradeReceiptResponse
 from . import wallet_service
 
 logger = logging.getLogger(__name__)
@@ -268,3 +269,192 @@ def get_market_book(db: Session) -> list[dict]:
         }
         for o in orders
     ]
+
+
+# ─── Proposal / RFQ Flow ─────────────────────────────────────────────────────
+
+
+def _proposal_to_dict(p) -> dict:
+    return {
+        "id": str(p.id),
+        "sell_order_id": str(p.sell_order_id),
+        "buyer_org_id": str(p.buyer_org_id),
+        "seller_org_id": str(p.seller_org_id),
+        "quantity": p.quantity,
+        "asking_price": float(p.asking_price),
+        "proposed_price": float(p.proposed_price),
+        "total_value": float(p.total_value),
+        "status": p.status,
+        "buyer_note": p.buyer_note,
+        "rejection_reason": p.rejection_reason,
+        "trade_id": str(p.trade_id) if p.trade_id else None,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+        "responded_at": p.responded_at.isoformat() if p.responded_at else None,
+        "expires_at": p.expires_at.isoformat() if p.expires_at else None,
+        "project_type": p.project_type,
+        "vintage_year": p.vintage_year,
+    }
+
+
+def create_proposal(req: CreateProposalRequest, user_id: str, db: Session) -> dict:
+    """Buyer creates a price proposal against an open SELL order."""
+    proposal_repo = ProposalRepository(db)
+
+    from ..models.order import MarketOrder
+    sell_order = db.query(MarketOrder).filter(
+        MarketOrder.id == str(req.sell_order_id),
+        MarketOrder.status == "OPEN",
+        MarketOrder.order_type == "SELL",
+    ).first()
+
+    if not sell_order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sell order not found or no longer open.",
+        )
+
+    if str(sell_order.organization_id) == str(req.buyer_org_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot propose on your own listing.",
+        )
+
+    if req.quantity > sell_order.quantity:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Requested quantity ({req.quantity}) exceeds available ({sell_order.quantity}).",
+        )
+
+    total_value = Decimal(req.quantity) * req.proposed_price
+
+    from datetime import timedelta
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+
+    proposal = proposal_repo.create(
+        sell_order_id=req.sell_order_id,
+        buyer_org_id=req.buyer_org_id,
+        seller_org_id=sell_order.organization_id,
+        quantity=req.quantity,
+        asking_price=sell_order.price_per_unit,
+        proposed_price=req.proposed_price,
+        total_value=total_value,
+        status="PENDING",
+        buyer_note=req.buyer_note,
+        project_type=sell_order.project_type,
+        vintage_year=sell_order.vintage_year,
+        expires_at=expires_at,
+    )
+
+    db.commit()
+    logger.info("Proposal %s created by org %s for order %s", proposal.id, req.buyer_org_id, req.sell_order_id)
+    return _proposal_to_dict(proposal)
+
+
+async def accept_proposal(
+    proposal_id: str, user_id: str, db: Session, redis: aioredis.Redis
+) -> dict:
+    """Seller accepts a proposal — settles the trade atomically."""
+    from datetime import datetime as dt
+    proposal_repo = ProposalRepository(db)
+    proposal = proposal_repo.get_by_id(proposal_id)
+
+    if not proposal:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proposal not found.")
+    if proposal.status != "PENDING":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Proposal is already {proposal.status}.")
+
+    from ..models.order import MarketOrder
+    sell_order = db.query(MarketOrder).filter(
+        MarketOrder.id == str(proposal.sell_order_id),
+        MarketOrder.status == "OPEN",
+    ).first()
+
+    if not sell_order:
+        proposal_repo.update_status(proposal_id, "CANCELLED", responded_at=datetime.now(timezone.utc))
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sell order is no longer open.")
+
+    order_repo = MarketOrderRepository(db)
+    buy_order = order_repo.create(
+        organization_id=proposal.buyer_org_id,
+        order_type="BUY",
+        quantity=proposal.quantity,
+        price_per_unit=proposal.proposed_price,
+        status="OPEN",
+        vintage_year=proposal.vintage_year,
+        project_type=proposal.project_type,
+    )
+
+    receipt = await _settle_trade(
+        buyer_org_id=str(proposal.buyer_org_id),
+        seller_org_id=str(proposal.seller_org_id),
+        quantity=proposal.quantity,
+        price_per_unit=proposal.proposed_price,
+        buy_order_id=str(buy_order.id),
+        sell_order_id=str(proposal.sell_order_id),
+        db=db,
+        redis=redis,
+    )
+
+    proposal_repo.update_status(
+        proposal_id,
+        "ACCEPTED",
+        responded_at=datetime.now(timezone.utc),
+        trade_id=receipt.trade_id,
+    )
+
+    db.commit()
+    logger.info("Proposal %s accepted — trade %s settled", proposal_id, receipt.trade_id)
+    return {
+        "proposal": _proposal_to_dict(proposal_repo.get_by_id(proposal_id)),
+        "trade": receipt.model_dump(mode="json"),
+    }
+
+
+def reject_proposal(proposal_id: str, rejection_reason: Optional[str], user_id: str, db: Session) -> dict:
+    """Seller rejects a proposal."""
+    proposal_repo = ProposalRepository(db)
+    proposal = proposal_repo.get_by_id(proposal_id)
+
+    if not proposal:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proposal not found.")
+    if proposal.status != "PENDING":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Proposal is already {proposal.status}.")
+
+    proposal_repo.update_status(
+        proposal_id,
+        "REJECTED",
+        responded_at=datetime.now(timezone.utc),
+        rejection_reason=rejection_reason,
+    )
+    db.commit()
+    logger.info("Proposal %s rejected by seller", proposal_id)
+    return _proposal_to_dict(proposal_repo.get_by_id(proposal_id))
+
+
+def cancel_proposal(proposal_id: str, user_id: str, db: Session) -> dict:
+    """Buyer cancels their own pending proposal."""
+    proposal_repo = ProposalRepository(db)
+    proposal = proposal_repo.get_by_id(proposal_id)
+
+    if not proposal:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proposal not found.")
+    if proposal.status != "PENDING":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Proposal is already {proposal.status}.")
+
+    proposal_repo.update_status(proposal_id, "CANCELLED", responded_at=datetime.now(timezone.utc))
+    db.commit()
+    logger.info("Proposal %s cancelled by buyer", proposal_id)
+    return _proposal_to_dict(proposal_repo.get_by_id(proposal_id))
+
+
+def list_proposals(org_id: str, role: Optional[str], db: Session) -> list[dict]:
+    """List proposals for an org. role=buyer|seller|None (all)."""
+    proposal_repo = ProposalRepository(db)
+    if role == "buyer":
+        proposals = proposal_repo.list_by_buyer(org_id)
+    elif role == "seller":
+        proposals = proposal_repo.list_by_seller(org_id)
+    else:
+        proposals = proposal_repo.list_by_organization(org_id)
+    return [_proposal_to_dict(p) for p in proposals]

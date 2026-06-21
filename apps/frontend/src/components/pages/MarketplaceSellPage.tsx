@@ -13,6 +13,8 @@ import {
   Tag,
   TreePine,
   ArrowRight,
+  FileText,
+  Wallet,
 } from "lucide-react";
 
 export function MarketplaceSellPage() {
@@ -107,12 +109,18 @@ export function MarketplaceSellPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            className="bg-teal-600 dark:bg-teal-500 hover:bg-teal-700 dark:hover:bg-teal-400 text-white dark:text-black font-semibold"
-          >
-            Sell Credits
-          </Button>
+          <Link href="/marketplace/orders">
+            <Button variant="outline" size="sm" className="border-border text-foreground hover:bg-muted">
+              <FileText className="w-3.5 h-3.5 mr-1.5" />
+              My Orders
+            </Button>
+          </Link>
+          <Link href="/marketplace/wallet">
+            <Button variant="outline" size="sm" className="border-border text-foreground hover:bg-muted">
+              <Wallet className="w-3.5 h-3.5 mr-1.5" />
+              Wallet
+            </Button>
+          </Link>
           <Link href="/marketplace/buy">
             <Button variant="outline" size="sm" className="border-border text-foreground hover:bg-muted">
               Buy Credits

@@ -1,14 +1,24 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { fetchMarketBook, submitMarketOrder, clearLastOrderResponse } from "@/store/marketplace-slice";
+import { fetchMarketBook } from "@/store/marketplace-slice";
+import { submitProposal, resetActionStatus } from "@/store/proposals-slice";
 import { fetchWallet } from "@/store/wallet-slice";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { MarketOrder } from "@/lib/api/types";
 import {
@@ -19,65 +29,107 @@ import {
   TreePine,
   ArrowRight,
   Wallet,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Send,
+  FileText,
+  History,
 } from "lucide-react";
 
 export function MarketplaceBuyPage() {
   const dispatch = useAppDispatch();
-  const { marketBook, status, lastOrderResponse } = useAppSelector((s) => s.marketplace);
+  const { marketBook, status } = useAppSelector((s) => s.marketplace);
   const { tokens } = useAppSelector((s) => s.auth);
   const { wallet } = useAppSelector((s) => s.wallet);
+  const { actionStatus } = useAppSelector((s) => s.proposals);
 
-  // Prefer organization_id from the JWT; fall back to user_id for demo/testing
   const orgId = tokens?.organization_id ?? tokens?.user_id ?? "";
+
+  const [selectedOrder, setSelectedOrder] = useState<MarketOrder | null>(null);
+  const [proposalQty, setProposalQty] = useState("1");
+  const [proposalPrice, setProposalPrice] = useState("");
+  const [buyerNote, setBuyerNote] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     dispatch(fetchMarketBook());
     if (orgId) dispatch(fetchWallet(orgId));
   }, [dispatch, orgId]);
 
-  // Show trade result toast whenever a new order response arrives
   useEffect(() => {
-    if (!lastOrderResponse) return;
-    if (lastOrderResponse.matched && lastOrderResponse.trade) {
-      const t = lastOrderResponse.trade;
-      toast.success(
-        `Trade settled! ${t.quantity} credits @ ₹${t.price_per_unit}/tCO₂e — Total ₹${t.total_value.toLocaleString()}`
-      );
-    } else if (!lastOrderResponse.matched) {
-      toast.info(`Order placed on book (ID: ${lastOrderResponse.order_id?.substring(0, 8)}). Waiting for a seller.`);
+    if (actionStatus === "succeeded") {
+      toast.success("Proposal submitted! The seller will review your offer.");
+      setSelectedOrder(null);
+      setProposalQty("1");
+      setProposalPrice("");
+      setBuyerNote("");
+      dispatch(resetActionStatus());
     }
-    dispatch(clearLastOrderResponse());
-  }, [lastOrderResponse, dispatch]);
+  }, [actionStatus, dispatch]);
 
-  const handleBuy = async (order: MarketOrder) => {
-    if (!orgId) {
-      toast.error("Organization ID not found. Please log in again.");
+  const openProposalDialog = (order: MarketOrder) => {
+    setSelectedOrder(order);
+    setProposalPrice(String(order.price_per_unit));
+    setProposalQty("1");
+    setBuyerNote("");
+  };
+
+  const handleSubmitProposal = async () => {
+    if (!selectedOrder || !orgId) return;
+    const qty = parseInt(proposalQty, 10);
+    const price = parseFloat(proposalPrice);
+
+    if (isNaN(qty) || qty <= 0 || qty > selectedOrder.quantity) {
+      toast.error(`Quantity must be between 1 and ${selectedOrder.quantity}.`);
       return;
     }
-    const cost = order.price_per_unit * 1;
-    if (wallet && wallet.balance < cost) {
-      toast.error(`Insufficient wallet balance. You need ₹${cost.toLocaleString()} but have ₹${wallet.balance.toLocaleString()}.`);
+    if (isNaN(price) || price <= 0) {
+      toast.error("Please enter a valid price.");
       return;
     }
+
+    const totalCost = qty * price;
+    if (wallet && wallet.balance < totalCost) {
+      toast.error(
+        `Insufficient balance. You need ₹${totalCost.toLocaleString()} but have ₹${wallet.balance.toLocaleString()}.`
+      );
+      return;
+    }
+
     try {
       await dispatch(
-        submitMarketOrder({
-          organization_id: orgId,
-          order_type: "BUY",
-          quantity: 1,
-          price_per_unit: order.price_per_unit,
-          vintage_year: order.vintage_year,
-          project_type: order.project_type,
+        submitProposal({
+          sell_order_id: selectedOrder.id,
+          buyer_org_id: orgId,
+          quantity: qty,
+          proposed_price: price,
+          buyer_note: buyerNote || undefined,
         })
       ).unwrap();
-      dispatch(fetchMarketBook());
-      dispatch(fetchWallet(orgId));
     } catch (err: unknown) {
-      toast.error(typeof err === "string" ? err : "Failed to buy credits");
+      toast.error(typeof err === "string" ? err : "Failed to submit proposal.");
     }
   };
 
+  const proposedPrice = parseFloat(proposalPrice) || 0;
+  const askingPrice = selectedOrder?.price_per_unit ?? 0;
+  const priceDiff = askingPrice > 0 ? ((proposedPrice - askingPrice) / askingPrice) * 100 : 0;
+  const proposalTotal = (parseInt(proposalQty, 10) || 0) * proposedPrice;
+
   const totalVolume = marketBook.reduce((acc, o) => acc + o.quantity, 0);
+  const avgPrice =
+    marketBook.length > 0
+      ? marketBook.reduce((acc, o) => acc + o.price_per_unit, 0) / marketBook.length
+      : 0;
+
+  const filtered = searchTerm
+    ? marketBook.filter(
+        (o) =>
+          (o.project_type ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+          o.id.includes(searchTerm)
+      )
+    : marketBook;
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto text-foreground">
@@ -89,18 +141,27 @@ export function MarketplaceBuyPage() {
           </div>
           <div>
             <h1 className="text-2xl font-black text-foreground">Carbon Marketplace</h1>
-            <p className="text-sm text-muted-foreground">Browse and purchase verified carbon credits</p>
+            <p className="text-sm text-muted-foreground">Browse listings and submit purchase proposals</p>
           </div>
         </div>
         <div className="flex gap-2">
+          <Link href="/marketplace/orders">
+            <Button variant="outline" size="sm" className="border-border text-foreground hover:bg-muted">
+              <FileText className="w-3.5 h-3.5 mr-1.5" />
+              My Orders
+            </Button>
+          </Link>
+          <Link href="/marketplace/wallet">
+            <Button variant="outline" size="sm" className="border-border text-foreground hover:bg-muted">
+              <Wallet className="w-3.5 h-3.5 mr-1.5" />
+              Wallet
+            </Button>
+          </Link>
           <Link href="/marketplace/sell">
             <Button variant="outline" size="sm" className="border-border text-foreground hover:bg-muted">
               Sell Credits
             </Button>
           </Link>
-          <Button size="sm" className="bg-teal-600 dark:bg-teal-500 hover:bg-teal-700 dark:hover:bg-teal-400 text-white dark:text-black font-semibold">
-            Buy Credits
-          </Button>
         </div>
       </div>
 
@@ -119,9 +180,10 @@ export function MarketplaceBuyPage() {
         </Card>
         <Card className="glass border-border">
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground mb-1">Global Avg Price</p>
+            <p className="text-xs text-muted-foreground mb-1">Avg Asking Price</p>
             <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-              ₹1,420<span className="text-xs font-normal text-muted-foreground/60 ml-1">/ tCO₂e</span>
+              ₹{avgPrice.toFixed(0)}
+              <span className="text-xs font-normal text-muted-foreground/60 ml-1">/ tCO₂e</span>
             </p>
           </CardContent>
         </Card>
@@ -129,7 +191,8 @@ export function MarketplaceBuyPage() {
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Total Volume Available</p>
             <p className="text-2xl font-black text-teal-600 dark:text-teal-400">
-              {totalVolume}<span className="text-xs font-normal text-muted-foreground/60 ml-1">tCO₂e</span>
+              {totalVolume}
+              <span className="text-xs font-normal text-muted-foreground/60 ml-1">tCO₂e</span>
             </p>
           </CardContent>
         </Card>
@@ -137,7 +200,8 @@ export function MarketplaceBuyPage() {
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Open Listings</p>
             <p className="text-2xl font-black text-blue-600 dark:text-blue-400">
-              {marketBook.length}<span className="text-xs font-normal text-muted-foreground/60 ml-1">orders</span>
+              {marketBook.length}
+              <span className="text-xs font-normal text-muted-foreground/60 ml-1">orders</span>
             </p>
           </CardContent>
         </Card>
@@ -148,17 +212,19 @@ export function MarketplaceBuyPage() {
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-base text-foreground">Available Projects</CardTitle>
-              <CardDescription className="text-muted-foreground text-xs">Live open market SELL orders</CardDescription>
+              <CardTitle className="text-base text-foreground">Available Listings</CardTitle>
+              <CardDescription className="text-muted-foreground text-xs">
+                Submit a proposal with your price — sellers review and accept or reject
+              </CardDescription>
             </div>
-            <div className="flex gap-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Search projects..."
-                  className="pl-8 h-8 text-xs w-64 bg-background border-border text-foreground placeholder:text-muted-foreground/50"
-                />
-              </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search projects..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 h-8 text-xs w-64 bg-background border-border text-foreground placeholder:text-muted-foreground/50"
+              />
             </div>
           </div>
         </CardHeader>
@@ -167,11 +233,11 @@ export function MarketplaceBuyPage() {
             {status === "loading" && (
               <p className="text-sm text-muted-foreground">Loading market book...</p>
             )}
-            {marketBook.length === 0 && status !== "loading" && (
+            {filtered.length === 0 && status !== "loading" && (
               <p className="text-sm text-muted-foreground">No open sell orders on the market.</p>
             )}
 
-            {marketBook.map((order) => (
+            {filtered.map((order) => (
               <Card
                 key={order.id}
                 className="bg-background/50 border-border hover:border-teal-500/30 transition-all"
@@ -188,7 +254,7 @@ export function MarketplaceBuyPage() {
                         </h3>
                         <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
                           <Building2 className="w-3 h-3" />
-                          <span>Org: {order.organization_id.substring(0, 8)}…</span>
+                          <span>Seller: {order.organization_id.substring(0, 8)}…</span>
                         </div>
                       </div>
                     </div>
@@ -210,7 +276,7 @@ export function MarketplaceBuyPage() {
                       <p className="text-sm font-medium text-foreground">{order.vintage_year ?? "Any"}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-muted-foreground uppercase">Price</p>
+                      <p className="text-[10px] text-muted-foreground uppercase">Asking Price</p>
                       <p className="text-sm font-bold text-teal-600">₹{order.price_per_unit}</p>
                     </div>
                   </div>
@@ -220,13 +286,13 @@ export function MarketplaceBuyPage() {
                       {order.id.substring(0, 8)}
                     </span>
                     <Button
-                      onClick={() => handleBuy(order)}
+                      onClick={() => openProposalDialog(order)}
                       disabled={status === "loading"}
                       size="sm"
                       className="bg-foreground text-background hover:bg-foreground/90 h-8 px-4 text-xs"
                     >
-                      Buy 1 Credit
-                      <ArrowRight className="w-3 h-3 ml-1.5" />
+                      <Send className="w-3 h-3 mr-1.5" />
+                      Make Proposal
                     </Button>
                   </div>
                 </CardContent>
@@ -235,6 +301,141 @@ export function MarketplaceBuyPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Proposal Dialog */}
+      <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="w-4 h-4 text-teal-600" />
+              Submit Purchase Proposal
+            </DialogTitle>
+            <DialogDescription>
+              Propose a price for{" "}
+              <span className="font-semibold text-foreground">
+                {selectedOrder?.project_type ?? "Carbon Credits"}
+              </span>
+              . The seller will review and accept or reject your offer.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedOrder && (
+            <div className="space-y-5 py-2">
+              {/* Listing summary */}
+              <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Seller Asking Price</span>
+                  <span className="font-bold text-foreground">₹{selectedOrder.price_per_unit}/tCO₂e</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Available Volume</span>
+                  <span className="font-medium text-foreground">{selectedOrder.quantity} tCO₂e</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Vintage</span>
+                  <span className="font-medium text-foreground">{selectedOrder.vintage_year ?? "Any"}</span>
+                </div>
+              </div>
+
+              {/* Quantity */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Quantity (tCO₂e)</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={selectedOrder.quantity}
+                  value={proposalQty}
+                  onChange={(e) => setProposalQty(e.target.value)}
+                  className="bg-background border-border text-foreground"
+                />
+              </div>
+
+              {/* Your Proposed Price */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Your Proposed Price (per tCO₂e)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
+                  <Input
+                    type="number"
+                    min={0.01}
+                    step={0.01}
+                    value={proposalPrice}
+                    onChange={(e) => setProposalPrice(e.target.value)}
+                    placeholder="0.00"
+                    className="pl-7 bg-background border-border text-foreground"
+                  />
+                </div>
+                {proposedPrice > 0 && (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    {priceDiff > 0 ? (
+                      <TrendingUp className="w-3 h-3 text-emerald-500" />
+                    ) : priceDiff < 0 ? (
+                      <TrendingDown className="w-3 h-3 text-orange-500" />
+                    ) : (
+                      <Minus className="w-3 h-3 text-muted-foreground" />
+                    )}
+                    <span
+                      className={`text-[11px] font-medium ${
+                        priceDiff > 0
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : priceDiff < 0
+                          ? "text-orange-600 dark:text-orange-400"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {priceDiff > 0 ? "+" : ""}
+                      {priceDiff.toFixed(1)}% vs asking price
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Optional note */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Note to Seller (optional)</label>
+                <Input
+                  value={buyerNote}
+                  onChange={(e) => setBuyerNote(e.target.value)}
+                  placeholder="e.g. Interested in bulk purchase, repeat buyer..."
+                  className="bg-background border-border text-foreground text-xs"
+                />
+              </div>
+
+              {/* Totals */}
+              <div className="rounded-lg border border-teal-500/20 bg-teal-500/5 p-3 space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span className="font-medium text-foreground">₹{proposalTotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm font-bold">
+                  <span className="text-foreground">Total Commitment</span>
+                  <span className="text-teal-600 dark:text-teal-400">₹{proposalTotal.toLocaleString()}</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Amount will be debited from your wallet only when the seller accepts.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <DialogClose>
+              <Button variant="outline" size="sm" type="button">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              onClick={handleSubmitProposal}
+              disabled={actionStatus === "loading"}
+              size="sm"
+              className="bg-teal-600 dark:bg-teal-500 hover:bg-teal-700 dark:hover:bg-teal-400 text-white dark:text-black font-semibold"
+            >
+              {actionStatus === "loading" ? "Submitting..." : "Submit Proposal"}
+              <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
