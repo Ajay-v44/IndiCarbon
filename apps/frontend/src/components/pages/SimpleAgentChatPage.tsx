@@ -1,7 +1,16 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { ArrowUp, Bot, LoaderCircle, UserRound } from "lucide-react";
+import {
+  ArrowUp,
+  Bot,
+  Copy,
+  Check,
+  LoaderCircle,
+  Sparkles,
+  MessageSquareText,
+  ChevronDown,
+} from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   clearAIError,
@@ -12,47 +21,157 @@ import type { ChatHistoryItem } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 function formatTimestamp(value?: string) {
-  if (!value) return "Now";
-
+  if (!value) return "just now";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Now";
+  if (Number.isNaN(date.getTime())) return "just now";
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
 
   return new Intl.DateTimeFormat("en-IN", {
-    hour: "numeric",
-    minute: "2-digit",
     day: "numeric",
     month: "short",
+    hour: "numeric",
+    minute: "2-digit",
   }).format(date);
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted hover:text-foreground"
+      aria-label="Copy response"
+    >
+      {copied ? (
+        <Check className="h-3 w-3 text-emerald-500" />
+      ) : (
+        <Copy className="h-3 w-3" />
+      )}
+    </button>
+  );
+}
+
+function UserMessage({ text }: { text: string }) {
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[85%] sm:max-w-[75%]">
+        <div className="rounded-2xl rounded-br-sm bg-emerald-600 px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm">
+          <p className="whitespace-pre-wrap">{text}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AgentMessage({
+  text,
+  timestamp,
+  isStreaming,
+}: {
+  text: string;
+  timestamp?: string;
+  isStreaming?: boolean;
+}) {
+  return (
+    <div className="flex gap-2.5 sm:gap-3">
+      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+        <Sparkles className="h-3.5 w-3.5" />
+      </div>
+      <div className="group min-w-0 max-w-[88%] sm:max-w-[80%]">
+        <div className="rounded-2xl rounded-tl-sm border border-border bg-card px-4 py-2.5 text-sm leading-relaxed text-foreground shadow-sm">
+          {isStreaming ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="flex gap-1">
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500 [animation-delay:0ms]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500 [animation-delay:150ms]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500 [animation-delay:300ms]" />
+              </div>
+              <span className="text-xs">Thinking...</span>
+            </div>
+          ) : (
+            <p className="whitespace-pre-wrap">{text}</p>
+          )}
+        </div>
+        {!isStreaming && (
+          <div className="mt-1 flex items-center gap-2 px-1">
+            <span className="text-[11px] text-muted-foreground">
+              {formatTimestamp(timestamp)}
+            </span>
+            <CopyButton text={text} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function ChatTurn({ item }: { item: ChatHistoryItem }) {
   return (
-    <article className="space-y-4">
-      <div className="flex justify-end">
-        <div className="max-w-[88%] rounded-[1.5rem] rounded-br-md bg-[#14532d] px-4 py-3 text-base font-medium leading-7 text-white shadow-[0_14px_36px_rgba(20,83,45,0.18)] sm:max-w-[78%]">
-          <div className="mb-2 flex items-center justify-end gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100">
-            You
-            <UserRound className="h-3.5 w-3.5" />
-          </div>
-          <p className="whitespace-pre-wrap">{item.query}</p>
-        </div>
-      </div>
+    <div className="space-y-3">
+      <UserMessage text={item.query} />
+      <AgentMessage text={item.answer} timestamp={item.created_at} />
+    </div>
+  );
+}
 
-      <div className="flex justify-start">
-        <div className="max-w-[92%] rounded-[1.5rem] rounded-bl-md border border-[#cdebd7] bg-white px-4 py-3 text-base leading-7 text-[#102016] shadow-[0_14px_40px_rgba(15,23,42,0.08)] sm:max-w-[82%]">
-          <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#166534]">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#dcfce7] text-[#14532d]">
-              <Bot className="h-4 w-4" />
-            </span>
-            IndiCarbon AI
-          </div>
-          <p className="whitespace-pre-wrap">{item.answer}</p>
-          <p className="mt-3 text-xs font-medium text-[#5f7167]">
-            {formatTimestamp(item.created_at)}
-          </p>
-        </div>
+function EmptyState() {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center px-4 py-12">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10">
+        <Bot className="h-8 w-8 text-emerald-600" />
       </div>
-    </article>
+      <h2 className="mt-5 text-center text-xl font-semibold text-foreground sm:text-2xl">
+        IndiCarbon AI Agent
+      </h2>
+      <p className="mt-2 max-w-sm text-center text-sm leading-relaxed text-muted-foreground">
+        Ask about carbon emissions, BRSR compliance, sustainability strategy, or
+        analyze uploaded documents.
+      </p>
+      <div className="mt-6 grid w-full max-w-md grid-cols-1 gap-2 sm:grid-cols-2">
+        {[
+          "What are my Scope 2 emissions?",
+          "Explain BRSR requirements",
+          "Suggest reduction strategies",
+          "Summarize my compliance status",
+        ].map((suggestion) => (
+          <button
+            key={suggestion}
+            className="rounded-xl border border-border bg-card px-3 py-2.5 text-left text-xs leading-snug text-muted-foreground transition hover:border-emerald-300 hover:bg-emerald-50/50 hover:text-foreground dark:hover:bg-emerald-950/20"
+            data-suggestion={suggestion}
+          >
+            {suggestion}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ScrollDownButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="absolute bottom-24 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-md transition hover:bg-muted sm:bottom-28"
+    >
+      <ChevronDown className="h-3.5 w-3.5" />
+      New messages
+    </button>
   );
 }
 
@@ -62,31 +181,53 @@ export function SimpleAgentChatPage() {
   const [query, setQuery] = useState("");
   const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
   const [pendingQuery, setPendingQuery] = useState<string | null>(null);
-  const streamRef = useRef<HTMLDivElement | null>(null);
+  const [showScrollDown, setShowScrollDown] = useState(false);
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const isSending = status === "loading";
 
   useEffect(() => {
-    dispatch(fetchChatHistory({ limit: 24 }))
+    dispatch(fetchChatHistory({ limit: 50 }))
       .unwrap()
-      .catch(() => {
-        // The slice already stores the user-facing error; keep the page mounted.
-      })
+      .catch(() => {})
       .finally(() => setHasLoadedHistory(true));
   }, [dispatch]);
 
   useEffect(() => {
     if (!error) return;
-
-    const timer = window.setTimeout(() => {
-      dispatch(clearAIError());
-    }, 7000);
-
+    const timer = window.setTimeout(() => dispatch(clearAIError()), 7000);
     return () => window.clearTimeout(timer);
   }, [dispatch, error]);
 
   useEffect(() => {
-    streamRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [chatHistory.length, pendingQuery]);
+
+  useEffect(() => {
+    const el = scrollAreaRef.current;
+    if (!el) return;
+
+    function handleScroll() {
+      if (!el) return;
+      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowScrollDown(distFromBottom > 200);
+    }
+
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  function scrollToBottom() {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function autoResize() {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
+  }
 
   async function submitMessage(message: string) {
     const trimmed = message.trim();
@@ -94,11 +235,14 @@ export function SimpleAgentChatPage() {
 
     setPendingQuery(trimmed);
     setQuery("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
 
     try {
       await dispatch(sendChatMessageThunk(trimmed)).unwrap();
     } catch {
-      // The slice renders the error inline below the conversation.
+      // slice handles error
     } finally {
       setPendingQuery(null);
     }
@@ -109,133 +253,121 @@ export function SimpleAgentChatPage() {
     void submitMessage(query);
   }
 
+  function handleSuggestionClick(e: React.MouseEvent<HTMLDivElement>) {
+    const target = e.target as HTMLElement;
+    const btn = target.closest<HTMLButtonElement>("[data-suggestion]");
+    if (btn?.dataset.suggestion) {
+      void submitMessage(btn.dataset.suggestion);
+    }
+  }
+
+  const hasMessages = chatHistory.length > 0 || !!pendingQuery;
+
   return (
-    <section className="relative isolate flex min-h-[calc(100vh-8rem)] overflow-hidden rounded-[2rem] border border-[#c9e7d0] bg-[#f7fbf3] text-[#102016] shadow-[0_24px_80px_rgba(20,83,45,0.12)]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_12%,rgba(34,197,94,0.18),transparent_30%),radial-gradient(circle_at_90%_8%,rgba(20,184,166,0.14),transparent_26%),linear-gradient(135deg,rgba(255,255,255,0.88),rgba(236,253,245,0.68))]" />
-      <div className="pointer-events-none absolute -left-24 bottom-10 h-72 w-72 rounded-full bg-[#bbf7d0]/60 blur-3xl" />
-      <div className="pointer-events-none absolute right-8 top-8 h-40 w-40 rounded-full border border-[#95d5a2]/40" />
-
-      <div className="relative flex min-h-0 w-full flex-col p-3 sm:p-5">
-        <header className="rounded-[1.7rem] border border-[#c9e7d0] bg-white/90 px-5 py-4 shadow-sm backdrop-blur md:px-7">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#15803d]">
-            IndiCarbon chat
-          </p>
-          <h1 className="mt-1 font-['Space_Grotesk'] text-2xl font-bold tracking-tight text-[#102016] sm:text-3xl">
-            Ask clearly. Read comfortably.
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#405247] sm:text-base">
-            A simple organization-scoped assistant for carbon accounting, evidence,
-            emissions, and sustainability planning.
-          </p>
-        </header>
-
-        <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.7rem] border border-[#c9e7d0] bg-[#eef8ec]/88 shadow-inner backdrop-blur">
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-            <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-              {!hasLoadedHistory && chatHistory.length === 0 ? (
-                <div className="grid min-h-[320px] place-items-center text-center">
-                  <div className="rounded-full border border-[#c9e7d0] bg-white px-5 py-3 text-sm font-semibold text-[#14532d] shadow-sm">
-                    <LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />
-                    Loading chat history
-                  </div>
-                </div>
-              ) : null}
-
-              {hasLoadedHistory && chatHistory.length === 0 && !pendingQuery ? (
-                <div className="grid min-h-[320px] place-items-center text-center">
-                  <div className="max-w-lg rounded-[1.7rem] border border-dashed border-[#a9d8b2] bg-white/92 px-6 py-8 shadow-sm">
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#dcfce7] text-[#14532d]">
-                      <Bot className="h-7 w-7" />
-                    </div>
-                    <h2 className="mt-4 font-['Space_Grotesk'] text-2xl font-bold text-[#102016]">
-                      Start a conversation
-                    </h2>
-                    <p className="mt-2 text-base leading-7 text-[#4b5f52]">
-                      Type your question below and send it. No extra inputs, no
-                      clutter.
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-
-              {chatHistory.map((item) => (
-                <ChatTurn key={item.interaction_id} item={item} />
-              ))}
-
-              {pendingQuery ? (
-                <article className="space-y-4">
-                  <div className="flex justify-end">
-                    <div className="max-w-[88%] rounded-[1.5rem] rounded-br-md bg-[#14532d] px-4 py-3 text-base font-medium leading-7 text-white shadow-[0_14px_36px_rgba(20,83,45,0.18)] sm:max-w-[78%]">
-                      <div className="mb-2 flex items-center justify-end gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100">
-                        You
-                        <UserRound className="h-3.5 w-3.5" />
-                      </div>
-                      <p className="whitespace-pre-wrap">{pendingQuery}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-start">
-                    <div className="rounded-[1.5rem] rounded-bl-md border border-[#cdebd7] bg-white px-4 py-3 text-base font-medium text-[#14532d] shadow-[0_14px_40px_rgba(15,23,42,0.08)]">
-                      <LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />
-                      Thinking through your IndiCarbon context
-                    </div>
-                  </div>
-                </article>
-              ) : null}
-
-              <div ref={streamRef} />
-            </div>
-          </div>
-
-          <div className="border-t border-[#c9e7d0] bg-white/92 px-3 py-3 sm:px-5 sm:py-4">
-            {error ? (
-              <div className="mx-auto mb-3 max-w-4xl rounded-2xl border border-[#fecaca] bg-[#fff1f2] px-4 py-3 text-sm font-semibold text-[#991b1b]">
-                {error}
-              </div>
-            ) : null}
-
-            <form onSubmit={handleSubmit} className="mx-auto max-w-4xl">
-              <div className="flex items-end gap-2 rounded-[1.4rem] border-2 border-[#14532d] bg-white p-2 shadow-[0_12px_32px_rgba(20,83,45,0.14)] focus-within:ring-4 focus-within:ring-[#bbf7d0] sm:gap-3">
-                <textarea
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      void submitMessage(query);
-                    }
-                  }}
-                  placeholder="Type your message..."
-                  className="min-h-[54px] flex-1 resize-none bg-transparent px-3 py-3 text-base leading-7 text-[#102016] outline-none placeholder:text-[#6b7d70] sm:min-h-[60px]"
-                  rows={1}
-                  maxLength={4000}
-                  aria-label="Chat message"
-                />
-                <button
-                  type="submit"
-                  disabled={isSending || query.trim().length === 0}
-                  className={cn(
-                    "flex h-12 min-w-12 shrink-0 items-center justify-center rounded-2xl px-4 text-sm font-bold transition sm:h-14 sm:min-w-24",
-                    isSending || query.trim().length === 0
-                      ? "cursor-not-allowed bg-[#d8e8dc] text-[#728275]"
-                      : "bg-[#14532d] text-white shadow-[0_12px_24px_rgba(20,83,45,0.25)] hover:bg-[#166534] focus:outline-none focus:ring-4 focus:ring-[#86efac]"
-                  )}
-                  aria-label="Send message"
-                >
-                  {isSending ? (
-                    <LoaderCircle className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <>
-                      <span className="hidden sm:inline">Send</span>
-                      <ArrowUp className="h-5 w-5 sm:ml-2" />
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
+    <div className="relative flex h-[calc(100vh-5rem)] flex-col overflow-hidden rounded-xl border border-border bg-background sm:h-[calc(100vh-6rem)] lg:h-[calc(100vh-7rem)]">
+      {/* Header */}
+      <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card/80 px-4 py-3 backdrop-blur sm:px-5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+          <MessageSquareText className="h-4 w-4 text-emerald-600" />
         </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-sm font-semibold text-foreground">
+            Agenti Chat
+          </h1>
+          <p className="text-[11px] text-muted-foreground">
+            AI-powered carbon intelligence
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]" />
+          <span className="text-[11px] font-medium text-emerald-600">Live</span>
+        </div>
+      </header>
+
+      {/* Messages area */}
+      <div
+        ref={scrollAreaRef}
+        className="relative flex-1 overflow-y-auto"
+        onClick={handleSuggestionClick}
+      >
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-3 py-4 sm:px-4 sm:py-6">
+          {!hasLoadedHistory && chatHistory.length === 0 && (
+            <div className="flex flex-1 items-center justify-center py-20">
+              <LoaderCircle className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {hasLoadedHistory && !hasMessages && <EmptyState />}
+
+          {chatHistory.map((item) => (
+            <ChatTurn key={item.interaction_id} item={item} />
+          ))}
+
+          {pendingQuery && (
+            <div className="space-y-3">
+              <UserMessage text={pendingQuery} />
+              <AgentMessage text="" isStreaming />
+            </div>
+          )}
+
+          <div ref={bottomRef} className="h-1" />
+        </div>
+
+        {showScrollDown && <ScrollDownButton onClick={scrollToBottom} />}
       </div>
-    </section>
+
+      {/* Input area */}
+      <div className="shrink-0 border-t border-border bg-card/80 px-3 pb-3 pt-2 backdrop-blur sm:px-4 sm:pb-4 sm:pt-3">
+        {error && (
+          <div className="mx-auto mb-2 max-w-3xl rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="mx-auto max-w-3xl">
+          <div className="flex items-end gap-2 rounded-xl border border-border bg-background p-1.5 shadow-sm transition focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-400/20">
+            <textarea
+              ref={textareaRef}
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                autoResize();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void submitMessage(query);
+                }
+              }}
+              placeholder="Ask about emissions, compliance, strategy..."
+              className="min-h-[40px] max-h-[160px] flex-1 resize-none bg-transparent px-2.5 py-2 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground sm:min-h-[44px]"
+              rows={1}
+              maxLength={4000}
+              aria-label="Chat message"
+            />
+            <button
+              type="submit"
+              disabled={isSending || query.trim().length === 0}
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition sm:h-10 sm:w-10",
+                isSending || query.trim().length === 0
+                  ? "cursor-not-allowed bg-muted text-muted-foreground"
+                  : "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 active:scale-95"
+              )}
+              aria-label="Send message"
+            >
+              {isSending ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <ArrowUp className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+          <p className="mt-1.5 text-center text-[10px] text-muted-foreground sm:text-[11px]">
+            AI responses are generated — verify critical data independently
+          </p>
+        </form>
+      </div>
+    </div>
   );
 }
