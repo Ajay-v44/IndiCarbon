@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     chat_memory_turns: int = 8
     chat_vector_match_count: int = 6
     chat_vector_match_threshold: float = 0.72
-    chat_llm_timeout_seconds: float = 20.0
+    chat_llm_timeout_seconds: float = 45.0
 
 
 @lru_cache(maxsize=1)

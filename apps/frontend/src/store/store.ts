@@ -2,6 +2,7 @@ import { configureStore } from "@reduxjs/toolkit";
 import { authReducer } from "./auth-slice";
 import { complianceReducer } from "./compliance-slice";
 import { marketplaceReducer } from "./marketplace-slice";
+import { proposalsReducer } from "./proposals-slice";
 import { aiReducer } from "./ai-slice";
 import { walletReducer } from "./wallet-slice";
 
@@ -11,6 +12,7 @@ export const makeStore = () =>
       auth: authReducer,
       compliance: complianceReducer,
       marketplace: marketplaceReducer,
+      proposals: proposalsReducer,
       ai: aiReducer,
       wallet: walletReducer,
     },

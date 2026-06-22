@@ -61,3 +61,46 @@ class TradeReceiptResponse(BaseModel):
     price_per_unit: Decimal
     total_value: Decimal
     serial_numbers: list[str]
+
+
+# ─── Proposal (RFQ / Negotiated Order) ──────────────────────────────────────────
+
+
+class ProposalStatus(str, Enum):
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    CANCELLED = "CANCELLED"
+    EXPIRED = "EXPIRED"
+
+
+class CreateProposalRequest(BaseModel):
+    sell_order_id: UUID
+    buyer_org_id: UUID
+    quantity: int = Field(..., gt=0)
+    proposed_price: Decimal = Field(..., gt=0)
+    buyer_note: Optional[str] = None
+
+
+class RespondProposalRequest(BaseModel):
+    rejection_reason: Optional[str] = None
+
+
+class ProposalResponse(BaseModel):
+    id: UUID
+    sell_order_id: UUID
+    buyer_org_id: UUID
+    seller_org_id: UUID
+    quantity: int
+    asking_price: Decimal
+    proposed_price: Decimal
+    total_value: Decimal
+    status: str
+    buyer_note: Optional[str] = None
+    rejection_reason: Optional[str] = None
+    trade_id: Optional[UUID] = None
+    created_at: Optional[str] = None
+    responded_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    project_type: Optional[str] = None
+    vintage_year: Optional[int] = None

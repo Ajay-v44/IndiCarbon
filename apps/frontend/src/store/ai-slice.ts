@@ -137,6 +137,10 @@ const aiSlice = createSlice({
     appendMockChat(state, action: PayloadAction<ChatHistoryItem>) {
       state.chatHistory.push(action.payload);
     },
+    clearChatHistory(state) {
+      state.chatHistory = [];
+      state.activeChatResponse = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -202,5 +206,5 @@ const aiSlice = createSlice({
   },
 });
 
-export const { clearAIError, resetAIStatus, clearAnalysisResult, appendMockChat } = aiSlice.actions;
+export const { clearAIError, resetAIStatus, clearAnalysisResult, appendMockChat, clearChatHistory } = aiSlice.actions;
 export const aiReducer = aiSlice.reducer;
