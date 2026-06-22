@@ -3,6 +3,8 @@
 Model Context Protocol (MCP) server that connects any MCP-compatible AI agent
 (Claude, GPT, etc.) to the full **IndiCarbon AI** platform.
 
+> **See also:** IndiCarbon also supports [Google's A2A Protocol](../docs/a2a-protocol.md) for agent-to-agent task delegation with full guardrail pipeline.
+
 ## Features
 
 | Domain | Capabilities |
@@ -35,7 +37,7 @@ Add this to your Claude Desktop config (`%APPDATA%\Claude\claude_desktop_config.
 }
 ```
 
-Restart your AI client. The 30 IndiCarbon tools appear automatically.
+Restart your AI client. The 40+ IndiCarbon tools appear automatically.
 
 ## Self-Hosting (Development)
 
@@ -124,6 +126,11 @@ python -m indicarbon_mcp --sse --port 8080
 | `indicarbon_cancel_order` | Cancel open order |
 | `indicarbon_retire_credits` | Retire credits permanently |
 | `indicarbon_list_trades` | Completed trade history |
+| `indicarbon_list_proposals` | List RFQ proposals |
+| `indicarbon_create_proposal` | Create new RFQ proposal |
+| `indicarbon_accept_proposal` | Accept a proposal |
+| `indicarbon_reject_proposal` | Reject a proposal |
+| `indicarbon_cancel_proposal` | Cancel your own proposal |
 
 ### AI Agents
 | Tool | Description |

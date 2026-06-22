@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile, status, Depends
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile, status, Depends
 from sqlalchemy.orm import Session
 from shared_logic import AuthenticatedUser, get_current_user, get_db
 

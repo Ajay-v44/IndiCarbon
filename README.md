@@ -23,22 +23,90 @@
 | Module | Capabilities |
 |--------|-------------|
 | **Compliance Engine** | Scope 1/2/3 GHG calculations (GHG Protocol), SEBI BRSR report generation, emission factor management |
-| **Carbon Marketplace** | Carbon credit registry (Verra VCS, Gold Standard), order book, ACID-safe Reserve→Commit trade settlement |
+| **Carbon Marketplace** | Carbon credit registry (Verra VCS, Gold Standard), order book, ACID-safe Reserve→Commit trade settlement, RFQ proposals |
 | **AI Sovereign Agent** | LangChain ReAct agents (Auditor + Strategist), local Ollama LLMs, Langfuse observability, Supabase vector search |
-| **API Gateway** | Supabase JWT auth, Redis rate limiting, reverse-proxy routing |
+| **MCP Server** | 40+ tools via Model Context Protocol — connect Claude, Cursor, or any MCP host to the full platform |
+| **A2A Protocol** | Agent2Agent v0.3.0 — agent-to-agent communication with task lifecycle, JSON-RPC 2.0 + SSE streaming, guardrailed execution |
+| **API Gateway** | Supabase JWT auth, Redis rate limiting, reverse-proxy routing, 4-layer guardrail pipeline |
+
+---
+
+## 🔌 AI Agent Integration
+
+IndiCarbon supports two complementary AI integration protocols:
+
+### MCP (Model Context Protocol)
+
+Connect any MCP-compatible AI client directly to the platform. Zero-install hosted server with 40+ tools.
+
+```json
+{
+  "mcpServers": {
+    "indicarbon": {
+      "url": "https://indicarbon.ajayv.online/mcp/",
+      "headers": {
+        "x-user-email": "your@email.com",
+        "x-user-password": "yourpassword"
+      }
+    }
+  }
+}
+```
+
+**Compatible with:** Claude Desktop, Claude Code, Cursor, Windsurf, and any MCP host.
+
+See [`docs/mcp-server.md`](docs/mcp-server.md) for the full tool reference and workflow examples.
+
+### A2A (Agent-to-Agent Protocol)
+
+Agent2Agent v0.3.0 for agent-to-agent task delegation. External agents can discover IndiCarbon's capabilities and send structured tasks (blocking or SSE-streamed).
+
+```bash
+# Discover the agent (v0.3.0 well-known path)
+curl https://indicarbon.ajayv.online/.well-known/agent-card.json
+
+# Send a message (JSON-RPC 2.0)
+curl -X POST https://indicarbon.ajayv.online/api/v1/a2a \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","kind":"message","messageId":"1","parts":[{"kind":"text","text":"Generate our BRSR report for FY2025-26"}],"metadata":{"skill_id":"brsr-compliance"}}}}'
+
+# Or run the bundled external-agent demo (discovers, logs in, sends + streams):
+python scripts/a2a_demo_client.py --email you@company.com --password 'secret'
+```
+
+**Skills:** Carbon Accounting, BRSR Compliance, Document Analysis, Carbon Trading, Strategy Advisory
+
+**Guardrails:** Every A2A task passes through PII masking, domain guard, injection defense, and output validation.
+
+See [`docs/a2a-protocol.md`](docs/a2a-protocol.md) for the full protocol specification and integration guide.
 
 ---
 
 ## 🏗️ Architecture
 
 ```
+                    ┌───────��─────────────────────────────┐
+                    │         External AI Agents           │
+                    │  (Claude, Cursor, custom agents)     │
+                    └────────┬──────────────┬─────────────┘
+                             │ MCP          │ A2A (JSON-RPC)
+                             ▼              ▼
 Internet → Next.js :3000 → API Gateway :8000
+                               ├── /.well-known/agent.json (A2A discovery)
+                               ├── /mcp/ (MCP Streamable HTTP)
                                ├── Compliance Service :8001
                                ├── Marketplace Service :8002
                                └── AI-Agent Service   :8003
+                                   ├── A2A Protocol (task lifecycle)
+                                   ├── Guardrail Pipeline (PII/Domain/Injection)
+                                   └── ReAct Agent (LangChain + RAG)
                                         ↓
                               Supabase (PostgreSQL + pgvector)
                               Redis (rate limits + trade locks)
+
+  MCP Server :8080 (standalone, or hosted at /mcp/)
+  └── 40+ tools → Gateway HTTP calls
 
   HOST MACHINE (not in Docker)
   └── Ollama :11434  (qwen2.5:3b-instruct, nomic-embed-text)
@@ -228,12 +296,21 @@ curl http://localhost:8003/health
 | Supabase Project | https://supabase.com/dashboard/project/tuehmheaycywuiuwmwzu |
 | Langfuse Project | https://cloud.langfuse.com/project/cmofmp8wb01rtad07c6bju9ra |
 | API Docs (local) | http://localhost:8000/api/docs |
+| MCP Server (hosted) | https://indicarbon.ajayv.online/mcp/ |
+| A2A Agent Card | https://indicarbon.ajayv.online/.well-known/agent.json |
 
 ---
 
-## 📁 Project Structure
+## 📖 Documentation
 
-See [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) for the full breakdown.
+| Document | Description |
+|----------|-------------|
+| [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) | Full directory tree and design patterns |
+| [`docs/a2a-protocol.md`](docs/a2a-protocol.md) | A2A Protocol v0.2.1 — specification, integration guide, examples |
+| [`docs/mcp-server.md`](docs/mcp-server.md) | MCP Server — 40+ tools reference, setup, workflows |
+| [`docs/backend_architecture.md`](docs/backend_architecture.md) | Microservices architecture and API design |
+| [`docs/api_integration_walkthrough.md`](docs/api_integration_walkthrough.md) | Step-by-step API integration tutorial |
+| [`mcp-server/README.md`](mcp-server/README.md) | MCP server quick-start and tool listing |
 
 ---
 

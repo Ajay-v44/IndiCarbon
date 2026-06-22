@@ -469,3 +469,127 @@ export interface SystemLogFilters {
   limit?: number;
   offset?: number;
 }
+
+// ─── A2A (Agent-to-Agent) Protocol ───
+
+// A2A Part — v0.3.0 uses the "kind" discriminator (text | file | data)
+export interface A2APart {
+  kind: "text" | "file" | "data";
+  text?: string;
+  data?: any;
+  file?: { name?: string; mimeType?: string; bytes?: string; uri?: string };
+  metadata?: Record<string, any>;
+}
+
+export interface A2ASkill {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  examples: string[];
+  inputModes?: string[];
+  outputModes?: string[];
+}
+
+export interface A2ASecurityScheme {
+  type: string;
+  scheme: string;
+  bearerFormat?: string;
+  description?: string;
+}
+
+export interface A2AAgentCard {
+  protocolVersion: string;
+  name: string;
+  description: string;
+  url: string;
+  preferredTransport: string;
+  version: string;
+  provider: { organization: string; url: string };
+  capabilities: { streaming: boolean; pushNotifications: boolean; stateTransitionHistory: boolean };
+  securitySchemes?: Record<string, A2ASecurityScheme>;
+  security?: Array<Record<string, string[]>>;
+  defaultInputModes: string[];
+  defaultOutputModes: string[];
+  skills: A2ASkill[];
+  documentationUrl?: string;
+}
+
+export type A2ATaskState =
+  | "submitted"
+  | "working"
+  | "input-required"
+  | "completed"
+  | "failed"
+  | "canceled"
+  | "rejected"
+  | "auth-required"
+  | "unknown";
+
+export interface A2AMessage {
+  role: string;
+  parts: A2APart[];
+  messageId?: string;
+  kind?: "message";
+  contextId?: string;
+  taskId?: string;
+}
+
+export interface A2ATaskStatus {
+  state: A2ATaskState;
+  message?: A2AMessage;
+  timestamp?: string;
+}
+
+export interface A2AArtifact {
+  artifactId: string;
+  name?: string;
+  description?: string;
+  parts: A2APart[];
+}
+
+export interface A2ATask {
+  id: string;
+  contextId?: string;
+  status: A2ATaskStatus;
+  artifacts: A2AArtifact[];
+  history: A2AMessage[];
+  kind?: "task";
+  metadata: Record<string, any>;
+}
+
+export interface A2ATaskSummary {
+  id: string;
+  session_id?: string;
+  state: A2ATaskState;
+  query: string;
+  answer?: string;
+  skill_id?: string;
+  duration_ms?: number;
+  token_usage?: number;
+  guardrail_blocked: boolean;
+  guardrail_audit: Record<string, any>;
+  organization_id?: string;
+  user_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface A2AActivityStats {
+  total_tasks: number;
+  completed_tasks: number;
+  failed_tasks: number;
+  blocked_tasks: number;
+  avg_duration_ms: number;
+  total_tokens: number;
+  tasks_by_state: Record<string, number>;
+  tasks_by_skill: Record<string, number>;
+  tasks_by_org: Record<string, number>;
+}
+
+export interface A2ASendTaskRequest {
+  query: string;
+  session_id?: string;
+  skill_id?: string;
+  metadata?: Record<string, any>;
+}

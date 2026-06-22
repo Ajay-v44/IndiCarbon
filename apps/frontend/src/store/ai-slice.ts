@@ -7,6 +7,9 @@ import {
   listAgentRegistry,
   sendChatMessage,
   updateAgentRegistry,
+  sendA2ATask,
+  listA2ATasks,
+  getA2AStats,
 } from "@/lib/api/ai";
 import {
   AgentRegistryCreate,
@@ -15,6 +18,9 @@ import {
   ChatHistoryItem,
   ChatResponse,
   DocumentAnalysisResult,
+  A2ATaskSummary,
+  A2AActivityStats,
+  A2ATask,
 } from "@/lib/api/types";
 
 type AIState = {
@@ -22,6 +28,10 @@ type AIState = {
   activeChatResponse: ChatResponse | null;
   analysisResult: DocumentAnalysisResult | null;
   agents: AgentRegistryResponse[];
+  a2aTasks: A2ATaskSummary[];
+  a2aStats: A2AActivityStats | null;
+  a2aActiveTask: A2ATask | null;
+  a2aStatus: "idle" | "loading" | "succeeded" | "failed";
   status: "idle" | "loading" | "succeeded" | "failed";
   error: string | null;
 };
@@ -31,6 +41,10 @@ const initialState: AIState = {
   activeChatResponse: null,
   analysisResult: null,
   agents: [],
+  a2aTasks: [],
+  a2aStats: null,
+  a2aActiveTask: null,
+  a2aStatus: "idle",
   status: "idle",
   error: null,
 };
@@ -121,6 +135,44 @@ export const removeAgent = createAsyncThunk<
   }
 });
 
+// ─── A2A Thunks ───
+
+export const sendA2ATaskThunk = createAsyncThunk<
+  A2ATask,
+  { query: string; session_id?: string; skill_id?: string },
+  { rejectValue: string }
+>("ai/sendA2ATask", async (payload, { rejectWithValue }) => {
+  try {
+    return await sendA2ATask(payload);
+  } catch (err) {
+    return rejectWithValue(err instanceof Error ? err.message : "Failed to send A2A task.");
+  }
+});
+
+export const fetchA2ATasks = createAsyncThunk<
+  A2ATaskSummary[],
+  { organization_id?: string; state?: string; skill_id?: string; limit?: number; offset?: number } | undefined,
+  { rejectValue: string }
+>("ai/fetchA2ATasks", async (params, { rejectWithValue }) => {
+  try {
+    return await listA2ATasks(params);
+  } catch (err) {
+    return rejectWithValue(err instanceof Error ? err.message : "Failed to fetch A2A tasks.");
+  }
+});
+
+export const fetchA2AStats = createAsyncThunk<
+  A2AActivityStats,
+  string | undefined,
+  { rejectValue: string }
+>("ai/fetchA2AStats", async (organizationId, { rejectWithValue }) => {
+  try {
+    return await getA2AStats(organizationId);
+  } catch (err) {
+    return rejectWithValue(err instanceof Error ? err.message : "Failed to fetch A2A stats.");
+  }
+});
+
 const aiSlice = createSlice({
   name: "ai",
   initialState,
@@ -202,6 +254,25 @@ const aiSlice = createSlice({
       })
       .addCase(removeAgent.fulfilled, (state, action) => {
         state.agents = state.agents.filter((a) => a.id !== action.payload);
+      })
+
+      // A2A
+      .addCase(sendA2ATaskThunk.pending, (state) => {
+        state.a2aStatus = "loading";
+      })
+      .addCase(sendA2ATaskThunk.fulfilled, (state, action) => {
+        state.a2aStatus = "succeeded";
+        state.a2aActiveTask = action.payload;
+      })
+      .addCase(sendA2ATaskThunk.rejected, (state, action) => {
+        state.a2aStatus = "failed";
+        state.error = action.payload ?? "A2A task failed.";
+      })
+      .addCase(fetchA2ATasks.fulfilled, (state, action) => {
+        state.a2aTasks = action.payload;
+      })
+      .addCase(fetchA2AStats.fulfilled, (state, action) => {
+        state.a2aStats = action.payload;
       });
   },
 });

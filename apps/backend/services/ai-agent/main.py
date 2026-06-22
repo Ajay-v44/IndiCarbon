@@ -30,6 +30,7 @@ from app.config.observability import configure_langsmith, get_langfuse_client
 from app.config.settings import get_settings
 from app.graph.document_graph import get_document_analysis_graph
 from app.api.routes import router
+from app.api.v1.routes import a2a as a2a_routes
 
 # ─── Logging setup ────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -121,3 +122,4 @@ app.add_middleware(
 
 # ── Register Routes ───────────────────────────────────────────────────────────
 app.include_router(router)
+app.include_router(a2a_routes.router)  # A2A v0.3.0 (canonical, shared with app.main)

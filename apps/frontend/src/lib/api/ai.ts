@@ -6,6 +6,11 @@ import {
   ChatHistoryResponse,
   ChatResponse,
   DocumentAnalysisResult,
+  A2AAgentCard,
+  A2ATask,
+  A2ATaskSummary,
+  A2AActivityStats,
+  A2ASendTaskRequest,
 } from "./types";
 
 export function analyseDocument(
@@ -90,5 +95,58 @@ export function deleteAgentRegistry(agentId: string): Promise<{ success: boolean
   return apiCall<{ success: boolean }>({
     url: `/api/v1/ai/agents/registry/${agentId}`,
     method: "DELETE",
+  });
+}
+
+// ─── A2A (Agent-to-Agent) Protocol ───
+
+export function getA2AAgentCard(): Promise<A2AAgentCard> {
+  return apiCall<A2AAgentCard>({
+    url: "/.well-known/agent-card.json",
+    method: "GET",
+  });
+}
+
+export function sendA2ATask(payload: A2ASendTaskRequest): Promise<A2ATask> {
+  return apiCall<A2ATask>({
+    url: "/api/v1/ai/a2a/tasks",
+    method: "POST",
+    data: payload,
+  });
+}
+
+export function listA2ATasks(params?: {
+  organization_id?: string;
+  state?: string;
+  skill_id?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<A2ATaskSummary[]> {
+  return apiCall<A2ATaskSummary[]>({
+    url: "/api/v1/ai/a2a/tasks",
+    method: "GET",
+    params,
+  });
+}
+
+export function getA2ATask(taskId: string): Promise<A2ATask> {
+  return apiCall<A2ATask>({
+    url: `/api/v1/ai/a2a/tasks/${taskId}`,
+    method: "GET",
+  });
+}
+
+export function cancelA2ATask(taskId: string): Promise<A2ATask> {
+  return apiCall<A2ATask>({
+    url: `/api/v1/ai/a2a/tasks/${taskId}/cancel`,
+    method: "POST",
+  });
+}
+
+export function getA2AStats(organizationId?: string): Promise<A2AActivityStats> {
+  return apiCall<A2AActivityStats>({
+    url: "/api/v1/ai/a2a/stats",
+    method: "GET",
+    params: organizationId ? { organization_id: organizationId } : undefined,
   });
 }
