@@ -14,6 +14,7 @@ import {
   LogOut,
   ShoppingBag,
   Plug,
+  Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -25,7 +26,8 @@ const sidebarItems = [
   { href: "/simulator",  label: "AI Simulator",  icon: FlaskConical,    badge: "Beta" },
   { href: "/portfolio",  label: "Carbon Vault",  icon: Vault,           badge: null },
   { href: "/marketplace", label: "Marketplace",  icon: ShoppingBag,     badge: null },
-  { href: "/dashboard/integration", label: "MCP & API", icon: Plug, badge: "New" },
+  { href: "/dashboard/a2a", label: "A2A Agents", icon: Workflow, badge: "New" },
+  { href: "/dashboard/integration", label: "MCP & API", icon: Plug, badge: null },
   { href: "/admin",      label: "Admin Center",  icon: ShieldCheck,     badge: null },
 ];
 

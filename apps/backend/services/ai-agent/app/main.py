@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from shared_logic import register_middleware
 
-from .api.v1.routes import agents
+from .api.v1.routes import agents, a2a
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,6 +38,7 @@ def create_app() -> FastAPI:
     register_middleware(app)
 
     app.include_router(agents.router, prefix="/api/v1/agents", tags=["AI Agents"])
+    app.include_router(a2a.router, tags=["A2A Protocol"])
 
     @app.get("/health", tags=["Observability"])
     async def health():

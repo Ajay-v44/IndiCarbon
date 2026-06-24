@@ -19,6 +19,9 @@ import {
   Terminal,
   FileText,
   TrendingUp,
+  Workflow,
+  Lock,
+  MessageSquare,
 } from "lucide-react";
 import { useAppSelector } from "@/store/hooks";
 
@@ -404,6 +407,70 @@ export function LandingPage() {
               <Button size="lg" variant="outline" className="font-bold">
                 View MCP documentation
                 <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* A2A Agent-to-Agent Protocol */}
+      <section className="py-12 bg-muted/30">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="max-w-2xl mb-8">
+            <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/30">
+              <Workflow className="h-3 w-3 mr-1" /> A2A Protocol v0.2.1
+            </Badge>
+            <h2 className="mt-3 text-3xl sm:text-4xl font-black tracking-tight">
+              Agent-to-Agent communication, built in
+            </h2>
+            <p className="mt-3 text-muted-foreground leading-relaxed">
+              IndiCarbon implements Google&apos;s A2A protocol — enabling any external AI agent to
+              discover, authenticate, and communicate with our carbon intelligence engine via
+              standard JSON-RPC 2.0.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-4 mb-6">
+            {[
+              {
+                icon: Bot,
+                title: "Agent Discovery",
+                desc: "Public /.well-known/agent.json endpoint with skills, capabilities, and authentication requirements — fully spec-compliant.",
+              },
+              {
+                icon: Lock,
+                title: "4-Layer Guardrails",
+                desc: "Every A2A task passes through PII masking, domain guard, injection defense, and output validation — same as our chatbot.",
+              },
+              {
+                icon: MessageSquare,
+                title: "Task Lifecycle",
+                desc: "Full task state machine: submitted → working → completed/failed/canceled, with artifacts, message history, and audit trail.",
+              },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.title} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+                  <div className="h-11 w-11 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mb-4">
+                    <Icon className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <h3 className="text-lg font-bold">{item.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-wrap gap-3 justify-center">
+            <Link href="/dashboard/a2a">
+              <Button size="lg" className="bg-foreground text-background font-bold">
+                Try A2A Agent
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+            <Link href="/integration#a2a">
+              <Button size="lg" variant="outline" className="font-bold">
+                A2A Documentation
               </Button>
             </Link>
           </div>

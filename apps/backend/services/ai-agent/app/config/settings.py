@@ -54,6 +54,7 @@ class Settings(BaseSettings):
 
     # ── OpenAI ────────────────────────────────────────────────────────────────
     openai_api_key: str = ""
+    openai_api_base: str = ""
     openai_chat_model: str = "gpt-5.4-mini"
     openai_embed_model: str = "text-embedding-3-small"
     openai_temperature: float = 0.1

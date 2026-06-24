@@ -84,6 +84,9 @@ import {
   Wallet,
   ArrowDownRight,
   IndianRupee,
+  Workflow,
+  MessageSquare,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppSelector } from "@/store/hooks";
@@ -92,7 +95,8 @@ import { listUsers, listOrganizations, assignRole, listRoles, createRole } from 
 import { listBenchmarks, createBenchmark, deleteBenchmark } from "@/lib/api/compliance";
 import { getAllWallets, adminAddFunds, getAllWalletTransactions } from "@/lib/api/wallet";
 import { getSystemLogs, getSystemLogStats, resolveSystemLog, bulkResolveSystemLogs } from "@/lib/api/system-logs";
-import { UserProfile, OrganizationResponse, SectorBenchmarkResponse, RoleResponse, WalletResponse, WalletTransactionResponse, SystemLogEntry, SystemLogStats, SystemLogFilters } from "@/lib/api/types";
+import { getA2AStats, listA2ATasks } from "@/lib/api/ai";
+import { UserProfile, OrganizationResponse, SectorBenchmarkResponse, RoleResponse, WalletResponse, WalletTransactionResponse, SystemLogEntry, SystemLogStats, SystemLogFilters, A2ATaskSummary, A2AActivityStats } from "@/lib/api/types";
 
 // Mock Telemetry Data
 const requestVolumeData = [
@@ -170,6 +174,15 @@ export function AdminPage() {
   const [logFilters, setLogFilters] = useState<SystemLogFilters>({ limit: 50, offset: 0 });
   const [logSearchInput, setLogSearchInput] = useState("");
   const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
+
+  // A2A Protocol Admin State
+  const [a2aTasks, setA2aTasks] = useState<A2ATaskSummary[]>([]);
+  const [a2aStats, setA2aStats] = useState<A2AActivityStats | null>(null);
+  const [a2aLoading, setA2aLoading] = useState(false);
+  const [a2aFilterState, setA2aFilterState] = useState<string>("");
+  const [a2aFilterOrg, setA2aFilterOrg] = useState<string>("");
+  const [a2aSearchTerm, setA2aSearchTerm] = useState("");
+  const [a2aInspectedTask, setA2aInspectedTask] = useState<A2ATaskSummary | null>(null);
 
   // AI Agent Trace Logs
   const [aiLogs, setAiLogs] = useState([
@@ -328,9 +341,23 @@ export function AdminPage() {
     }
   };
 
+  const fetchA2AData = async () => {
+    setA2aLoading(true);
+    try {
+      const [tasks, stats] = await Promise.all([
+        listA2ATasks({ limit: 100 }).catch(() => []),
+        getA2AStats().catch(() => null),
+      ]);
+      setA2aTasks(tasks);
+      if (stats) setA2aStats(stats);
+    } catch {}
+    setA2aLoading(false);
+  };
+
   useEffect(() => {
     fetchData();
     fetchSystemLogs();
+    fetchA2AData();
   }, []);
 
   const handleRefresh = async () => {
@@ -587,6 +614,14 @@ export function AdminPage() {
                 {(systemLogStats?.unresolved ?? 0) > 0 && (
                   <Badge className="ml-2 bg-destructive text-destructive-foreground hover:bg-destructive font-black text-[9px] px-1 min-w-4 h-4 justify-center items-center rounded-full">
                     {systemLogStats!.unresolved}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="a2a" className="text-xs font-medium py-1.5 px-3">
+                <Workflow className="w-3.5 h-3.5 mr-2" /> A2A Protocol
+                {(a2aStats?.total_tasks ?? 0) > 0 && (
+                  <Badge className="ml-2 bg-blue-500/10 text-blue-500 font-bold text-[9px] px-1.5 h-4 justify-center items-center rounded-full">
+                    {a2aStats!.total_tasks}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -1959,8 +1994,256 @@ export function AdminPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        {/* tab 8: A2A Protocol Activity */}
+        <TabsContent value="a2a" className="outline-none space-y-4">
+          {/* A2A Stats Row */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[
+              { label: "Total Tasks", value: a2aStats?.total_tasks ?? 0, icon: MessageSquare, color: "text-blue-500", bg: "bg-blue-500/10" },
+              { label: "Completed", value: a2aStats?.completed_tasks ?? 0, icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+              { label: "Failed", value: a2aStats?.failed_tasks ?? 0, icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10" },
+              { label: "Guardrail Blocked", value: a2aStats?.blocked_tasks ?? 0, icon: ShieldCheck, color: "text-amber-500", bg: "bg-amber-500/10" },
+              { label: "Avg Latency", value: `${Math.round(a2aStats?.avg_duration_ms ?? 0)}ms`, icon: Clock, color: "text-purple-500", bg: "bg-purple-500/10" },
+            ].map((stat, idx) => {
+              const Icon = stat.icon;
+              return (
+                <Card key={idx} className="glass border-border">
+                  <CardContent className="p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">{stat.label}</p>
+                      <p className="text-xl font-black tracking-tight text-foreground mt-0.5">{stat.value}</p>
+                    </div>
+                    <div className={`w-8 h-8 rounded-lg ${stat.bg} flex items-center justify-center`}>
+                      <Icon className={`w-4 h-4 ${stat.color}`} />
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* A2A Filters */}
+          <Card className="glass border-border">
+            <CardHeader className="pb-3 border-b border-border/50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-sm font-bold text-foreground">A2A Protocol Task Activity (All Orgs)</CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground">Cross-organization A2A task tracking with guardrail audit trails</CardDescription>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Input
+                    placeholder="Search queries..."
+                    value={a2aSearchTerm}
+                    onChange={(e) => setA2aSearchTerm(e.target.value)}
+                    className="h-8 w-44 text-xs bg-background border-border"
+                  />
+                  <Select value={a2aFilterState} onValueChange={(v) => setA2aFilterState(v ?? "")}>
+                    <SelectTrigger className="w-32 h-8 text-xs">
+                      <SelectValue placeholder="All states" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">All States</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="failed">Failed</SelectItem>
+                      <SelectItem value="canceled">Canceled</SelectItem>
+                      <SelectItem value="working">Working</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchA2AData}
+                    disabled={a2aLoading}
+                    className="h-8 text-xs border-border text-foreground hover:bg-muted"
+                  >
+                    <RefreshCw className={cn("w-3 h-3 mr-1.5", a2aLoading && "animate-spin")} />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-b border-border/50 hover:bg-transparent">
+                    <TableHead className="text-[10px] font-bold py-2.5 pl-4">Task ID</TableHead>
+                    <TableHead className="text-[10px] font-bold py-2.5">Organization</TableHead>
+                    <TableHead className="text-[10px] font-bold py-2.5">Skill</TableHead>
+                    <TableHead className="text-[10px] font-bold py-2.5">Query</TableHead>
+                    <TableHead className="text-[10px] font-bold py-2.5">State</TableHead>
+                    <TableHead className="text-[10px] font-bold py-2.5">Guardrail</TableHead>
+                    <TableHead className="text-[10px] font-bold py-2.5">Duration</TableHead>
+                    <TableHead className="text-[10px] font-bold py-2.5">Tokens</TableHead>
+                    <TableHead className="text-[10px] font-bold py-2.5">Time</TableHead>
+                    <TableHead className="text-[10px] font-bold py-2.5 text-right pr-4">Inspect</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-border/30">
+                  {a2aTasks
+                    .filter((t) => !a2aFilterState || t.state === a2aFilterState)
+                    .filter((t) => !a2aSearchTerm || t.query?.toLowerCase().includes(a2aSearchTerm.toLowerCase()))
+                    .length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center py-10 text-xs text-muted-foreground">
+                        {a2aLoading ? "Loading A2A tasks..." : "No A2A tasks found. Tasks will appear here as users interact via the A2A protocol."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    a2aTasks
+                      .filter((t) => !a2aFilterState || t.state === a2aFilterState)
+                      .filter((t) => !a2aSearchTerm || t.query?.toLowerCase().includes(a2aSearchTerm.toLowerCase()))
+                      .map((task) => {
+                        const orgName = organizations.find((o) => o.id === task.organization_id)?.legal_name || task.organization_id?.substring(0, 8) || "—";
+                        return (
+                          <TableRow key={task.id} className="hover:bg-muted/20 transition-colors">
+                            <TableCell className="py-2.5 pl-4 text-[10px] text-muted-foreground font-mono">
+                              {task.id.substring(0, 8)}...
+                            </TableCell>
+                            <TableCell className="py-2.5 text-[10px] text-foreground font-medium truncate max-w-[100px]">
+                              {orgName}
+                            </TableCell>
+                            <TableCell className="py-2.5">
+                              <Badge variant="outline" className="text-[8px] font-semibold border-border capitalize">
+                                {(task.skill_id || "general").replace(/-/g, " ")}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="py-2.5 text-[10px] text-foreground max-w-[180px] truncate">
+                              {task.query}
+                            </TableCell>
+                            <TableCell className="py-2.5">
+                              <Badge className={cn("text-[8px] font-bold uppercase", {
+                                "bg-emerald-500/10 text-emerald-500 border-emerald-500/20": task.state === "completed",
+                                "bg-destructive/10 text-destructive border-destructive/20": task.state === "failed",
+                                "bg-amber-500/10 text-amber-500 border-amber-500/20": task.state === "working",
+                                "bg-blue-500/10 text-blue-500 border-blue-500/20": task.state === "submitted",
+                                "bg-muted text-muted-foreground border-border": task.state === "canceled",
+                              })}>
+                                {task.state}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="py-2.5">
+                              {task.guardrail_blocked ? (
+                                <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-[8px] font-bold">BLOCKED</Badge>
+                              ) : (
+                                <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[8px] font-bold">PASSED</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-[10px] text-muted-foreground font-mono">
+                              {task.duration_ms ? `${task.duration_ms}ms` : "—"}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-[10px] text-muted-foreground font-mono">
+                              {task.token_usage || "—"}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-[10px] text-muted-foreground">
+                              {task.created_at ? new Date(task.created_at).toLocaleString() : "—"}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-right pr-4">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setA2aInspectedTask(task)}
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
       </Tabs>
       </main>
+
+      {/* A2A Task Inspect Sheet */}
+      <Sheet open={!!a2aInspectedTask} onOpenChange={() => setA2aInspectedTask(null)}>
+        <SheetContent className="sm:max-w-xl bg-background border-l border-border text-foreground overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="text-sm font-bold text-foreground">A2A Task Inspection</SheetTitle>
+            <SheetDescription className="text-xs font-mono text-muted-foreground">
+              {a2aInspectedTask?.id}
+            </SheetDescription>
+          </SheetHeader>
+          {a2aInspectedTask && (
+            <div className="mt-6 space-y-4">
+              <div className="flex gap-2 flex-wrap">
+                <Badge className={cn("text-[9px] font-bold uppercase", {
+                  "bg-emerald-500/10 text-emerald-500 border-emerald-500/20": a2aInspectedTask.state === "completed",
+                  "bg-destructive/10 text-destructive border-destructive/20": a2aInspectedTask.state === "failed",
+                  "bg-amber-500/10 text-amber-500 border-amber-500/20": a2aInspectedTask.state === "working",
+                  "bg-blue-500/10 text-blue-500 border-blue-500/20": a2aInspectedTask.state === "submitted",
+                })}>
+                  {a2aInspectedTask.state}
+                </Badge>
+                {a2aInspectedTask.guardrail_blocked ? (
+                  <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-[9px]">GUARDRAIL BLOCKED</Badge>
+                ) : (
+                  <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[9px]">GUARDRAIL PASSED</Badge>
+                )}
+                <Badge variant="outline" className="text-[9px] capitalize">
+                  {(a2aInspectedTask.skill_id || "general").replace(/-/g, " ")}
+                </Badge>
+              </div>
+
+              <div>
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold block mb-1">Organization</span>
+                <p className="text-xs text-foreground">
+                  {organizations.find((o) => o.id === a2aInspectedTask.organization_id)?.legal_name || a2aInspectedTask.organization_id || "—"}
+                </p>
+              </div>
+
+              <div>
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold block mb-1">Query</span>
+                <p className="text-xs text-foreground bg-muted p-3 rounded-lg border border-border">{a2aInspectedTask.query}</p>
+              </div>
+
+              {a2aInspectedTask.answer && (
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold block mb-1">Response</span>
+                  <p className="text-xs text-foreground bg-muted p-3 rounded-lg border border-border whitespace-pre-wrap max-h-48 overflow-y-auto">
+                    {a2aInspectedTask.answer}
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold block mb-1">Duration</span>
+                  <p className="text-xs font-mono text-foreground">{a2aInspectedTask.duration_ms ?? "—"}ms</p>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold block mb-1">Tokens</span>
+                  <p className="text-xs font-mono text-foreground">{a2aInspectedTask.token_usage ?? "—"}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold block mb-1">Session</span>
+                  <p className="text-xs font-mono text-muted-foreground truncate">{a2aInspectedTask.session_id || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold block mb-1">Created</span>
+                  <p className="text-xs text-muted-foreground">
+                    {a2aInspectedTask.created_at ? new Date(a2aInspectedTask.created_at).toLocaleString() : "—"}
+                  </p>
+                </div>
+              </div>
+
+              {a2aInspectedTask.guardrail_audit && Object.keys(a2aInspectedTask.guardrail_audit).length > 0 && (
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold block mb-1">Guardrail Audit Trail</span>
+                  <pre className="text-[9px] font-mono text-muted-foreground bg-muted p-3 rounded-lg border border-border overflow-x-auto max-h-40 overflow-y-auto">
+                    {JSON.stringify(a2aInspectedTask.guardrail_audit, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Customer Inspection Drawer (Sheet) */}
       <Sheet open={isInspecting} onOpenChange={setIsInspecting}>

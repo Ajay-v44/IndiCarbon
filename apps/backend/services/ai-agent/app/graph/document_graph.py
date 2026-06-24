@@ -94,6 +94,7 @@ def build_document_analysis_graph():
         llm = ChatOpenAI(
             model=s.openai_chat_model,
             api_key=s.openai_api_key,
+            base_url=s.openai_api_base or None,
             temperature=s.openai_temperature,
         )
     elif s.llm_provider == "google":

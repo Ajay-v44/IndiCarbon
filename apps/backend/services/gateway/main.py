@@ -138,6 +138,8 @@ PUBLIC_ROUTES: set[tuple[str, str]] = {
     ("POST", "/api/v1/auth/verify"),
     ("GET", "/api/v1/auth/roles"),
     ("GET", "/api/v1/emissions/factors"),
+    ("GET", "/.well-known/agent.json"),
+    ("GET", "/.well-known/agent-card.json"),
 }
 
 
@@ -490,6 +492,52 @@ async def wallet_root_proxy(request: Request):
 )
 async def wallet_proxy(request: Request, path: str):
     return await _proxy(request, settings.marketplace_service_url)
+
+
+# ─── A2A Protocol (Agent-to-Agent) ────────────────────────────────────────
+
+
+@app.get(
+    "/.well-known/agent-card.json",
+    tags=["A2A Protocol"],
+    dependencies=[Depends(rate_limit)],
+)
+async def a2a_agent_card(request: Request):
+    """Public A2A Agent Card for agent discovery (v0.3.0 path, no auth required)."""
+    return await _proxy(request, settings.ai_agent_service_url)
+
+
+@app.get(
+    "/.well-known/agent.json",
+    tags=["A2A Protocol"],
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit)],
+)
+async def a2a_agent_card_legacy(request: Request):
+    """Legacy A2A Agent Card path (0.2.x) — kept for backward compatibility."""
+    return await _proxy(request, settings.ai_agent_service_url)
+
+
+@app.api_route(
+    "/api/v1/a2a",
+    methods=["POST"],
+    tags=["A2A Protocol"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def a2a_jsonrpc_proxy(request: Request):
+    """A2A JSON-RPC 2.0 endpoint for inter-agent communication."""
+    return await _proxy(request, settings.ai_agent_service_url, timeout=settings.ai_service_timeout)
+
+
+@app.api_route(
+    "/api/v1/a2a/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    tags=["A2A Protocol"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def a2a_proxy(request: Request, path: str):
+    """A2A REST API proxy — tasks, stats, cancel."""
+    return await _proxy(request, settings.ai_agent_service_url, timeout=settings.ai_service_timeout)
 
 
 # ─── AI Agent Service ─────────────────────────────────────────────────────────
