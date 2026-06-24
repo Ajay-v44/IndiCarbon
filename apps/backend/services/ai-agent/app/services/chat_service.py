@@ -54,6 +54,7 @@ def _get_chat_llm() -> BaseChatModel:
         llm = ChatOpenAI(
             model=s.openai_chat_model,
             api_key=s.openai_api_key,
+            base_url=s.openai_api_base or None,
             temperature=s.openai_temperature,
             max_tokens=min(s.openai_max_tokens, 1024),
         )
@@ -117,6 +118,7 @@ async def _embed_query(query: str) -> list[float]:
         embeddings = OpenAIEmbeddings(
             model=s.openai_embed_model,
             api_key=s.openai_api_key,
+            base_url=s.openai_api_base or None,
         )
         return await embeddings.aembed_query(query)
     elif s.llm_provider == "google":
@@ -449,6 +451,7 @@ async def run_chat(
 
     pii = PIIMasker(use_spacy=False)
     masked_query, input_pii = pii.mask(req.query)
+    pii_unmask_map = {m.hash_token: m.original for m in input_pii}
 
     domain_guard = IndiCarbonDomainGuard(
         ollama_base_url=s.ollama_base_url,
@@ -479,6 +482,7 @@ async def run_chat(
                 "roles": user.roles,
                 "query": masked_query,
                 "answer": OFF_TOPIC_RESPONSE,
+                "pii_map": pii_unmask_map,
                 "guardrail_blocked": True,
                 "guardrail_reason": input_verdict.reason,
                 "completed_at": datetime.utcnow().isoformat(),
@@ -507,8 +511,14 @@ async def run_chat(
     structured_context = _fetch_structured_context(masked_query, organization_id, db)
 
     llm = _get_chat_llm()
-    pii_unmask_map = {m.hash_token: m.original for m in input_pii}
-    tools = build_chat_tools(db, organization_id, user_id, pii_unmask_map=pii_unmask_map)
+    
+    session_pii_map = {}
+    for row in recent:
+        payload = row.message_payload or {}
+        session_pii_map.update(payload.get("pii_map") or {})
+    session_pii_map.update(pii_unmask_map)
+
+    tools = build_chat_tools(db, organization_id, user_id, pii_unmask_map=session_pii_map)
     langfuse_handler = build_langfuse_handler(str(run_id), "chat", organization_id)
 
     system_prompt = _build_system_prompt(user, memory, sources, structured_context)
@@ -577,6 +587,7 @@ async def run_chat(
             "roles": user.roles,
             "query": masked_query,
             "answer": answer,
+            "pii_map": session_pii_map,
             "source_count": len(sources),
             "sources": [source.model_dump() for source in sources],
             "structured_context": structured_context,

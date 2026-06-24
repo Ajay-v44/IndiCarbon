@@ -291,10 +291,12 @@ Verdict:"""
             if s.llm_provider == "openai":
                 from langchain_openai import ChatOpenAI
                 from langchain_core.messages import HumanMessage
+                is_kimi = (s.openai_api_base and "moonshot" in s.openai_api_base) or (s.openai_chat_model and "kimi" in s.openai_chat_model)
                 llm = ChatOpenAI(
                     model=s.openai_chat_model,
                     api_key=s.openai_api_key,
-                    temperature=0.0,
+                    base_url=s.openai_api_base or None,
+                    temperature=1.0 if is_kimi else 0.0,
                     max_tokens=15,
                     timeout=self._timeout_seconds,
                 )
