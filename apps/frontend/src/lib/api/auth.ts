@@ -1,5 +1,5 @@
 import { apiCall } from "./axios-client";
-import { AuthTokens, LoginPayload, RegisterPayload, UserProfile, RoleResponse, AssignRolePayload, OrganizationResponse, CreateRolePayload } from "./types";
+import { AuthTokens, LoginPayload, RegisterPayload, UserProfile, RoleResponse, AssignRolePayload, OrganizationResponse, CreateRolePayload, AdminUserCreatePayload } from "./types";
 
 export function listOrganizations(): Promise<OrganizationResponse[]> {
   return apiCall<OrganizationResponse[]>({
@@ -74,6 +74,41 @@ export function createRole(payload: CreateRolePayload): Promise<RoleResponse> {
 export function verifyInternalRole(): Promise<{ has_internal_role: boolean }> {
   return apiCall<{ has_internal_role: boolean }>({
     url: "/api/v1/auth/roles/verify-internal",
+    method: "GET",
+  });
+}
+
+export function createUser(payload: AdminUserCreatePayload): Promise<UserProfile> {
+  return apiCall<UserProfile>({
+    url: "/api/v1/users",
+    method: "POST",
+    data: payload,
+  });
+}
+
+export function deleteUser(userId: string): Promise<any> {
+  return apiCall<any>({
+    url: `/api/v1/users/${userId}`,
+    method: "DELETE",
+  });
+}
+
+export function deleteOrganization(orgId: string): Promise<any> {
+  return apiCall<any>({
+    url: `/api/v1/organizations/${orgId}`,
+    method: "DELETE",
+  });
+}
+
+export interface OrganizationTokenStat {
+  organization_id: string;
+  legal_name: string;
+  total_tokens: number;
+}
+
+export function getOrganizationTokenStats(): Promise<OrganizationTokenStat[]> {
+  return apiCall<OrganizationTokenStat[]>({
+    url: "/api/v1/organizations/token-stats",
     method: "GET",
   });
 }

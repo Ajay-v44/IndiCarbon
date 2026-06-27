@@ -14,10 +14,10 @@ class ProfileRepository:
         self.db = db
 
     def find_by_id(self, user_id: str) -> Optional[Profile]:
-        return self.db.query(Profile).filter(Profile.id == user_id).first()
+        return self.db.query(Profile).filter(Profile.id == user_id, Profile.is_active == True).first()
 
     def create(self, user_id: str, full_name: str, phone_number: Optional[str], designation: Optional[str]) -> Profile:
-        existing = self.find_by_id(user_id)
+        existing = self.db.query(Profile).filter(Profile.id == user_id).first()
         if existing:
             existing.full_name = full_name or existing.full_name
             existing.phone_number = phone_number or existing.phone_number
@@ -43,7 +43,7 @@ class ProfileRepository:
         )
 
     def list_all(self, limit: int = 50, offset: int = 0) -> list[Profile]:
-        return self.db.query(Profile).order_by(Profile.created_at.desc()).limit(limit).offset(offset).all()
+        return self.db.query(Profile).filter(Profile.is_active == True).order_by(Profile.created_at.desc()).limit(limit).offset(offset).all()
 
     def list_for_organizations(self, organization_ids: list[str], limit: int = 50, offset: int = 0) -> list[Profile]:
         if not organization_ids:
@@ -51,13 +51,22 @@ class ProfileRepository:
         return (
             self.db.query(Profile)
             .join(UserRole, Profile.id == UserRole.user_id)
-            .filter(UserRole.organization_id.in_([_uuid.UUID(org_id) for org_id in organization_ids]))
+            .filter(UserRole.organization_id.in_([_uuid.UUID(org_id) for org_id in organization_ids]), Profile.is_active == True)
             .distinct()
             .order_by(Profile.created_at.desc())
             .limit(limit)
             .offset(offset)
             .all()
         )
+
+    def deactivate(self, user_id: str) -> bool:
+        profile = self.db.query(Profile).filter(Profile.id == user_id, Profile.is_active == True).first()
+        if profile:
+            profile.is_active = False
+            profile.phone_number = None
+            self.db.flush()
+            return True
+        return False
 
 
 class RoleRepository:

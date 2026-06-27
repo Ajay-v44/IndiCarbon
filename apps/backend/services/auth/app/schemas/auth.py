@@ -29,6 +29,8 @@ class TokenResponse(BaseModel):
     email: str
     is_internal: bool = False
     roles: list[str] = Field(default_factory=list)
+    organization_id: Optional[UUID] = None
+    organization_ids: list[UUID] = Field(default_factory=list)
 
 
 class RefreshRequest(BaseModel):
@@ -83,3 +85,11 @@ class CreateRoleRequest(BaseModel):
     description: Optional[str] = None
     permissions: list[str] = Field(default_factory=list)
     is_internal: bool = False
+
+
+class AdminUserCreateRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    full_name: str = Field(..., min_length=2)
+    role_id: UUID
+    organization_id: Optional[UUID] = None

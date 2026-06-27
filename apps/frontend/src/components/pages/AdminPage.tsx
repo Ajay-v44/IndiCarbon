@@ -91,7 +91,7 @@ import {
 import { toast } from "sonner";
 import { useAppSelector } from "@/store/hooks";
 import { cn } from "@/lib/utils";
-import { listUsers, listOrganizations, assignRole, listRoles, createRole } from "@/lib/api/auth";
+import { listUsers, listOrganizations, assignRole, listRoles, createRole, createUser, deleteUser, deleteOrganization, getOrganizationTokenStats } from "@/lib/api/auth";
 import { listBenchmarks, createBenchmark, deleteBenchmark } from "@/lib/api/compliance";
 import { getAllWallets, adminAddFunds, getAllWalletTransactions } from "@/lib/api/wallet";
 import { getSystemLogs, getSystemLogStats, resolveSystemLog, bulkResolveSystemLogs } from "@/lib/api/system-logs";
@@ -111,9 +111,16 @@ const requestVolumeData = [
 
 export function AdminPage() {
   const currentUser = useAppSelector((state) => state.auth.tokens);
+  const roles = currentUser?.roles || [];
+  const isSuperAdmin = roles.includes("SUPER_ADMIN");
+  const isSales = roles.includes("SALES");
+  const isGovtAuditor = roles.includes("GOVT_AUDITOR");
+
+  // Default active tab based on role permissions
+  const defaultTab = isSales ? "organizations" : (isGovtAuditor ? "benchmarks" : "monitoring");
   
   // Tabs & Searching
-  const [activeTab, setActiveTab] = useState("monitoring");
+  const [activeTab, setActiveTab] = useState(defaultTab);
   const [searchTerm, setSearchTerm] = useState("");
   const [userSearchTerm, setUserSearchTerm] = useState("");
   const [benchmarkSearchTerm, setBenchmarkSearchTerm] = useState("");
@@ -124,6 +131,7 @@ export function AdminPage() {
   const [benchmarks, setBenchmarks] = useState<SectorBenchmarkResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [tokenStats, setTokenStats] = useState<Record<string, number>>({});
 
   // Impersonate / Inspection Drawer State
   const [inspectedOrg, setInspectedOrg] = useState<OrganizationResponse | null>(null);
@@ -146,6 +154,16 @@ export function AdminPage() {
   const [selectedUserForRole, setSelectedUserForRole] = useState<UserProfile | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState("");
   const [selectedOrgId, setSelectedOrgId] = useState("");
+
+  // New User State
+  const [isNewUserOpen, setIsNewUserOpen] = useState(false);
+  const [newUser, setNewUser] = useState({
+    email: "",
+    full_name: "",
+    password: "",
+    role_id: "",
+    organization_id: "",
+  });
 
   // Roles State
   const [rolesList, setRolesList] = useState<RoleResponse[]>([]);
@@ -236,6 +254,7 @@ export function AdminPage() {
 
   // Fetch system logs
   const fetchSystemLogs = async (filters: SystemLogFilters = logFilters) => {
+    if (!isSuperAdmin && !isGovtAuditor) return;
     try {
       setSystemLogsLoading(true);
       const [logsData, statsData] = await Promise.all([
@@ -297,20 +316,65 @@ export function AdminPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [orgList, userList, benchmarkList, roleList, walletList, txnList] = await Promise.all([
-        listOrganizations(),
-        listUsers(),
-        listBenchmarks(),
-        listRoles(),
-        getAllWallets().catch(() => []),
-        getAllWalletTransactions().catch(() => []),
-      ]);
+      
+      const promises: Promise<any>[] = [];
+      
+      // 1. Organizations (Super Admin, Sales)
+      if (isSuperAdmin || isSales) {
+        promises.push(listOrganizations().catch(() => []));
+      } else {
+        promises.push(Promise.resolve([]));
+      }
+      
+      // 2. Users (Super Admin only)
+      if (isSuperAdmin) {
+        promises.push(listUsers().catch(() => []));
+      } else {
+        promises.push(Promise.resolve([]));
+      }
+      
+      // 3. Benchmarks (Super Admin, Govt Auditor)
+      if (isSuperAdmin || isGovtAuditor) {
+        promises.push(listBenchmarks().catch(() => []));
+      } else {
+        promises.push(Promise.resolve([]));
+      }
+      
+      // 4. Roles (All internal admins need roles list)
+      promises.push(listRoles().catch(() => []));
+      
+      // 5. Wallets (Super Admin, Sales)
+      if (isSuperAdmin || isSales) {
+        promises.push(getAllWallets().catch(() => []));
+        promises.push(getAllWalletTransactions().catch(() => []));
+      } else {
+        promises.push(Promise.resolve([]));
+        promises.push(Promise.resolve([]));
+      }
+      
+      // 6. Token Stats (Super Admin, Sales)
+      if (isSuperAdmin || isSales) {
+        promises.push(getOrganizationTokenStats().catch(() => []));
+      } else {
+        promises.push(Promise.resolve([]));
+      }
+      
+      const [orgList, userList, benchmarkList, roleList, walletList, txnList, tokenList] = await Promise.all(promises);
+      
       setOrganizations(orgList);
       setUsers(userList);
       setBenchmarks(benchmarkList);
       setRolesList(roleList);
       setWallets(walletList);
       setWalletTransactions(txnList);
+      
+      const statsMap: Record<string, number> = {};
+      if (Array.isArray(tokenList)) {
+        tokenList.forEach((stat: any) => {
+          statsMap[stat.organization_id] = stat.total_tokens;
+        });
+      }
+      setTokenStats(statsMap);
     } catch (err) {
       console.error(err);
       toast.error("Failed to load administration data. Connecting locally.");
@@ -342,6 +406,7 @@ export function AdminPage() {
   };
 
   const fetchA2AData = async () => {
+    if (!isSuperAdmin) return;
     setA2aLoading(true);
     try {
       const [tasks, stats] = await Promise.all([
@@ -356,9 +421,13 @@ export function AdminPage() {
 
   useEffect(() => {
     fetchData();
-    fetchSystemLogs();
-    fetchA2AData();
-  }, []);
+    if (isSuperAdmin || isGovtAuditor) {
+      fetchSystemLogs();
+    }
+    if (isSuperAdmin) {
+      fetchA2AData();
+    }
+  }, [currentUser]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -410,6 +479,28 @@ export function AdminPage() {
     }
   };
 
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm("Are you sure you want to deactivate this user? Their email and phone number will be freed up for new registrations.")) return;
+    try {
+      await deleteUser(userId);
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      toast.success("User deactivated successfully.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to deactivate user.");
+    }
+  };
+
+  const handleDeleteOrganization = async (orgId: string) => {
+    if (!confirm("Are you sure you want to deactivate this organization? This will release its registration number and tax ID.")) return;
+    try {
+      await deleteOrganization(orgId);
+      setOrganizations((prev) => prev.filter((o) => o.id !== orgId));
+      toast.success("Organization deactivated successfully.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to deactivate organization.");
+    }
+  };
+
   // Role Assignment handler
   const handleAssignRole = async () => {
     if (!selectedUserForRole || !selectedRoleId) return;
@@ -437,6 +528,31 @@ export function AdminPage() {
       setSelectedUserForRole(null);
     } catch (err: any) {
       toast.error(err.message || "Failed to assign role.");
+    }
+  };
+
+  // Create User handler
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const selectedRoleObj = rolesList.find(r => r.id === newUser.role_id);
+      const needsOrg = selectedRoleObj && !selectedRoleObj.is_internal && !["SUPER_ADMIN", "SALES", "GOVT_AUDITOR"].includes(selectedRoleObj.name);
+
+      const payload = {
+        email: newUser.email,
+        full_name: newUser.full_name,
+        password: newUser.password || undefined,
+        role_id: newUser.role_id,
+        organization_id: needsOrg ? (newUser.organization_id || undefined) : undefined,
+      };
+
+      const res = await createUser(payload);
+      setUsers((prev) => [res, ...prev]);
+      setIsNewUserOpen(false);
+      setNewUser({ email: "", full_name: "", password: "", role_id: "", organization_id: "" });
+      toast.success(`User '${res.full_name || res.email}' created successfully.`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create user.");
     }
   };
 
@@ -591,40 +707,56 @@ export function AdminPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col space-y-4">
           <div className="w-full overflow-x-auto scrollbar-none pb-1">
             <TabsList className="inline-flex w-max md:w-full min-w-full justify-start bg-muted border border-border p-1">
-              <TabsTrigger value="monitoring" className="text-xs font-medium py-1.5 px-3">
-                <Activity className="w-3.5 h-3.5 mr-2" /> Platform Monitoring
-              </TabsTrigger>
-              <TabsTrigger value="organizations" className="text-xs font-medium py-1.5 px-3">
-                <Building2 className="w-3.5 h-3.5 mr-2" /> Organizations
-              </TabsTrigger>
-              <TabsTrigger value="users" className="text-xs font-medium py-1.5 px-3">
-                <Users className="w-3.5 h-3.5 mr-2" /> Users & Roles
-              </TabsTrigger>
-              <TabsTrigger value="benchmarks" className="text-xs font-medium py-1.5 px-3">
-                <Settings className="w-3.5 h-3.5 mr-2" /> Sector Benchmarks
-              </TabsTrigger>
-              <TabsTrigger value="wallets" className="text-xs font-medium py-1.5 px-3">
-                <Wallet className="w-3.5 h-3.5 mr-2" /> Wallets & Ledger
-              </TabsTrigger>
-              <TabsTrigger value="ai-agent" className="text-xs font-medium py-1.5 px-3">
-                <Bot className="w-3.5 h-3.5 mr-2" /> AI Guardrails
-              </TabsTrigger>
-              <TabsTrigger value="exceptions" className="text-xs font-medium py-1.5 px-3">
-                <ShieldAlert className="w-3.5 h-3.5 mr-2" /> System Logs
-                {(systemLogStats?.unresolved ?? 0) > 0 && (
-                  <Badge className="ml-2 bg-destructive text-destructive-foreground hover:bg-destructive font-black text-[9px] px-1 min-w-4 h-4 justify-center items-center rounded-full">
-                    {systemLogStats!.unresolved}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="a2a" className="text-xs font-medium py-1.5 px-3">
-                <Workflow className="w-3.5 h-3.5 mr-2" /> A2A Protocol
-                {(a2aStats?.total_tasks ?? 0) > 0 && (
-                  <Badge className="ml-2 bg-blue-500/10 text-blue-500 font-bold text-[9px] px-1.5 h-4 justify-center items-center rounded-full">
-                    {a2aStats!.total_tasks}
-                  </Badge>
-                )}
-              </TabsTrigger>
+              {(isSuperAdmin || isGovtAuditor) && (
+                <TabsTrigger value="monitoring" className="text-xs font-medium py-1.5 px-3">
+                  <Activity className="w-3.5 h-3.5 mr-2" /> Platform Monitoring
+                </TabsTrigger>
+              )}
+              {(isSuperAdmin || isSales) && (
+                <TabsTrigger value="organizations" className="text-xs font-medium py-1.5 px-3">
+                  <Building2 className="w-3.5 h-3.5 mr-2" /> Organizations
+                </TabsTrigger>
+              )}
+              {isSuperAdmin && (
+                <TabsTrigger value="users" className="text-xs font-medium py-1.5 px-3">
+                  <Users className="w-3.5 h-3.5 mr-2" /> Users & Roles
+                </TabsTrigger>
+              )}
+              {(isSuperAdmin || isGovtAuditor) && (
+                <TabsTrigger value="benchmarks" className="text-xs font-medium py-1.5 px-3">
+                  <Settings className="w-3.5 h-3.5 mr-2" /> Sector Benchmarks
+                </TabsTrigger>
+              )}
+              {(isSuperAdmin || isSales) && (
+                <TabsTrigger value="wallets" className="text-xs font-medium py-1.5 px-3">
+                  <Wallet className="w-3.5 h-3.5 mr-2" /> Wallets & Ledger
+                </TabsTrigger>
+              )}
+              {isSuperAdmin && (
+                <TabsTrigger value="ai-agent" className="text-xs font-medium py-1.5 px-3">
+                  <Bot className="w-3.5 h-3.5 mr-2" /> AI Guardrails
+                </TabsTrigger>
+              )}
+              {(isSuperAdmin || isGovtAuditor) && (
+                <TabsTrigger value="exceptions" className="text-xs font-medium py-1.5 px-3">
+                  <ShieldAlert className="w-3.5 h-3.5 mr-2" /> System Logs
+                  {(systemLogStats?.unresolved ?? 0) > 0 && (
+                    <Badge className="ml-2 bg-destructive text-destructive-foreground hover:bg-destructive font-black text-[9px] px-1 min-w-4 h-4 justify-center items-center rounded-full">
+                      {systemLogStats!.unresolved}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              )}
+              {isSuperAdmin && (
+                <TabsTrigger value="a2a" className="text-xs font-medium py-1.5 px-3">
+                  <Workflow className="w-3.5 h-3.5 mr-2" /> A2A Protocol
+                  {(a2aStats?.total_tasks ?? 0) > 0 && (
+                    <Badge className="ml-2 bg-blue-500/10 text-blue-500 font-bold text-[9px] px-1.5 h-4 justify-center items-center rounded-full">
+                      {a2aStats!.total_tasks}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -759,17 +891,18 @@ export function AdminPage() {
                       <TableHead className="text-xs font-semibold py-3">CIN</TableHead>
                       <TableHead className="text-xs font-semibold py-3">Industry Sector</TableHead>
                       <TableHead className="text-xs font-semibold py-3">Subscription Status</TableHead>
+                      <TableHead className="text-xs font-semibold py-3">Token Consumption</TableHead>
                       <TableHead className="text-xs font-semibold py-3 text-right pr-4">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-border/30">
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-6 text-xs text-muted-foreground">Loading customer directories...</TableCell>
+                        <TableCell colSpan={6} className="text-center py-6 text-xs text-muted-foreground">Loading customer directories...</TableCell>
                       </TableRow>
                     ) : filteredOrgs.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-6 text-xs text-muted-foreground">No organizations found matching search criteria.</TableCell>
+                        <TableCell colSpan={6} className="text-center py-6 text-xs text-muted-foreground">No organizations found matching search criteria.</TableCell>
                       </TableRow>
                     ) : (
                       filteredOrgs.map((org) => (
@@ -798,18 +931,35 @@ export function AdminPage() {
                               {org.subscription_status}
                             </Badge>
                           </TableCell>
+                          <TableCell className="py-3 text-xs font-mono text-muted-foreground">
+                            {tokenStats[org.id]?.toLocaleString() || "0"} tokens
+                          </TableCell>
                           <TableCell className="py-3 text-right pr-4">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setInspectedOrg(org);
-                                setIsInspecting(true);
-                              }}
-                              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setInspectedOrg(org);
+                                  setIsInspecting(true);
+                                }}
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                                title="Inspect Details"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              {currentUser?.roles?.includes("SUPER_ADMIN") && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDeleteOrganization(org.id)}
+                                  className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                  title="Deactivate Organization"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
@@ -855,7 +1005,12 @@ export function AdminPage() {
                         <Badge variant="outline" className="border-border text-muted-foreground capitalize text-[9px]">{org.industry_sector || "Unassigned"}</Badge>
                       </div>
 
-                      <div className="flex justify-end pt-1">
+                      <div className="flex items-center justify-between border-t border-border/50 pt-2.5">
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Tokens Used</span>
+                        <span className="text-[10px] text-muted-foreground font-mono font-semibold">{tokenStats[org.id]?.toLocaleString() || "0"} tokens</span>
+                      </div>
+
+                      <div className="flex gap-2 pt-1">
                         <Button
                           size="sm"
                           variant="outline"
@@ -863,10 +1018,20 @@ export function AdminPage() {
                             setInspectedOrg(org);
                             setIsInspecting(true);
                           }}
-                          className="h-8 text-xs px-3 text-foreground border-border hover:bg-muted font-medium w-full"
+                          className="h-8 text-xs px-3 text-foreground border-border hover:bg-muted font-medium flex-1"
                         >
                           <Eye className="w-3.5 h-3.5 mr-1.5" /> Inspect Details
                         </Button>
+                        {currentUser?.roles?.includes("SUPER_ADMIN") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteOrganization(org.id)}
+                            className="h-8 text-xs px-3 border-destructive/20 hover:border-destructive/40 hover:bg-destructive/10 text-destructive font-medium flex-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Disable
+                          </Button>
+                        )}
                       </div>
                     </Card>
                   ))
@@ -885,14 +1050,35 @@ export function AdminPage() {
                   <CardTitle className="text-sm font-bold text-foreground">User Directory & RBAC Roles</CardTitle>
                   <CardDescription className="text-xs text-muted-foreground">Assign roles and verify platform access privileges.</CardDescription>
                 </div>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Search user name or email..."
-                    value={userSearchTerm}
-                    onChange={(e) => setUserSearchTerm(e.target.value)}
-                    className="pl-8 h-8 text-xs w-64 bg-background border-border text-foreground placeholder:text-muted-foreground/50"
-                  />
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Search user name or email..."
+                      value={userSearchTerm}
+                      onChange={(e) => setUserSearchTerm(e.target.value)}
+                      className="pl-8 h-8 text-xs w-64 bg-background border-border text-foreground placeholder:text-muted-foreground/50"
+                    />
+                  </div>
+                  {currentUser?.roles?.includes("SUPER_ADMIN") && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setNewUser({
+                          email: "",
+                          full_name: "",
+                          password: "",
+                          role_id: rolesList[0]?.id || "",
+                          organization_id: "",
+                        });
+                        setIsNewUserOpen(true);
+                      }}
+                      className="h-8 text-xs bg-foreground text-background hover:bg-foreground/90 font-medium"
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1" />
+                      Create User
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -952,19 +1138,33 @@ export function AdminPage() {
                           </TableCell>
                           {currentUser?.roles?.includes("SUPER_ADMIN") && (
                             <TableCell className="py-3 text-right pr-4">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                  setSelectedUserForRole(user);
-                                  const matchingRole = rolesList.find(r => r.name === user.roles[0]);
-                                  setSelectedRoleId(matchingRole ? matchingRole.id : (rolesList[0]?.id || ""));
-                                  setSelectedOrgId(user.organization_ids?.[0] || "");
-                                }}
-                                className="h-8 text-xs border border-border hover:bg-muted text-muted-foreground hover:text-foreground"
-                              >
-                                Assign Role
-                              </Button>
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setSelectedUserForRole(user);
+                                    const matchingRole = rolesList.find(r => r.name === user.roles[0]);
+                                    setSelectedRoleId(matchingRole ? matchingRole.id : (rolesList[0]?.id || ""));
+                                    setSelectedOrgId(user.organization_ids?.[0] || "");
+                                  }}
+                                  className="h-8 text-xs border border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+                                >
+                                  Assign Role
+                                </Button>
+                                {user.id !== currentUser?.user_id && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleDeleteUser(user.id)}
+                                    className="h-8 text-xs border border-destructive/20 hover:border-destructive/40 hover:bg-destructive/10 text-destructive font-medium"
+                                    title="Deactivate User"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 mr-1" />
+                                    Disable
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           )}
                         </TableRow>
@@ -1019,7 +1219,7 @@ export function AdminPage() {
                       </div>
 
                       {currentUser?.roles?.includes("SUPER_ADMIN") && (
-                        <div className="flex justify-end pt-1">
+                        <div className="flex gap-2 pt-1">
                           <Button
                             size="sm"
                             variant="outline"
@@ -1029,10 +1229,20 @@ export function AdminPage() {
                               setSelectedRoleId(matchingRole ? matchingRole.id : (rolesList[0]?.id || ""));
                               setSelectedOrgId(user.organization_ids?.[0] || "");
                             }}
-                            className="h-8 text-xs px-3 text-foreground border-border hover:bg-muted font-medium w-full"
+                            className="h-8 text-xs px-3 text-foreground border-border hover:bg-muted font-medium flex-1"
                           >
                             Assign Role Authority
                           </Button>
+                          {user.id !== currentUser?.user_id && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDeleteUser(user.id)}
+                              className="h-8 text-xs px-3 border-destructive/20 hover:border-destructive/40 hover:bg-destructive/10 text-destructive font-medium flex-1"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Disable
+                            </Button>
+                          )}
                         </div>
                       )}
                     </Card>
@@ -2772,6 +2982,111 @@ export function AdminPage() {
                 className="bg-foreground text-background hover:bg-foreground/90 text-xs h-9"
               >
                 Create Role
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create User Dialog */}
+      <Dialog open={isNewUserOpen} onOpenChange={setIsNewUserOpen}>
+        <DialogContent className="sm:max-w-md bg-background border border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black text-foreground">Create New Platform / Org User</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateUser} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="user_full_name" className="text-xs text-muted-foreground">Full Name</Label>
+              <Input
+                id="user_full_name"
+                placeholder="e.g. Rahul Sharma"
+                value={newUser.full_name}
+                onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
+                required
+                className="h-9 text-xs bg-card border-border text-foreground"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="user_email" className="text-xs text-muted-foreground">Email Address</Label>
+              <Input
+                id="user_email"
+                type="email"
+                placeholder="e.g. rahul@company.com"
+                value={newUser.email}
+                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                required
+                className="h-9 text-xs bg-card border-border text-foreground"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="user_pass" className="text-xs text-muted-foreground">Password</Label>
+              <Input
+                id="user_pass"
+                type="password"
+                placeholder="Minimum 8 characters"
+                value={newUser.password}
+                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                required
+                minLength={8}
+                className="h-9 text-xs bg-card border-border text-foreground"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="user_role" className="text-xs text-muted-foreground">Select RBAC Level Role</Label>
+              <Select value={newUser.role_id} onValueChange={(val) => setNewUser({ ...newUser, role_id: val || "" })}>
+                <SelectTrigger className="bg-card border-border text-xs h-9 text-foreground">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border text-foreground">
+                  {rolesList.map((role) => (
+                    <SelectItem key={role.id} value={role.id} className="text-xs">
+                      {role.name} {role.is_internal ? " (Internal)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(() => {
+              const selectedRoleObj = rolesList.find(r => r.id === newUser.role_id);
+              const needsOrg = selectedRoleObj && !selectedRoleObj.is_internal && !["SUPER_ADMIN", "SALES", "GOVT_AUDITOR"].includes(selectedRoleObj.name);
+              if (!needsOrg) return null;
+              return (
+                <div className="space-y-1.5">
+                  <Label htmlFor="user_org" className="text-xs text-muted-foreground">Select Organization</Label>
+                  <Select value={newUser.organization_id} onValueChange={(val) => setNewUser({ ...newUser, organization_id: val || "" })}>
+                    <SelectTrigger className="bg-card border-border text-xs h-9 text-foreground">
+                      <SelectValue placeholder="Select organization" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border text-foreground">
+                      {organizations.map((org) => (
+                        <SelectItem key={org.id} value={org.id} className="text-xs">
+                          {org.legal_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              );
+            })()}
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsNewUserOpen(false)}
+                className="border-border text-foreground hover:bg-muted text-xs h-9"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-foreground text-background hover:bg-foreground/90 text-xs h-9"
+              >
+                Create User
               </Button>
             </DialogFooter>
           </form>

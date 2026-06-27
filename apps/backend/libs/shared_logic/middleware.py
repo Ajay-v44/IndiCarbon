@@ -202,9 +202,9 @@ def _capture_error(
 
 
 def _capture_response_log(request: Request, status_code: int, elapsed_ms: int) -> None:
-    """Capture 5xx responses and slow requests (>5s) as system logs."""
+    """Capture 4xx/5xx responses and slow requests (>1s) as system logs."""
     try:
-        if status_code < 500 and elapsed_ms < 5000:
+        if status_code < 400 and elapsed_ms < 1000:
             return
 
         from .system_logger import SystemLogger
@@ -212,9 +212,12 @@ def _capture_response_log(request: Request, status_code: int, elapsed_ms: int) -
 
         if status_code >= 500:
             level = "ERROR"
-            message = f"HTTP {status_code} on {request.method} {request.url.path}"
-        else:
+            message = f"HTTP {status_code} Server Error on {request.method} {request.url.path}"
+        elif status_code >= 400:
             level = "WARNING"
+            message = f"HTTP {status_code} Client Error on {request.method} {request.url.path}"
+        else:
+            level = "INFO"
             message = f"Slow request ({elapsed_ms}ms): {request.method} {request.url.path}"
 
         syslog.capture(
@@ -231,6 +234,9 @@ def _capture_response_log(request: Request, status_code: int, elapsed_ms: int) -
         )
     except Exception:
         pass
+
+
+
 
 
 # ─── Registration Helper ──────────────────────────────────────────────────────

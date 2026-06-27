@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, String, Text
+from sqlalchemy import Column, DateTime, String, Text, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -24,4 +24,5 @@ class Organization(Base):
     annual_turnover_bracket = Column(String(50))
     sustainability_contact_email = Column(Text)
     subscription_status = Column(String(50), default="TRIAL")
+    is_active = Column(Boolean, default=True, nullable=False)
     onboarding_date = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

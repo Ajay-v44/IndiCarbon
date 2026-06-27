@@ -120,6 +120,17 @@ _SKILLS: list[A2AAgentSkill] = [
             "Recommend a net-zero pathway for our organisation",
         ],
     ),
+    A2AAgentSkill(
+        id="wallet-management",
+        name="Wallet & Transactions Management",
+        description="Check wallet balance, list wallet transactions, and manage organization funds.",
+        tags=["wallet", "balance", "funds", "transactions"],
+        examples=[
+            "What is our current wallet balance?",
+            "Show me the transaction history for our wallet",
+            "Do we have enough funds to buy 500 tCO2e of carbon credits?",
+        ],
+    ),
 ]
 
 

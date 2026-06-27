@@ -9,7 +9,7 @@ from langchain_core.tools import tool
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from ..models.agent import HITLReview
-from shared_logic import get_supabase_client
+from shared_logic import get_supabase_client, get_service_client, ServiceName
 
 logger = logging.getLogger("ai-agent.graph.chat_tools")
 
@@ -354,6 +354,141 @@ def build_chat_tools(db: Session, organization_id: str, user_id: str, pii_unmask
                 logger.error(f"Failed to clean up Supabase user {user.id} after DB error: {delete_exc}")
             return f"Failed to persist user in database: {e}"
 
+    @tool
+    def get_wallet_balance() -> str:
+        """Fetch the organization's wallet balance."""
+        try:
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            resp = client.request("GET", "/wallet", params={"organization_id": organization_id})
+            data = resp.json().get("data", {})
+            return f"Wallet balance: {data.get('balance')} {data.get('currency')}."
+        except Exception as e:
+            return f"Failed to fetch wallet balance: {e}"
+
+    @tool
+    def get_wallet_transactions() -> str:
+        """Fetch the organization's wallet transaction history."""
+        try:
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            resp = client.request("GET", "/wallet/transactions", params={"organization_id": organization_id})
+            data = resp.json().get("data", [])
+            if not data:
+                return "No transactions found."
+            return str(data)
+        except Exception as e:
+            return f"Failed to fetch wallet transactions: {e}"
+
+    @tool
+    def get_carbon_market_book() -> str:
+        """Fetch the open carbon credit sell orders available in the market."""
+        try:
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            resp = client.request("GET", "/orders/market")
+            data = resp.json().get("data", [])
+            if not data:
+                return "No open sell orders available in the market."
+            return str(data)
+        except Exception as e:
+            return f"Failed to fetch market order book: {e}"
+
+    @tool
+    def place_carbon_order(order_type: str, quantity: int, price_per_unit: float, vintage_year: Optional[int] = None, project_type: Optional[str] = None) -> str:
+        """Place a carbon credit BUY or SELL order.
+        
+        Args:
+            order_type: Either 'BUY' or 'SELL'
+            quantity: Number of carbon credits (tCO2e)
+            price_per_unit: Price per carbon credit in INR
+            vintage_year: Optional vintage year
+            project_type: Optional project type (e.g. Solar, Wind, Afforestation)
+        """
+        try:
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            payload = {
+                "organization_id": organization_id,
+                "order_type": order_type.upper(),
+                "quantity": quantity,
+                "price_per_unit": price_per_unit,
+                "vintage_year": vintage_year,
+                "project_type": project_type
+            }
+            resp = client.request("POST", "/orders", json=payload)
+            data = resp.json()
+            return f"Order placed successfully: {data.get('message')}. Order details: {data.get('data')}."
+        except Exception as e:
+            return f"Failed to place carbon order: {e}"
+
+    @tool
+    def submit_carbon_proposal(sell_order_id: str, quantity: int, proposed_price: float, buyer_note: Optional[str] = None) -> str:
+        """Submit a purchase proposal (negotiation / RFQ) against an open carbon credit SELL order.
+        
+        Args:
+            sell_order_id: UUID of the open SELL order
+            quantity: Proposed quantity of carbon credits
+            proposed_price: Proposed price per credit in INR
+            buyer_note: Optional custom message/note to the seller
+        """
+        try:
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            payload = {
+                "sell_order_id": sell_order_id,
+                "buyer_org_id": organization_id,
+                "quantity": quantity,
+                "proposed_price": proposed_price,
+                "buyer_note": buyer_note
+            }
+            resp = client.request("POST", "/proposals", json=payload)
+            data = resp.json()
+            return f"Proposal submitted successfully: {data.get('message')}. Proposal details: {data.get('data')}."
+        except Exception as e:
+            return f"Failed to submit carbon proposal: {e}"
+
+    @tool
+    def list_carbon_proposals(role: Optional[str] = None) -> str:
+        """List proposals involving this organization.
+        
+        Args:
+            role: Optional filter. 'buyer' to show sent proposals, 'seller' to show received proposals.
+        """
+        try:
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            params = {"organization_id": organization_id}
+            if role:
+                params["role"] = role
+            resp = client.request("GET", "/proposals", params=params)
+            data = resp.json().get("data", [])
+            if not data:
+                return "No proposals found."
+            return str(data)
+        except Exception as e:
+            return f"Failed to list proposals: {e}"
+
+    @tool
+    def respond_carbon_proposal(proposal_id: str, action: str, rejection_reason: Optional[str] = None) -> str:
+        """Respond to a received carbon trading proposal. Accept or Reject it.
+        
+        Args:
+            proposal_id: UUID of the proposal
+            action: Either 'accept' or 'reject'
+            rejection_reason: Optional reason if rejecting the proposal
+        """
+        try:
+            action_lower = action.lower().strip()
+            if action_lower not in ("accept", "reject"):
+                return "Action must be either 'accept' or 'reject'."
+            
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            path = f"/proposals/{proposal_id}/{action_lower}"
+            payload = {}
+            if action_lower == "reject" and rejection_reason:
+                payload["rejection_reason"] = rejection_reason
+            
+            resp = client.request("POST", path, json=payload if payload else None)
+            data = resp.json()
+            return f"Successfully responded '{action_lower}' to proposal {proposal_id}. Details: {data.get('data')}."
+        except Exception as e:
+            return f"Failed to respond to carbon proposal: {e}"
+
     return [
         get_compliance_reports,
         get_organization_users,
@@ -361,5 +496,12 @@ def build_chat_tools(db: Session, organization_id: str, user_id: str, pii_unmask
         get_available_roles,
         create_new_user,
         execute_sql_query,
-        approve_hitl_review
+        approve_hitl_review,
+        get_wallet_balance,
+        get_wallet_transactions,
+        get_carbon_market_book,
+        place_carbon_order,
+        submit_carbon_proposal,
+        list_carbon_proposals,
+        respond_carbon_proposal
     ]

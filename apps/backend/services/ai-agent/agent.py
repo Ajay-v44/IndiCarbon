@@ -26,7 +26,7 @@ import pathlib
 import time
 import uuid
 from datetime import datetime
-from typing import Any, Type
+from typing import Any, Type, Optional
 
 import httpx
 from langchain_classic.agents import AgentExecutor, create_react_agent
@@ -270,6 +270,211 @@ class VectorSearchTool(BaseTool):
         return self._run(*args, **kwargs)
 
 
+class WalletBalanceInput(BaseModel):
+    organization_id: str = Field(description="UUID of the organization")
+
+class WalletBalanceTool(BaseTool):
+    name: str = "wallet_balance"
+    description: str = "Fetches the current wallet balance of the organisation. Input: organization_id."
+    args_schema: Type[BaseModel] = WalletBalanceInput
+
+    def _run(self, organization_id: str) -> str:
+        try:
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            resp = client.request("GET", "/wallet", params={"organization_id": organization_id}, timeout=20.0)
+            data = resp.json().get("data", {})
+            return f"Wallet balance: {data.get('balance')} {data.get('currency')}."
+        except Exception as exc:
+            logger.error("WalletBalanceTool error: %s", exc)
+            return f"Error fetching wallet balance: {exc}"
+
+    async def _arun(self, *args: Any, **kwargs: Any) -> str:
+        return self._run(*args, **kwargs)
+
+
+class WalletTransactionsInput(BaseModel):
+    organization_id: str = Field(description="UUID of the organization")
+
+class WalletTransactionsTool(BaseTool):
+    name: str = "wallet_transactions"
+    description: str = "Fetches the wallet transaction history for the organization. Input: organization_id."
+    args_schema: Type[BaseModel] = WalletTransactionsInput
+
+    def _run(self, organization_id: str) -> str:
+        try:
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            resp = client.request("GET", "/wallet/transactions", params={"organization_id": organization_id}, timeout=20.0)
+            data = resp.json().get("data", [])
+            if not data:
+                return "No transactions found."
+            return str(data)
+        except Exception as exc:
+            logger.error("WalletTransactionsTool error: %s", exc)
+            return f"Error fetching wallet transactions: {exc}"
+
+    async def _arun(self, *args: Any, **kwargs: Any) -> str:
+        return self._run(*args, **kwargs)
+
+
+class CarbonMarketBookInput(BaseModel):
+    pass
+
+class CarbonMarketBookTool(BaseTool):
+    name: str = "market_book"
+    description: str = "Fetches all open sell orders on the public carbon marketplace. Use when the user asks what credits are available to buy."
+    args_schema: Type[BaseModel] = CarbonMarketBookInput
+
+    def _run(self) -> str:
+        try:
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            resp = client.request("GET", "/orders/market", timeout=20.0)
+            data = resp.json().get("data", [])
+            if not data:
+                return "No open sell orders available in the market."
+            return str(data)
+        except Exception as exc:
+            logger.error("CarbonMarketBookTool error: %s", exc)
+            return f"Error fetching marketplace book: {exc}"
+
+    async def _arun(self, *args: Any, **kwargs: Any) -> str:
+        return self._run(*args, **kwargs)
+
+
+class PlaceCarbonOrderInput(BaseModel):
+    organization_id: str = Field(description="UUID of the organization placing the order")
+    order_type: str = Field(description="Either 'BUY' or 'SELL'")
+    quantity: int = Field(description="Number of carbon credits (tCO2e)")
+    price_per_unit: float = Field(description="Price per credit in INR")
+    vintage_year: Optional[int] = Field(None, description="Optional vintage year")
+    project_type: Optional[str] = Field(None, description="Optional project type (e.g. Solar, Wind, Afforestation)")
+
+class PlaceCarbonOrderTool(BaseTool):
+    name: str = "place_carbon_order"
+    description: str = (
+        "Places a carbon credit BUY or SELL order. Use for trading carbon credits. "
+        "Input: organization_id, order_type, quantity, price_per_unit, vintage_year, project_type."
+    )
+    args_schema: Type[BaseModel] = PlaceCarbonOrderInput
+
+    def _run(self, **kwargs: Any) -> str:
+        try:
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            payload = {
+                "organization_id": kwargs["organization_id"],
+                "order_type": kwargs["order_type"].upper(),
+                "quantity": kwargs["quantity"],
+                "price_per_unit": kwargs["price_per_unit"],
+                "vintage_year": kwargs.get("vintage_year"),
+                "project_type": kwargs.get("project_type"),
+            }
+            resp = client.request("POST", "/orders", json=payload, timeout=20.0)
+            data = resp.json()
+            return f"Order placed successfully: {data.get('message')}. Order details: {data.get('data')}."
+        except Exception as exc:
+            logger.error("PlaceCarbonOrderTool error: %s", exc)
+            return f"Error placing carbon order: {exc}"
+
+    async def _arun(self, **kwargs: Any) -> str:
+        return self._run(**kwargs)
+
+
+class SubmitCarbonProposalInput(BaseModel):
+    sell_order_id: str = Field(description="UUID of the open SELL order")
+    buyer_org_id: str = Field(description="UUID of the buyer organization")
+    quantity: int = Field(description="Proposed quantity of carbon credits")
+    proposed_price: float = Field(description="Proposed price per credit in INR")
+    buyer_note: Optional[str] = Field(None, description="Optional note to the seller")
+
+class SubmitCarbonProposalTool(BaseTool):
+    name: str = "submit_carbon_proposal"
+    description: str = (
+        "Submits a purchase proposal (negotiation / RFQ) against an open carbon credit SELL order. "
+        "Input: sell_order_id, buyer_org_id, quantity, proposed_price, buyer_note."
+    )
+    args_schema: Type[BaseModel] = SubmitCarbonProposalInput
+
+    def _run(self, **kwargs: Any) -> str:
+        try:
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            payload = {
+                "sell_order_id": kwargs["sell_order_id"],
+                "buyer_org_id": kwargs["buyer_org_id"],
+                "quantity": kwargs["quantity"],
+                "proposed_price": kwargs["proposed_price"],
+                "buyer_note": kwargs.get("buyer_note"),
+            }
+            resp = client.request("POST", "/proposals", json=payload, timeout=20.0)
+            data = resp.json()
+            return f"Proposal submitted successfully: {data.get('message')}. Proposal details: {data.get('data')}."
+        except Exception as exc:
+            logger.error("SubmitCarbonProposalTool error: %s", exc)
+            return f"Error submitting carbon proposal: {exc}"
+
+    async def _arun(self, **kwargs: Any) -> str:
+        return self._run(**kwargs)
+
+
+class ListCarbonProposalsInput(BaseModel):
+    organization_id: str = Field(description="UUID of the organization")
+    role: Optional[str] = Field(None, description="Optional filter. 'buyer' or 'seller'")
+
+class ListCarbonProposalsTool(BaseTool):
+    name: str = "list_carbon_proposals"
+    description: str = "Lists carbon proposals for an organization. Input: organization_id, role."
+    args_schema: Type[BaseModel] = ListCarbonProposalsInput
+
+    def _run(self, organization_id: str, role: Optional[str] = None) -> str:
+        try:
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            params = {"organization_id": organization_id}
+            if role:
+                params["role"] = role
+            resp = client.request("GET", "/proposals", params=params, timeout=20.0)
+            data = resp.json().get("data", [])
+            if not data:
+                return "No proposals found."
+            return str(data)
+        except Exception as exc:
+            logger.error("ListCarbonProposalsTool error: %s", exc)
+            return f"Error listing proposals: {exc}"
+
+    async def _arun(self, *args: Any, **kwargs: Any) -> str:
+        return self._run(*args, **kwargs)
+
+
+class RespondCarbonProposalInput(BaseModel):
+    proposal_id: str = Field(description="UUID of the proposal to respond to")
+    action: str = Field(description="Either 'accept' or 'reject'")
+    rejection_reason: Optional[str] = Field(None, description="Optional reason if rejecting")
+
+class RespondCarbonProposalTool(BaseTool):
+    name: str = "respond_carbon_proposal"
+    description: str = "Responds to a received carbon trading proposal. Accept or Reject it. Input: proposal_id, action, rejection_reason."
+    args_schema: Type[BaseModel] = RespondCarbonProposalInput
+
+    def _run(self, proposal_id: str, action: str, rejection_reason: Optional[str] = None) -> str:
+        try:
+            action_lower = action.lower().strip()
+            if action_lower not in ("accept", "reject"):
+                return "Action must be either 'accept' or 'reject'."
+            
+            client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
+            path = f"/proposals/{proposal_id}/{action_lower}"
+            payload = {}
+            if action_lower == "reject" and rejection_reason:
+                payload["rejection_reason"] = rejection_reason
+            
+            resp = client.request("POST", path, json=payload if payload else None, timeout=20.0)
+            data = resp.json()
+            return f"Successfully responded '{action_lower}' to proposal {proposal_id}. Details: {data.get('data')}."
+        except Exception as exc:
+            logger.error("RespondCarbonProposalTool error: %s", exc)
+            return f"Error responding to proposal: {exc}"
+
+    async def _arun(self, *args: Any, **kwargs: Any) -> str:
+        return self._run(*args, **kwargs)
+
+
 # ─── Prompt Templates ─────────────────────────────────────────────────────────
 
 
@@ -297,6 +502,13 @@ class IndiCarbonAgentFactory:
             GHGCalculatorTool(),
             BRSRReportTool(),
             VectorSearchTool(),
+            WalletBalanceTool(),
+            WalletTransactionsTool(),
+            CarbonMarketBookTool(),
+            PlaceCarbonOrderTool(),
+            SubmitCarbonProposalTool(),
+            ListCarbonProposalsTool(),
+            RespondCarbonProposalTool(),
         ]
         logger.info(
             "AgentFactory initialised: model=%s tools=%s",
