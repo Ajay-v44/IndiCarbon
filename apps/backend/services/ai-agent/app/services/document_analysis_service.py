@@ -65,6 +65,34 @@ def _message_content_to_str(content: Any) -> str:
     return str(content) if content is not None else ""
 
 
+async def _embed_text(text: str) -> list[float]:
+    s = get_settings()
+    if s.llm_provider == "openai":
+        from langchain_openai import OpenAIEmbeddings
+        embeddings = OpenAIEmbeddings(
+            model=s.openai_embed_model,
+            api_key=s.openai_api_key,
+            base_url=s.openai_api_base or None,
+        )
+        return await embeddings.aembed_query(text)
+    elif s.llm_provider == "google":
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+        embeddings = GoogleGenerativeAIEmbeddings(
+            model=s.gemini_embed_model,
+            google_api_key=s.google_api_key,
+            output_dimensionality=768,
+        )
+        return await embeddings.aembed_query(text)
+    else:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{s.ollama_base_url}/api/embeddings",
+                json={"model": s.ollama_embed_model, "prompt": text},
+            )
+            resp.raise_for_status()
+            return resp.json()["embedding"]
+
+
 async def _embed_and_store_document_background(
     text: str,
     organization_id: str,
@@ -72,42 +100,34 @@ async def _embed_and_store_document_background(
     filename: str,
     run_id: str
 ):
-    """Chunks the parsed document, embeds it via Ollama, and stores in pgvector."""
+    """Chunks the parsed document, embeds it via the configured provider, and stores in pgvector."""
     try:
         logger.info("[%s] Starting background embedding for document %s", run_id, document_id)
         from langchain_text_splitters import RecursiveCharacterTextSplitter
         from shared_logic.supabase_client import VectorRepository
         
-        s = get_settings()
         splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         chunks = splitter.split_text(text)
         
         repo = VectorRepository()
         
-        async with httpx.AsyncClient() as client:
-            for i, chunk in enumerate(chunks):
-                resp = await client.post(
-                    f"{s.ollama_base_url}/api/embeddings",
-                    json={"model": s.ollama_embed_model, "prompt": chunk},
-                    timeout=60.0,
-                )
-                resp.raise_for_status()
-                embedding = resp.json()["embedding"]
-                
-                metadata = {
-                    "organization_id": organization_id,
-                    "document_id": document_id,
-                    "filename": filename,
-                    "chunk_index": i
-                }
-                
-                # Run the synchronous upsert_embedding in a thread to avoid blocking
-                await asyncio.to_thread(
-                    repo.upsert_embedding,
-                    content=chunk,
-                    embedding=embedding,
-                    metadata=metadata
-                )
+        for i, chunk in enumerate(chunks):
+            embedding = await _embed_text(chunk)
+            
+            metadata = {
+                "organization_id": organization_id,
+                "document_id": document_id,
+                "filename": filename,
+                "chunk_index": i
+            }
+            
+            # Run the synchronous upsert_embedding in a thread to avoid blocking
+            await asyncio.to_thread(
+                repo.upsert_embedding,
+                content=chunk,
+                embedding=embedding,
+                metadata=metadata
+            )
         
         logger.info("[%s] Successfully embedded %d chunks for document %s", run_id, len(chunks), document_id)
     except Exception as exc:
@@ -232,7 +252,7 @@ async def run_document_analysis(
             config={
                 "callbacks": [langfuse_handler],
                 "run_name": f"indicarbon.document_analysis.{run_id}",
-                "configurable": {"thread_id": organization_id},
+                "configurable": {"thread_id": run_id},
                 "metadata": {
                     "langfuse_session_id": run_id,
                     "langfuse_user_id": organization_id,

@@ -299,6 +299,14 @@ export interface AssignRolePayload {
   organization_id?: string;
 }
 
+export interface AdminUserCreatePayload {
+  email: string;
+  password?: string;
+  full_name: string;
+  role_id: string;
+  organization_id?: string;
+}
+
 export interface SectorBenchmarkCreate {
   sector_name: string;
   sub_sector?: string;

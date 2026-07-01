@@ -23,7 +23,6 @@ import logging
 import re
 from typing import Any, Dict, List
 
-from langchain_ollama import OllamaLLM
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..config.settings import get_settings
@@ -42,15 +41,34 @@ logger = logging.getLogger("ai-agent.graph.nodes")
 # ─── LLM Factory (singleton within a graph run) ───────────────────────────────
 
 
-def _get_llm() -> OllamaLLM:
-    """Build and return the Ollama LLM instance."""
+def _get_llm() -> Any:
+    """Build and return the LLM instance based on provider settings."""
     s = get_settings()
-    return OllamaLLM(
-        base_url=s.ollama_base_url,
-        model=s.ollama_llm_model,
-        temperature=s.ollama_temperature,
-        num_predict=s.ollama_num_predict,
-    )
+    if s.llm_provider == "openai":
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=s.openai_chat_model,
+            api_key=s.openai_api_key,
+            base_url=s.openai_api_base or None,
+            temperature=s.openai_temperature,
+            max_tokens=s.openai_max_tokens,
+        )
+    elif s.llm_provider == "google":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        return ChatGoogleGenerativeAI(
+            model=s.gemini_chat_model,
+            google_api_key=s.google_api_key,
+            temperature=s.ollama_temperature,
+            max_output_tokens=s.ollama_num_predict,
+        )
+    else:
+        from langchain_ollama import ChatOllama
+        return ChatOllama(
+            base_url=s.ollama_base_url,
+            model=s.ollama_llm_model,
+            temperature=s.ollama_temperature,
+            num_predict=s.ollama_num_predict,
+        )
 
 
 # ─── Node 1: Parse Document ───────────────────────────────────────────────────

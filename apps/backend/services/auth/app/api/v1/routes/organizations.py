@@ -47,3 +47,17 @@ def get_organization(
 ) -> ApiResponse[OrganizationResponse]:
     org = org_svc.get_organization(org_id, str(user.id), db)
     return ApiResponse(data=org)
+
+
+@router.delete("/{org_id}", response_model=ApiResponse[dict], summary="Deactivate an organization (admin only)")
+def delete_organization(
+    org_id: str,
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ApiResponse[dict]:
+    org_svc.deactivate_organization_as_admin(
+        requesting_user_id=str(user.id),
+        org_id=org_id,
+        db=db,
+    )
+    return ApiResponse(data={"deleted_id": org_id}, message="Organization deactivated successfully.")

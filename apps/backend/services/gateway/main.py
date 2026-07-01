@@ -15,6 +15,7 @@ from shared_logic import ApiResponse, register_middleware
 from shared_logic.database import get_db
 from shared_logic.system_logger import SystemLogRepository
 from shared_logic.paths import backend_root
+from sqlalchemy import text
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,8 +56,8 @@ class GatewaySettings(BaseSettings):
     app_jwt_algorithm: str = "HS256"
     allowed_origins: str = "http://localhost:3000"
 
-    gateway_client_timeout: float = 30.0
-    ai_service_timeout: float = 120.0
+    gateway_client_timeout: float = 180.0
+    ai_service_timeout: float = 180.0
 
     @property
     def cors_origins(self) -> list[str]:
@@ -313,6 +314,36 @@ async def users_proxy(request: Request, path: str):
 )
 async def organizations_root_proxy(request: Request):
     return await _proxy(request, settings.auth_service_url)
+
+
+@app.get(
+    "/api/v1/organizations/token-stats",
+    tags=["Organizations"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def get_token_stats(request: Request):
+    _require_admin(request)
+    db = next(get_db())
+    try:
+        query = text(
+            "SELECT o.id, o.legal_name, COALESCE(SUM(t.token_usage), 0) as total_tokens "
+            "FROM organizations o "
+            "LEFT JOIN a2a_tasks t ON o.id = t.organization_id "
+            "WHERE o.is_active = true "
+            "GROUP BY o.id, o.legal_name"
+        )
+        result = db.execute(query).fetchall()
+        stats = [
+            {
+                "organization_id": str(row[0]),
+                "legal_name": row[1],
+                "total_tokens": int(row[2]),
+            }
+            for row in result
+        ]
+        return ApiResponse(data=stats)
+    finally:
+        db.close()
 
 
 @app.api_route(
@@ -576,14 +607,25 @@ async def ai_agent_proxy(request: Request, path: str):
 # ─── System Logs (Admin-Only) ────────────────────────────────────────────────
 
 
-def _require_admin(request: Request) -> None:
+def _require_admin(request: Request, read_only_roles: set[str] = None) -> None:
     """Raise 403 unless the authenticated user has an admin role."""
     auth_ctx = getattr(request.state, "auth_context", None)
     if not auth_ctx:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
     roles = auth_ctx.get("roles") or []
-    if not any(r.upper() in {"ADMIN", "ORG_ADMIN", "SUPER_ADMIN"} for r in roles):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
+    roles_upper = {r.upper() for r in roles}
+    
+    # Base admin check
+    has_full_admin = any(r in {"ADMIN", "ORG_ADMIN", "SUPER_ADMIN"} for r in roles_upper)
+    if has_full_admin:
+        return
+
+    # If it is a read-only request and the user has a read-only role
+    if read_only_roles and request.method in {"GET", "HEAD"}:
+        if any(r in read_only_roles for r in roles_upper):
+            return
+            
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
 
 
 @app.get(
@@ -601,7 +643,7 @@ async def list_system_logs(
     limit: int = 50,
     offset: int = 0,
 ):
-    _require_admin(request)
+    _require_admin(request, read_only_roles={"GOVT_AUDITOR"})
     db = next(get_db())
     try:
         repo = SystemLogRepository(db)
@@ -640,7 +682,7 @@ async def system_log_stats(
     request: Request,
     organization_id: str | None = None,
 ):
-    _require_admin(request)
+    _require_admin(request, read_only_roles={"GOVT_AUDITOR"})
     db = next(get_db())
     try:
         repo = SystemLogRepository(db)

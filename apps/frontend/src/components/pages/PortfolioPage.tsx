@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
+import { useAppSelector } from "@/store/hooks";
+import { getWalletTransactions } from "@/lib/api/wallet";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,15 +36,28 @@ const creditTypes = [
   { type: "Blue Carbon (Wetlands)", icon: Droplets, count: 1800, value: "₹27L", verified: false, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10" },
 ];
 
-const transactions = [
-  { id: "TXN-2401", type: "Purchase", project: "Sundarbans Mangrove REDD+", amount: "200 tCO₂e", value: "₹2.99L", date: "24 Apr 2026", status: "Verified" },
-  { id: "TXN-2398", type: "Sale", project: "Rajasthan Wind Farm", amount: "150 tCO₂e", value: "₹2.24L", date: "22 Apr 2026", status: "Settled" },
-  { id: "TXN-2390", type: "Purchase", project: "Punjab Agro-forestry", amount: "500 tCO₂e", value: "₹7.48L", date: "18 Apr 2026", status: "Verified" },
-  { id: "TXN-2385", type: "Retire", project: "Gujarat Solar Parks", amount: "80 tCO₂e", value: "—", date: "15 Apr 2026", status: "Retired" },
-  { id: "TXN-2380", type: "Purchase", project: "Western Ghats Biodiversity", amount: "300 tCO₂e", value: "₹4.49L", date: "11 Apr 2026", status: "Pending" },
-];
-
 export function PortfolioPage() {
+  const tokens = useAppSelector((state) => state.auth.tokens);
+  const orgId = tokens?.organization_id;
+
+  const [txList, setTxList] = useState<any[]>([]);
+  const [loadingTx, setLoadingTx] = useState(true);
+
+  useEffect(() => {
+    if (!orgId) return;
+    setLoadingTx(true);
+    getWalletTransactions(orgId)
+      .then((data) => {
+        setTxList(data || []);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch transactions:", err);
+      })
+      .finally(() => {
+        setLoadingTx(false);
+      });
+  }, [orgId]);
+
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto text-foreground">
       {/* Header */}
@@ -122,7 +138,7 @@ export function PortfolioPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <CardTitle className="text-base text-foreground">Transaction Ledger</CardTitle>
-              <CardDescription className="text-muted-foreground text-xs">Immutable blockchain-verified transaction history</CardDescription>
+              <CardDescription className="text-muted-foreground text-xs">Audit-ready transaction history</CardDescription>
             </div>
             <div className="flex gap-2">
               <div className="relative">
@@ -146,47 +162,65 @@ export function PortfolioPage() {
                 <tr className="border-b border-border">
                   <th className="text-left text-xs text-muted-foreground font-semibold pb-3 pr-4">TX ID</th>
                   <th className="text-left text-xs text-muted-foreground font-semibold pb-3 pr-4">Type</th>
-                  <th className="text-left text-xs text-muted-foreground font-semibold pb-3 pr-4">Project</th>
-                  <th className="text-right text-xs text-muted-foreground font-semibold pb-3 pr-4">Credits</th>
-                  <th className="text-right text-xs text-muted-foreground font-semibold pb-3 pr-4">Value</th>
-                  <th className="text-left text-xs text-muted-foreground font-semibold pb-3 pr-4">Date</th>
-                  <th className="text-left text-xs text-muted-foreground font-semibold pb-3">Status</th>
+                  <th className="text-left text-xs text-muted-foreground font-semibold pb-3 pr-4">Description</th>
+                  <th className="text-right text-xs text-muted-foreground font-semibold pb-3 pr-4">Amount</th>
+                  <th className="text-right text-xs text-muted-foreground font-semibold pb-3 pr-4">Balance After</th>
+                  <th className="text-left text-xs text-muted-foreground font-semibold pb-3 pl-4">Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                {transactions.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="py-3 pr-4 text-xs font-mono text-muted-foreground">{tx.id}</td>
-                    <td className="py-3 pr-4">
-                      <Badge
-                        className={`text-[10px] ${tx.type === "Purchase"
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                            : tx.type === "Sale"
+                {loadingTx ? (
+                  <tr>
+                    <td colSpan={6} className="py-4 text-center text-xs text-muted-foreground">
+                      Loading transaction history...
+                    </td>
+                  </tr>
+                ) : txList.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-4 text-center text-xs text-muted-foreground">
+                      No transactions found for this account.
+                    </td>
+                  </tr>
+                ) : (
+                  txList.map((tx) => (
+                    <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="py-3 pr-4 text-xs font-mono text-muted-foreground">
+                        {tx.id.slice(0, 8)}...
+                      </td>
+                      <td className="py-3 pr-4">
+                        <Badge
+                          className={`text-[10px] ${
+                            tx.txn_type === "CREDIT"
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                              : tx.txn_type === "DEBIT"
                               ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
                               : "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20"
                           }`}
-                      >
-                        {tx.type}
-                      </Badge>
-                    </td>
-                    <td className="py-3 pr-4 text-xs text-foreground">{tx.project}</td>
-                    <td className="py-3 pr-4 text-xs text-foreground text-right font-medium">{tx.amount}</td>
-                    <td className="py-3 pr-4 text-xs text-foreground text-right">{tx.value}</td>
-                    <td className="py-3 pr-4 text-xs text-muted-foreground">{tx.date}</td>
-                    <td className="py-3">
-                      <Badge
-                        className={`text-[10px] ${tx.status === "Verified" || tx.status === "Settled"
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                            : tx.status === "Retired"
-                                ? "bg-muted text-muted-foreground border-border"
-                                : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                          }`}
-                      >
-                        {tx.status}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
+                        >
+                          {tx.txn_type}
+                        </Badge>
+                      </td>
+                      <td className="py-3 pr-4 text-xs text-foreground max-w-xs truncate">
+                        {tx.description || "—"}
+                      </td>
+                      <td className="py-3 pr-4 text-xs text-foreground text-right font-medium">
+                        ₹{tx.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3 pr-4 text-xs text-foreground text-right font-medium">
+                        ₹{tx.balance_after.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3 pr-4 text-xs text-muted-foreground pl-4">
+                        {tx.created_at
+                          ? new Date(tx.created_at).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

@@ -34,12 +34,22 @@ def calculate_scope_emissions(items: List[Dict[str, Any]], organization_id: str,
         "document_id": document_id
     }
     
+    formatted_items = []
+    for item in items:
+        new_item = dict(item)
+        y = item.get("year")
+        if isinstance(y, int) or (isinstance(y, str) and y.isdigit()):
+            new_item["year"] = f"{y}-01-01"
+        elif isinstance(y, str) and len(y) == 4:
+            new_item["year"] = f"{y}-01-01"
+        formatted_items.append(new_item)
+
     try:
         with httpx.Client() as client:
             resp = client.post(
                 url, 
                 params=params, 
-                json=items,
+                json=formatted_items,
                 headers={
                     "X-User-ID": user_id,
                     "X-Organization-ID": organization_id,

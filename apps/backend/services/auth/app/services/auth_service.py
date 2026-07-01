@@ -11,6 +11,7 @@ from supabase import Client
 
 from ..config import settings
 from ..repositories.user_repo import ProfileRepository, RoleRepository, UserRoleRepository
+from ..repositories.org_repo import OrganizationRepository
 from ..models.user import Role
 from ..schemas.auth import (
     LoginRequest,
@@ -39,6 +40,18 @@ async def register(
     supabase_public: Client,
 ) -> TokenResponse:
     """Register and activate a user through Supabase Auth, then persist app data via ORM."""
+    if req.phone_number and req.phone_number.strip():
+        from ..models.user import Profile
+        existing_phone = db.query(Profile).filter(
+            Profile.phone_number == req.phone_number.strip(),
+            Profile.is_active == True
+        ).first()
+        if existing_phone:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number is already registered."
+            )
+
     user = None
     try:
         res = supabase_admin.auth.admin.create_user(
@@ -81,19 +94,49 @@ async def register(
             designation=req.designation,
         )
 
-        default_role = role_repo.find_by_name(DEFAULT_ROLE)
-        if default_role:
-            user_role_repo.assign(str(user.id), str(default_role.id))
+        # Parse organization details if designation has " - "
+        org = None
+        if req.designation and " - " in req.designation:
+            parts = [p.strip() for p in req.designation.split(" - ") if p.strip()]
+            if parts and parts[0]:
+                company_name = parts[0]
+                industry = parts[1] if len(parts) > 1 else "Other"
+                
+                # Create a new organization for the registered user
+                org = OrganizationRepository(db).create(
+                    legal_name=company_name,
+                    trade_name=company_name,
+                    industry_sector=industry,
+                    subscription_status="TRIAL",
+                )
+
+        assigned_role = DEFAULT_ROLE
+        assigned_org_id = None
+        
+        if org:
+            assigned_role = "ORG_MANAGER"
+            assigned_org_id = str(org.id)
+
+        role = role_repo.find_by_name(assigned_role)
+        if role:
+            user_role_repo.assign(str(user.id), str(role.id), assigned_org_id)
         else:
-            logger.warning("Default role %s not found; registered user without role: %s", DEFAULT_ROLE, user.id)
+            logger.warning("Role %s not found; registered user without role: %s", assigned_role, user.id)
 
         db.commit()
-    except Exception:
+    except Exception as exc:
         db.rollback()
         try:
             supabase_admin.auth.admin.delete_user(str(user.id))
         except Exception:
             logger.exception("Failed to clean up auth user after profile persistence failed: %s", user.id)
+        
+        from sqlalchemy.exc import IntegrityError
+        if isinstance(exc, IntegrityError) and "profiles_phone_number_key" in str(exc):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number is already registered."
+            )
         raise
 
     logger.info("Registered new user: %s", user.email)
@@ -108,12 +151,18 @@ async def register(
     if not session:
         raise HTTPException(status_code=status.HTTP_201_CREATED, detail="Registration succeeded, but no session was returned.")
 
+    org_ids = user_role_repo.get_organization_ids_for_user(str(user.id))
+    org_id = UUID(org_ids[0]) if org_ids else None
+    org_ids_uuids = [UUID(o) for o in org_ids]
+
     return TokenResponse(
         access_token=_create_user_access_token(str(user.id), user.email or req.email, db),
         refresh_token=session.refresh_token,
         expires_in=settings.app_access_token_expires_in,
         user_id=UUID(str(user.id)),
         email=user.email or req.email,
+        organization_id=org_id,
+        organization_ids=org_ids_uuids,
     )
 
 
@@ -141,6 +190,10 @@ async def login(
     is_internal = any(ur.role.is_internal for ur in user_roles if ur.role)
     roles_list = [ur.role.name for ur in user_roles if ur.role]
 
+    org_ids = UserRoleRepository(db).get_organization_ids_for_user(str(user.id))
+    org_id = UUID(org_ids[0]) if org_ids else None
+    org_ids_uuids = [UUID(o) for o in org_ids]
+
     return TokenResponse(
         access_token=_create_user_access_token(str(user.id), user.email or req.email, db),
         refresh_token=session.refresh_token,
@@ -149,6 +202,8 @@ async def login(
         email=user.email or req.email,
         is_internal=is_internal,
         roles=roles_list,
+        organization_id=org_id,
+        organization_ids=org_ids_uuids,
     )
 
 
@@ -167,6 +222,10 @@ async def refresh_token(refresh_token_str: str, supabase: Client, db: Session) -
     is_internal = any(ur.role.is_internal for ur in user_roles if ur.role)
     roles_list = [ur.role.name for ur in user_roles if ur.role]
 
+    org_ids = UserRoleRepository(db).get_organization_ids_for_user(str(user.id))
+    org_id = UUID(org_ids[0]) if org_ids else None
+    org_ids_uuids = [UUID(o) for o in org_ids]
+
     return TokenResponse(
         access_token=_create_user_access_token(str(user.id), user.email or "", db),
         refresh_token=session.refresh_token,
@@ -175,6 +234,8 @@ async def refresh_token(refresh_token_str: str, supabase: Client, db: Session) -
         email=user.email or "",
         is_internal=is_internal,
         roles=roles_list,
+        organization_id=org_id,
+        organization_ids=org_ids_uuids,
     )
 
 
@@ -318,6 +379,92 @@ def assign_role_as_admin(
     return assign_role_to_user(target_user_id, role_id, organization_id, db)
 
 
+def create_user_as_admin(
+    requesting_user_id: str,
+    email: str,
+    password: str,
+    full_name: str,
+    role_id: str,
+    organization_id: str | None,
+    db: Session,
+    supabase_admin: Client,
+) -> UserProfile:
+    _require_super_admin(requesting_user_id, db)
+    
+    role = RoleRepository(db).find_by_id(role_id)
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Role ID '{role_id}' not found.",
+        )
+        
+    # Check role constraints
+    if role.name in ORG_ROLES and not organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Role '{role.name}' must be assigned with an organization.",
+        )
+    if role.name in PLATFORM_ROLES and organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Role '{role.name}' is platform-wide and cannot include an organization.",
+        )
+
+    # 2. Create user in Supabase auth admin
+    try:
+        res = supabase_admin.auth.admin.create_user(
+            {
+                "email": email,
+                "password": password,
+                "email_confirm": True,
+                "user_metadata": {
+                    "full_name": full_name,
+                    "is_active": True,
+                    "email_verified": True,
+                },
+            }
+        )
+        user = res.user
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create user in Supabase."
+            )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to create user in Supabase: {_supabase_error_detail(e)}"
+        )
+
+    # 3. Create profile and assign role in postgres
+    try:
+        user_uuid = str(user.id)
+        ProfileRepository(db).create(
+            user_id=user_uuid,
+            full_name=full_name,
+            phone_number=None,
+            designation=None,
+        )
+        UserRoleRepository(db).assign(
+            user_id=user_uuid,
+            role_id=role_id,
+            organization_id=organization_id,
+        )
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        try:
+            supabase_admin.auth.admin.delete_user(str(user.id))
+        except Exception as delete_exc:
+            logger.error(f"Failed to clean up Supabase user {user.id} after DB error: {delete_exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to persist user in database: {e}"
+        )
+
+    return _build_user_profile_by_id(user_uuid, db, supabase_admin)
+
+
 def create_role_as_admin(
     requesting_user_id: str,
     name: str,
@@ -404,6 +551,35 @@ def _require_user_visible(requesting_user_id: str, target_user_id: str, db: Sess
     if user_role_repo.shares_organization(requesting_user_id, target_user_id):
         return
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot view this user.")
+
+
+def deactivate_user_as_admin(
+    requesting_user_id: str,
+    target_user_id: str,
+    db: Session,
+    supabase_admin: Client,
+) -> None:
+    _require_super_admin(requesting_user_id, db)
+    
+    if target_user_id == requesting_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot deactivate your own administrative account.",
+        )
+
+    success = ProfileRepository(db).deactivate(target_user_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User ID '{target_user_id}' not found or already inactive.",
+        )
+        
+    try:
+        supabase_admin.auth.admin.delete_user(target_user_id)
+    except Exception as e:
+        logger.warning(f"Could not delete user {target_user_id} from Supabase auth: {e}")
+        
+    db.commit()
 
 
 def _require_super_admin(user_id: str, db: Session) -> None:

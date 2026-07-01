@@ -72,3 +72,15 @@ def _to_response(org: Organization) -> OrganizationResponse:
         registration_number=org.registration_number,
         subscription_status=org.subscription_status or "TRIAL",
     )
+
+
+def deactivate_organization_as_admin(requesting_user_id: str, org_id: str, db: Session) -> None:
+    auth_svc.require_super_admin(requesting_user_id, db)
+    repo = OrganizationRepository(db)
+    success = repo.deactivate(org_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Organization ID '{org_id}' not found or already inactive.",
+        )
+    db.commit()

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   TrendingDown,
   TrendingUp,
@@ -20,6 +20,7 @@ import {
   Check,
   ExternalLink,
   Plug,
+  IndianRupee,
 } from "lucide-react";
 import {
   XAxis,
@@ -30,8 +31,11 @@ import {
   AreaChart,
   Area,
 } from "recharts";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { triggerDocumentAnalysis } from "@/store/ai-slice";
+import { getEmissionSummary } from "@/lib/api/compliance";
+import { getWallet } from "@/lib/api/wallet";
+import { listCredits } from "@/lib/api/marketplace";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -39,6 +43,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 /* ─── Data ──────────────────────────────────────────────────── */
 const emissionsData = [
@@ -151,7 +157,7 @@ function McpSection() {
         </div>
         <a
           href="/dashboard/integration#mcp"
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all shrink-0"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 bg-white shadow-sm transition-all"
         >
           Full Docs
           <ExternalLink className="w-3.5 h-3.5" />
@@ -241,8 +247,54 @@ function McpSection() {
 export function DashboardPage() {
   const dispatch = useAppDispatch();
   const [state, setState] = useState<State>("success");
+  const [lastErrorMsg, setLastErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const tokens = useAppSelector((state) => state.auth.tokens);
+  const [realEmissions, setRealEmissions] = useState<any>(null);
+  const [realCredits, setRealCredits] = useState<number>(0);
+  const [realWallet, setRealWallet] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchDashboardData = async () => {
+    if (!tokens?.organization_id) {
+      setIsLoading(false);
+      return;
+    }
+    try {
+      setIsLoading(true);
+      const [emissions, credits, wallet] = await Promise.all([
+        getEmissionSummary({
+          organization_id: tokens.organization_id,
+          period_start: "2026-01-01",
+          period_end: "2026-12-31",
+        }).catch(() => null),
+        listCredits(tokens.organization_id).catch(() => []),
+        getWallet(tokens.organization_id).catch(() => null),
+      ]);
+      setRealEmissions(emissions);
+      setRealWallet(wallet);
+      
+      const totalCredits = credits.filter((c: any) => c.status === "ISSUED").length;
+      setRealCredits(totalCredits);
+
+      // If report_count is 0 and we have no emissions, set state to empty
+      if (emissions && emissions.report_count === 0) {
+        setState("empty");
+      } else {
+        setState("success");
+      }
+    } catch (err) {
+      console.error("Error loading dashboard data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [tokens]);
+
   // Dynamic document uploads state
   const [uploadingFile, setUploadingFile] = useState(false);
   const [analysisModalOpen, setAnalysisModalOpen] = useState(false);
@@ -300,11 +352,17 @@ export function DashboardPage() {
         );
         setCurrentAnalysisResult(result);
         setAnalysisModalOpen(true);
+        setState("success");
+        setLastErrorMsg(null);
         toast.success(`Analysis complete for "${file.name}"!`);
+        fetchDashboardData();
       } else {
         throw new Error(resultAction.payload as string || "Analysis pipeline failed");
       }
     } catch (err: any) {
+      const errMsg = err.message || String(err);
+      setLastErrorMsg(errMsg);
+      setState("error");
       setUploadedFiles((prev) =>
         prev.map((f) =>
           f.name === file.name
@@ -312,7 +370,7 @@ export function DashboardPage() {
             : f
         )
       );
-      toast.error(`Error uploading "${file.name}": ${err.message || err}`);
+      toast.error(`Error uploading "${file.name}": ${errMsg}`);
     } finally {
       setUploadingFile(false);
       if (fileInputRef.current) {
@@ -361,10 +419,11 @@ export function DashboardPage() {
             ))}
           </div>
           <button
-            onClick={() => setState("success")}
+            onClick={fetchDashboardData}
+            disabled={isLoading}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 bg-white shadow-sm transition-all"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
             Refresh
           </button>
           <button
@@ -383,9 +442,9 @@ export function DashboardPage() {
         <>
           {/* KPI grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard title="Total Emissions" value="2,950" unit="tCO₂e"    delta="-8.2%" trend="down" Icon={Factory}  iconColor="text-green-600"  iconBg="bg-green-50" />
-            <KpiCard title="Carbon Credits"  value="1,240" unit="tCO₂ offset" delta="+22.5%" trend="up" Icon={Leaf}   iconColor="text-emerald-600" iconBg="bg-emerald-50" />
-            <KpiCard title="Budget Used"     value="68"    unit="% annual" delta="-3.4%"  trend="down" Icon={BarChart2} iconColor="text-blue-600"  iconBg="bg-blue-50" />
+            <KpiCard title="Total Emissions" value={realEmissions ? realEmissions.grand_total_tco2e.toLocaleString() : "0"} unit="tCO₂e"    delta="-8.2%" trend="down" Icon={Factory}  iconColor="text-green-600"  iconBg="bg-green-50" />
+            <KpiCard title="Carbon Credits"  value={realCredits.toLocaleString()} unit="tCO₂ offset" delta="+22.5%" trend="up" Icon={Leaf}   iconColor="text-emerald-600" iconBg="bg-emerald-50" />
+            <KpiCard title="Wallet Balance"     value={realWallet ? "₹" + realWallet.balance.toLocaleString() : "₹0"}    unit="INR" delta="Live"  trend="up" Icon={IndianRupee} iconColor="text-blue-600"  iconBg="bg-blue-50" />
             <KpiCard title="AI Accuracy"     value="99.2"  unit="%"        delta="+0.4%"  trend="up"   Icon={Zap}     iconColor="text-violet-600" iconBg="bg-violet-50" />
           </div>
 
@@ -668,17 +727,13 @@ export function DashboardPage() {
             We encountered issues processing your latest emissions dataset. Please review and reupload corrected data.
           </p>
           <div className="w-full max-w-md p-4 rounded-xl bg-red-50 border border-red-100 mb-6 text-left">
-            <p className="text-sm font-bold text-red-700 mb-3">3 Errors Found</p>
-            {[
-              "Row 47: Missing Scope 2 electricity data for Pune facility",
-              "Row 112: Invalid unit — expected tCO₂, received 'kg'",
-              "Column 'transport_fuel' contains non-numeric values",
-            ].map((err) => (
-              <div key={err} className="flex gap-2.5 py-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
-                <p className="text-xs text-gray-700">{err}</p>
-              </div>
-            ))}
+            <p className="text-sm font-bold text-red-700 mb-3">Error Details</p>
+            <div className="flex gap-2.5 py-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-gray-700 font-mono leading-relaxed">
+                {lastErrorMsg || "No active error details. Use the 'Upload Data' button to run validation checks."}
+              </p>
+            </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <button
@@ -687,9 +742,6 @@ export function DashboardPage() {
             >
               <Upload className="w-4 h-4" />
               Reupload Corrected File
-            </button>
-            <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-sm font-medium text-red-700 hover:bg-red-50 transition-all">
-              Download Error Report
             </button>
           </div>
         </div>
@@ -727,9 +779,11 @@ export function DashboardPage() {
 
               <div className="space-y-1.5">
                 <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Executive Summary</h4>
-                <p className="text-sm text-muted-foreground leading-relaxed bg-muted/20 p-3 rounded-lg border border-border">
-                  {currentAnalysisResult.summary}
-                </p>
+                <div className="prose prose-sm prose-emerald dark:prose-invert max-w-none text-muted-foreground bg-muted/20 p-4 rounded-xl border border-border [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {currentAnalysisResult.summary}
+                  </ReactMarkdown>
+                </div>
               </div>
 
               <div className="space-y-2">
