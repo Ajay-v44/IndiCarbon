@@ -92,8 +92,9 @@ def get_emission_summary(
     entries = EmissionReportRepository(db).get_by_org_and_period(org_id, period_start, period_end)
     scope_totals = {s.value: 0.0 for s in GHGScope}
     for e in entries:
-        if e.scope_type in scope_totals:
-            scope_totals[e.scope_type] += float(e.calculated_tco2e or 0)
+        norm_scope = str(e.scope_type).upper().replace(" ", "_") if e.scope_type else ""
+        if norm_scope in scope_totals:
+            scope_totals[norm_scope] += float(e.calculated_tco2e or 0)
 
     return EmissionSummaryResponse(
         organization_id=org_id,

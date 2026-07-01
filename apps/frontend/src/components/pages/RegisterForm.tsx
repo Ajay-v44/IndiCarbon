@@ -40,6 +40,7 @@ export function RegisterForm() {
   const authError = useAppSelector((state) => state.auth.error);
   const [step, setStep] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState("Free Trial");
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -93,23 +94,32 @@ export function RegisterForm() {
         {STEPS.map((s, i) => (
           <div key={s} className="flex items-center gap-2">
             <div
-              className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition-all ${
-                i < step
-                  ? "bg-foreground text-background"
-                  : i === step
-                  ? "bg-muted text-foreground border border-border"
-                  : "bg-muted/50 text-muted-foreground border border-border"
-              }`}
+              onClick={() => {
+                if (i < step) {
+                  setStep(i);
+                }
+              }}
+              className={`flex items-center gap-2 ${i < step ? "cursor-pointer" : ""}`}
             >
-              {i < step ? <CheckCircle2 className="w-4 h-4" /> : i + 1}
+              <div
+                className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition-all ${
+                  i < step
+                    ? "bg-foreground text-background hover:opacity-80"
+                    : i === step
+                    ? "bg-muted text-foreground border border-border"
+                    : "bg-muted/50 text-muted-foreground border border-border"
+                }`}
+              >
+                {i < step ? <CheckCircle2 className="w-4 h-4" /> : i + 1}
+              </div>
+              <span
+                className={`text-xs hidden sm:block ${
+                  i === step ? "text-foreground font-semibold" : "text-muted-foreground"
+                }`}
+              >
+                {s}
+              </span>
             </div>
-            <span
-              className={`text-xs hidden sm:block ${
-                i === step ? "text-foreground" : "text-muted-foreground"
-              }`}
-            >
-              {s}
-            </span>
             {i < STEPS.length - 1 && (
               <div className={`w-8 h-px ${i < step ? "bg-foreground" : "bg-border"}`} />
             )}
@@ -266,19 +276,35 @@ export function RegisterForm() {
               <div className="space-y-3">
                 <p className="text-xs font-medium text-foreground">Plan</p>
                 {[
-                  { name: "Free Trial", desc: "30 days, 1 facility", price: "Free" },
-                  { name: "Enterprise", desc: "Unlimited, full features", price: "Contact Sales" },
-                ].map((plan) => (
-                  <div key={plan.name} className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted cursor-pointer transition-all">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{plan.name}</p>
-                      <p className="text-xs text-muted-foreground">{plan.desc}</p>
+                  { name: "Free Trial", desc: "30 days, 1 facility", price: "Free", disabled: false },
+                  { name: "Enterprise", desc: "Unlimited, full features", price: "Contact Sales", disabled: true },
+                ].map((plan) => {
+                  const isSelected = selectedPlan === plan.name;
+                  return (
+                    <div
+                      key={plan.name}
+                      onClick={() => !plan.disabled && setSelectedPlan(plan.name)}
+                      className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                        plan.disabled
+                          ? "opacity-60 cursor-not-allowed border-border"
+                          : isSelected
+                          ? "border-foreground bg-muted ring-1 ring-foreground"
+                          : "border-border hover:bg-muted cursor-pointer"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {plan.disabled && <Lock className="w-3.5 h-3.5 text-muted-foreground mr-1" />}
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{plan.name}</p>
+                          <p className="text-xs text-muted-foreground">{plan.desc}</p>
+                        </div>
+                      </div>
+                      <Badge className="bg-muted text-foreground border-border text-xs">
+                        {plan.price}
+                      </Badge>
                     </div>
-                    <Badge className="bg-muted text-foreground border-border text-xs">
-                      {plan.price}
-                    </Badge>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <p className="text-xs text-muted-foreground text-center">

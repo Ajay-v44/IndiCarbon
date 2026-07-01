@@ -43,6 +43,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 /* ─── Data ──────────────────────────────────────────────────── */
 const emissionsData = [
@@ -245,6 +247,7 @@ function McpSection() {
 export function DashboardPage() {
   const dispatch = useAppDispatch();
   const [state, setState] = useState<State>("success");
+  const [lastErrorMsg, setLastErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const tokens = useAppSelector((state) => state.auth.tokens);
@@ -272,7 +275,7 @@ export function DashboardPage() {
       setRealEmissions(emissions);
       setRealWallet(wallet);
       
-      const totalCredits = credits.reduce((sum: number, c: any) => sum + (c.quantity || 0), 0);
+      const totalCredits = credits.filter((c: any) => c.status === "ISSUED").length;
       setRealCredits(totalCredits);
 
       // If report_count is 0 and we have no emissions, set state to empty
@@ -349,12 +352,17 @@ export function DashboardPage() {
         );
         setCurrentAnalysisResult(result);
         setAnalysisModalOpen(true);
+        setState("success");
+        setLastErrorMsg(null);
         toast.success(`Analysis complete for "${file.name}"!`);
         fetchDashboardData();
       } else {
         throw new Error(resultAction.payload as string || "Analysis pipeline failed");
       }
     } catch (err: any) {
+      const errMsg = err.message || String(err);
+      setLastErrorMsg(errMsg);
+      setState("error");
       setUploadedFiles((prev) =>
         prev.map((f) =>
           f.name === file.name
@@ -362,7 +370,7 @@ export function DashboardPage() {
             : f
         )
       );
-      toast.error(`Error uploading "${file.name}": ${err.message || err}`);
+      toast.error(`Error uploading "${file.name}": ${errMsg}`);
     } finally {
       setUploadingFile(false);
       if (fileInputRef.current) {
@@ -719,17 +727,13 @@ export function DashboardPage() {
             We encountered issues processing your latest emissions dataset. Please review and reupload corrected data.
           </p>
           <div className="w-full max-w-md p-4 rounded-xl bg-red-50 border border-red-100 mb-6 text-left">
-            <p className="text-sm font-bold text-red-700 mb-3">3 Errors Found</p>
-            {[
-              "Row 47: Missing Scope 2 electricity data for Pune facility",
-              "Row 112: Invalid unit — expected tCO₂, received 'kg'",
-              "Column 'transport_fuel' contains non-numeric values",
-            ].map((err) => (
-              <div key={err} className="flex gap-2.5 py-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
-                <p className="text-xs text-gray-700">{err}</p>
-              </div>
-            ))}
+            <p className="text-sm font-bold text-red-700 mb-3">Error Details</p>
+            <div className="flex gap-2.5 py-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-gray-700 font-mono leading-relaxed">
+                {lastErrorMsg || "No active error details. Use the 'Upload Data' button to run validation checks."}
+              </p>
+            </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <button
@@ -738,9 +742,6 @@ export function DashboardPage() {
             >
               <Upload className="w-4 h-4" />
               Reupload Corrected File
-            </button>
-            <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 text-sm font-medium text-red-700 hover:bg-red-50 transition-all">
-              Download Error Report
             </button>
           </div>
         </div>
@@ -778,9 +779,11 @@ export function DashboardPage() {
 
               <div className="space-y-1.5">
                 <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Executive Summary</h4>
-                <p className="text-sm text-muted-foreground leading-relaxed bg-muted/20 p-3 rounded-lg border border-border">
-                  {currentAnalysisResult.summary}
-                </p>
+                <div className="prose prose-sm prose-emerald dark:prose-invert max-w-none text-muted-foreground bg-muted/20 p-4 rounded-xl border border-border [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {currentAnalysisResult.summary}
+                  </ReactMarkdown>
+                </div>
               </div>
 
               <div className="space-y-2">

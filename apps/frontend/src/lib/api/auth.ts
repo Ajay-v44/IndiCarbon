@@ -48,10 +48,11 @@ export function listUsers(): Promise<UserProfile[]> {
   });
 }
 
-export function listRoles(): Promise<RoleResponse[]> {
+export function listRoles(excludeInternal?: boolean): Promise<RoleResponse[]> {
   return apiCall<RoleResponse[]>({
     url: "/api/v1/auth/roles",
     method: "GET",
+    params: excludeInternal !== undefined ? { exclude_internal: excludeInternal } : undefined,
   });
 }
 

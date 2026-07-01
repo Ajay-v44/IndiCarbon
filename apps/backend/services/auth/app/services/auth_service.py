@@ -40,6 +40,18 @@ async def register(
     supabase_public: Client,
 ) -> TokenResponse:
     """Register and activate a user through Supabase Auth, then persist app data via ORM."""
+    if req.phone_number and req.phone_number.strip():
+        from ..models.user import Profile
+        existing_phone = db.query(Profile).filter(
+            Profile.phone_number == req.phone_number.strip(),
+            Profile.is_active == True
+        ).first()
+        if existing_phone:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number is already registered."
+            )
+
     user = None
     try:
         res = supabase_admin.auth.admin.create_user(
@@ -112,12 +124,19 @@ async def register(
             logger.warning("Role %s not found; registered user without role: %s", assigned_role, user.id)
 
         db.commit()
-    except Exception:
+    except Exception as exc:
         db.rollback()
         try:
             supabase_admin.auth.admin.delete_user(str(user.id))
         except Exception:
             logger.exception("Failed to clean up auth user after profile persistence failed: %s", user.id)
+        
+        from sqlalchemy.exc import IntegrityError
+        if isinstance(exc, IntegrityError) and "profiles_phone_number_key" in str(exc):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number is already registered."
+            )
         raise
 
     logger.info("Registered new user: %s", user.email)

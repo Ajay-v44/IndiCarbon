@@ -94,6 +94,7 @@ import { cn } from "@/lib/utils";
 import { listUsers, listOrganizations, assignRole, listRoles, createRole, createUser, deleteUser, deleteOrganization, getOrganizationTokenStats } from "@/lib/api/auth";
 import { listBenchmarks, createBenchmark, deleteBenchmark } from "@/lib/api/compliance";
 import { getAllWallets, adminAddFunds, getAllWalletTransactions } from "@/lib/api/wallet";
+import { adminMintCredits } from "@/lib/api/marketplace";
 import { getSystemLogs, getSystemLogStats, resolveSystemLog, bulkResolveSystemLogs } from "@/lib/api/system-logs";
 import { getA2AStats, listA2ATasks } from "@/lib/api/ai";
 import { UserProfile, OrganizationResponse, SectorBenchmarkResponse, RoleResponse, WalletResponse, WalletTransactionResponse, SystemLogEntry, SystemLogStats, SystemLogFilters, A2ATaskSummary, A2AActivityStats } from "@/lib/api/types";
@@ -183,6 +184,14 @@ export function AdminPage() {
   const [addFundsAmount, setAddFundsAmount] = useState("");
   const [addFundsDescription, setAddFundsDescription] = useState("");
   const [walletSearchTerm, setWalletSearchTerm] = useState("");
+
+  // Mint Credits State
+  const [isMintCreditsOpen, setIsMintCreditsOpen] = useState(false);
+  const [mintOrgId, setMintOrgId] = useState("");
+  const [mintQuantity, setMintQuantity] = useState("10");
+  const [mintVintageYear, setMintVintageYear] = useState("2026");
+  const [mintProjectType, setMintProjectType] = useState("Reforestation");
+  const [minting, setMinting] = useState(false);
 
   // System Logs State (live from API)
   const [systemLogs, setSystemLogs] = useState<SystemLogEntry[]>([]);
@@ -310,6 +319,40 @@ export function AdminPage() {
       else next.add(id);
       return next;
     });
+  };
+
+  const handleMintCredits = async () => {
+    if (!mintOrgId || !mintQuantity) {
+      toast.error("Please fill all required fields.");
+      return;
+    }
+    const qty = parseInt(mintQuantity, 10);
+    const year = parseInt(mintVintageYear, 10);
+    if (Number.isNaN(qty) || qty <= 0) {
+      toast.error("Quantity must be a positive integer.");
+      return;
+    }
+    if (Number.isNaN(year)) {
+      toast.error("Vintage year must be a valid number.");
+      return;
+    }
+    try {
+      setMinting(true);
+      await adminMintCredits({
+        organization_id: mintOrgId,
+        quantity: qty,
+        vintage_year: year,
+        project_type: mintProjectType,
+      });
+      toast.success(`Successfully minted ${qty} carbon credits!`);
+      setIsMintCreditsOpen(false);
+      const walletsData = await getAllWallets().catch(() => []);
+      setWallets(walletsData);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.message || "Failed to mint carbon credits.");
+    } finally {
+      setMinting(false);
+    }
   };
 
   // Fetch data
@@ -1486,19 +1529,37 @@ export function AdminPage() {
                   <CardTitle className="text-sm font-bold text-foreground">Organization Wallets</CardTitle>
                   <CardDescription className="text-xs text-muted-foreground">View balances and add funds to organization wallets.</CardDescription>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setAddFundsOrgId(organizations[0]?.id || "");
-                    setAddFundsAmount("");
-                    setAddFundsDescription("");
-                    setIsAddFundsOpen(true);
-                  }}
-                  className="bg-foreground text-background hover:bg-foreground/90 font-medium h-9 text-xs"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Funds
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setAddFundsOrgId(organizations[0]?.id || "");
+                      setAddFundsAmount("");
+                      setAddFundsDescription("");
+                      setIsAddFundsOpen(true);
+                    }}
+                    className="bg-foreground/10 text-foreground hover:bg-foreground/20 font-medium h-9 text-xs border border-border"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Funds
+                  </Button>
+                  {isSuperAdmin && (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setMintOrgId(organizations[0]?.id || "");
+                        setMintQuantity("100");
+                        setMintVintageYear("2026");
+                        setMintProjectType("Reforestation");
+                        setIsMintCreditsOpen(true);
+                      }}
+                      className="bg-foreground text-background hover:bg-foreground/90 font-semibold h-9 text-xs"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Mint Credits
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -2910,6 +2971,91 @@ export function AdminPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mint Carbon Credits Dialog */}
+      <Dialog open={isMintCreditsOpen} onOpenChange={setIsMintCreditsOpen}>
+        <DialogContent className="sm:max-w-md bg-background border border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black text-foreground">Mint Carbon Credits for Organization</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="mint_org" className="text-xs text-muted-foreground">Select Organization</Label>
+              <Select value={mintOrgId} onValueChange={(val) => { if (val) setMintOrgId(val); }}>
+                <SelectTrigger className="bg-card border-border text-xs h-9 text-foreground">
+                  <SelectValue placeholder="Select organization" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border text-foreground">
+                  {organizations.map((org) => (
+                    <SelectItem key={org.id} value={org.id} className="text-xs">
+                      {org.legal_name} {org.trade_name ? `(${org.trade_name})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="mint_quantity" className="text-xs text-muted-foreground">Quantity (tCO₂e)</Label>
+              <Input
+                id="mint_quantity"
+                type="number"
+                min="1"
+                placeholder="e.g. 100"
+                value={mintQuantity}
+                onChange={(e) => setMintQuantity(e.target.value)}
+                className="bg-card border-border text-xs h-9 text-foreground animate-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="mint_vintage" className="text-xs text-muted-foreground">Vintage Year</Label>
+              <Input
+                id="mint_vintage"
+                type="number"
+                placeholder="e.g. 2026"
+                value={mintVintageYear}
+                onChange={(e) => setMintVintageYear(e.target.value)}
+                className="bg-card border-border text-xs h-9 text-foreground"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="mint_project_type" className="text-xs text-muted-foreground">Project Type</Label>
+              <Select value={mintProjectType} onValueChange={(val) => { if (val) setMintProjectType(val); }}>
+                <SelectTrigger className="bg-card border-border text-xs h-9 text-foreground">
+                  <SelectValue placeholder="Select project type" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border text-foreground">
+                  {["Reforestation", "Solar PV Grid Connect", "Wind Power Project", "Methane Avoidance", "Biomass Energy"].map((type) => (
+                    <SelectItem key={type} value={type} className="text-xs">
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsMintCreditsOpen(false)}
+                className="border-border text-foreground hover:bg-muted text-xs h-9"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleMintCredits}
+                disabled={minting}
+                className="bg-emerald-600 text-white hover:bg-emerald-700 text-xs h-9 font-semibold"
+              >
+                {minting ? "Minting..." : "Mint Credits"}
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 

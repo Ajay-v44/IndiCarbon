@@ -56,8 +56,8 @@ class GatewaySettings(BaseSettings):
     app_jwt_algorithm: str = "HS256"
     allowed_origins: str = "http://localhost:3000"
 
-    gateway_client_timeout: float = 30.0
-    ai_service_timeout: float = 120.0
+    gateway_client_timeout: float = 180.0
+    ai_service_timeout: float = 180.0
 
     @property
     def cors_origins(self) -> list[str]:

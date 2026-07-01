@@ -75,3 +75,16 @@ export function cancelProposal(proposalId: string): Promise<ProposalResponse> {
     method: "POST",
   });
 }
+
+export function adminMintCredits(payload: {
+  organization_id: string;
+  quantity: number;
+  vintage_year: number;
+  project_type: string;
+}): Promise<any> {
+  return apiCall<any>({
+    url: "/api/v1/credits/admin/mint",
+    method: "POST",
+    data: payload,
+  });
+}

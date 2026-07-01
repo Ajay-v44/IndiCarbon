@@ -49,13 +49,14 @@ export function SettingsPage() {
 
   const tokens = useAppSelector((state) => state.auth.tokens);
   const userOrgId = tokens?.organization_id || tokens?.organization_ids?.[0];
+  const isInternal = tokens?.is_internal || tokens?.roles?.includes("SUPER_ADMIN") || tokens?.roles?.includes("SALES") || tokens?.roles?.includes("GOVT_AUDITOR");
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const [fetchedUsers, fetchedRoles] = await Promise.all([
         listUsers(),
-        listRoles(),
+        listRoles(!isInternal),
       ]);
       setUsers(fetchedUsers);
       setRoles(fetchedRoles);
