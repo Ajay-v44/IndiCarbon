@@ -14,7 +14,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { Zap, Play, RotateCcw, Download, Leaf, Sun, Wind, Factory } from "lucide-react";
+import { Zap, Play, RotateCcw, Download, Leaf, Sun, Wind, Factory, TrendingDown, CheckCircle2 } from "lucide-react";
 
 const baselineData = [
   { year: "2026", baseline: 5000, optimized: 5000 },
@@ -28,6 +28,16 @@ const baselineData = [
   { year: "2050", baseline: 6200, optimized: 0 },
 ];
 
+function computeStrategies(solar: number, wind: number, efficiency: number, offsets: number) {
+  const strategies: any[] = [];
+  if (solar < 50) strategies.push({ title: "Scale Up Solar PV", description: `Increase solar from ${solar}% to 80%. Install rooftop/ground PV across facilities.`, est_reduction: `${Math.round((80 - solar) * 12)} tCO₂e/yr`, cost: "₹2.4–6Cr capex", payback: `${Math.round(7 - solar / 20)} years`, difficulty: "Medium", priority: "HIGH", icon: Sun, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" });
+  if (wind < 30) strategies.push({ title: "Wind PPA / On-Site Wind", description: `Wind at ${wind}% — sign PPAs with wind developers or install captive wind turbines.`, est_reduction: `${Math.round((30 - wind) * 8)} tCO₂e/yr`, cost: "₹50L–1.5Cr/yr", payback: "3–4 years", difficulty: "Low", priority: "HIGH", icon: Wind, color: "text-teal-600", bg: "bg-teal-50", border: "border-teal-200" });
+  if (efficiency < 50) strategies.push({ title: "Process Efficiency Improvements", description: `Energy intensity at ${efficiency}% — invest in VFDs, heat recovery, and smart energy management.`, est_reduction: `${Math.round((50 - efficiency) * 15)} tCO₂e/yr`, cost: "₹80L–2Cr", payback: "2–4 years", difficulty: "Medium", priority: "HIGH", icon: Factory, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200" });
+  if (offsets < 100) strategies.push({ title: "Purchase Verified Carbon Credits", description: "Buy VERRA or Gold Standard credits to offset residual emissions. Prioritize nature-based solutions.", est_reduction: `${Math.round(offsets * 0.5)} tCO₂e offset`, cost: "₹800–1,500/tCO₂e", payback: "Immediate", difficulty: "Low", priority: "MEDIUM", icon: Leaf, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200" });
+  if (solar >= 50 && wind >= 30 && efficiency >= 50) strategies.push({ title: "Submit Projects for Credit Verification", description: "Your renewable mix is strong. Submit projects to VERRA/BEE/CCTS for carbon credit issuance.", est_reduction: "Credit issuance eligible", cost: "Verification fees only", payback: "Revenue generating", difficulty: "Medium", priority: "HIGH", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200" });
+  return strategies;
+}
+
 export function SimulatorPage() {
   const [solar, setSolar] = useState([30]);
   const [wind, setWind] = useState([15]);
@@ -38,6 +48,8 @@ export function SimulatorPage() {
 
   const reduction = Math.round(solar[0] * 0.8 + wind[0] * 0.6 + efficiency[0] * 0.9 + offsets[0] * 0.5);
   const targetYear = reduction > 80 ? 2038 : reduction > 60 ? 2042 : reduction > 40 ? 2048 : 2055;
+  const strategies = computeStrategies(solar[0], wind[0], efficiency[0], offsets[0]);
+
 
   const handleRun = () => {
     setRunning(true);
@@ -264,6 +276,70 @@ export function SimulatorPage() {
           </Card>
         </div>
       </div>
+
+      {/* AI Strategy Recommendations */}
+      {ran && strategies.length > 0 && (
+        <Card className="glass border-border">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base text-foreground flex items-center gap-2">
+                  <TrendingDown className="w-4 h-4 text-emerald-500" />
+                  AI Decarbonization Strategy — Phase 4 Recommendations
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                  {strategies.length} priority actions identified based on your scenario parameters
+                </CardDescription>
+              </div>
+              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs">
+                <Zap className="w-3 h-3 mr-1" />
+                AI Generated
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {strategies.map((s, i) => {
+                const Icon = s.icon;
+                return (
+                  <div key={i} className={`rounded-xl border ${s.border} ${s.bg} p-4`}>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-8 h-8 rounded-lg bg-white/70 flex items-center justify-center`}>
+                          <Icon className={`w-4 h-4 ${s.color}`} />
+                        </div>
+                        <p className={`text-sm font-bold ${s.color}`}>{s.title}</p>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${ s.priority === "HIGH" ? "bg-red-100 text-red-700 border border-red-200" : "bg-amber-100 text-amber-700 border border-amber-200" }`}>
+                        {s.priority}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed mb-3">{s.description}</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { label: "Reduction", value: s.est_reduction },
+                        { label: "Est. Cost", value: s.cost },
+                        { label: "Payback", value: s.payback },
+                      ].map((metric) => (
+                        <div key={metric.label} className="bg-white/60 dark:bg-black/20 rounded-lg p-2 text-center">
+                          <p className="text-[10px] text-muted-foreground">{metric.label}</p>
+                          <p className="text-xs font-bold text-foreground mt-0.5">{metric.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg p-3 border border-border">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              Submit your high-potential projects from the{" "}
+              <a href="/projects" className="text-emerald-600 dark:text-emerald-400 font-semibold hover:underline">Carbon Projects</a>{" "}
+              page to earn verified carbon credits.
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

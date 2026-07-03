@@ -7,7 +7,7 @@ import redis.asyncio as aioredis
 from fastapi import FastAPI
 from shared_logic import register_middleware
 
-from .api.v1.routes import credits, orders, proposals, trades, wallet
+from .api.v1.routes import credits, orders, projects, proposals, trades, wallet
 from .config import settings
 
 logging.basicConfig(
@@ -18,7 +18,7 @@ logger = logging.getLogger("marketplace-service")
 
 
 from shared_logic.database import Base, _get_engine
-from .models import credit, order, wallet as wallet_model
+from .models import credit, order, project, wallet as wallet_model
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -49,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(credits.router, prefix="/api/v1/credits", tags=["Carbon Credit Registry"])
     app.include_router(trades.router, prefix="/api/v1/trades", tags=["Transaction Ledgers"])
     app.include_router(wallet.router, prefix="/api/v1/wallet", tags=["Wallet"])
+    app.include_router(projects.router, prefix="/api/v1/projects", tags=["Carbon Projects"])
 
     @app.get("/health", tags=["Observability"])
     async def health():
