@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from fastapi import APIRouter, Request, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -48,6 +49,7 @@ def list_credits(
             "project_type": c.project_type,
             "vintage_year": c.vintage_year,
             "status": c.status,
+            "quantity": c.quantity,
             "created_at": c.created_at.isoformat() if c.created_at else None,
         } for c in credits],
         message=f"{len(credits)} credits found.",
@@ -76,29 +78,21 @@ def get_portfolio_summary(
     repo = CreditRepository(db)
     portfolio = repo.get_portfolio_summary(organization_id)
 
-    # Fetch gross emissions from compliance service
+    # Fetch gross emissions directly from database (avoid slow/unreachable compliance HTTP calls)
     gross_emissions_tco2e = 0.0
     try:
-        import httpx
-        from ....config import settings as svc_settings
-        headers = {}
-        if request and request.headers.get("authorization"):
-            headers["authorization"] = request.headers.get("authorization")
-        resp = httpx.get(
-            f"{svc_settings.compliance_service_url}/api/v1/emissions/summary",
-            params={
-                "organization_id": organization_id,
-                "period_start": "2026-01-01",
-                "period_end": "2026-12-31",
-            },
-            headers=headers,
-            timeout=5.0,
-        )
-        if resp.status_code == 200:
-            data = resp.json().get("data", {})
-            gross_emissions_tco2e = float(data.get("grand_total_tco2e", 0.0))
-    except Exception:
-        pass
+        from sqlalchemy import text
+        res = db.execute(text("""
+            SELECT COALESCE(SUM(calculated_tco2e), 0.0) 
+            FROM emission_reports 
+            WHERE organization_id = :org_id 
+              AND reporting_period_start >= '2026-01-01' 
+              AND reporting_period_end <= '2026-12-31'
+        """), {"org_id": organization_id}).scalar()
+        gross_emissions_tco2e = float(res or 0.0)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed to query gross emissions directly: {e}")
 
     # Net position = Gross - (Applied + Retired). ISSUED credits do NOT count yet.
     total_offset_tco2e = portfolio["total_offset_tco2e"]
@@ -210,20 +204,21 @@ def mint_credits(
     from ....models.credit import CarbonCredit
     import uuid
 
-    created_credits = []
-    for _ in range(req.quantity):
-        serial = f"CCT-{uuid.uuid4().hex[:8].upper()}-{req.organization_id[:8]}"
-        credit = CarbonCredit(
-            serial_number=serial,
-            vintage_year=req.vintage_year,
-            project_type=req.project_type,
-            initial_owner_id=uuid.UUID(req.organization_id),
-            current_owner_id=uuid.UUID(req.organization_id),
-            status="ISSUED",
-        )
-        db.add(credit)
-        created_credits.append(credit)
-
+    org_id = uuid.UUID(req.organization_id)
+    serial = f"CCT-{uuid.uuid4().hex[:16].upper()}-{req.organization_id[:8]}"
+    credit = CarbonCredit(
+        id=uuid.uuid4(),
+        serial_number=serial,
+        vintage_year=req.vintage_year,
+        project_type=req.project_type,
+        initial_owner_id=org_id,
+        current_owner_id=org_id,
+        status="ISSUED",
+        quantity=req.quantity,
+        created_at=datetime.now(timezone.utc)
+    )
+    db.add(credit)
+    db.flush()
     db.commit()
 
     return ApiResponse(
@@ -235,3 +230,4 @@ def mint_credits(
         },
         message=f"Successfully minted {req.quantity} carbon credits.",
     )
+

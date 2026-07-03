@@ -56,10 +56,11 @@ async def _settle_trade(
 
     try:
         available = credit_repo.find_available_for_seller(seller_org_id, quantity)
-        if len(available) < quantity:
+        total_avail = sum(c.quantity for c in available)
+        if total_avail < quantity:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Insufficient credits: requested {quantity}, available {len(available)}.",
+                detail=f"Insufficient credits: requested {quantity}, available {total_avail}.",
             )
 
         reserved_ids = [str(c.id) for c in available]
@@ -255,10 +256,22 @@ def list_trades(org_id: str, db: Session) -> list[dict]:
 def get_market_book(db: Session) -> list[dict]:
     """Return all open SELL orders across the platform (the public order book)."""
     orders = MarketOrderRepository(db).list_market_orders()
+    
+    org_ids = list({str(o.organization_id) for o in orders})
+    org_names = {}
+    if org_ids:
+        try:
+            from sqlalchemy import text
+            res = db.execute(text("SELECT id, legal_name FROM organizations WHERE id IN :ids"), {"ids": tuple(org_ids)}).fetchall()
+            org_names = {str(row[0]): row[1] for row in res}
+        except Exception as e:
+            print("Error fetching org names in get_market_book:", e)
+            
     return [
         {
             "id": str(o.id),
             "organization_id": str(o.organization_id),
+            "organization_name": org_names.get(str(o.organization_id)),
             "order_type": o.order_type,
             "quantity": o.quantity,
             "price_per_unit": float(o.price_per_unit),
@@ -269,6 +282,7 @@ def get_market_book(db: Session) -> list[dict]:
         }
         for o in orders
     ]
+
 
 
 # ─── Proposal / RFQ Flow ─────────────────────────────────────────────────────
@@ -474,6 +488,7 @@ def list_credits(org_id: str, db: Session) -> list[dict]:
             "status": c.status,
             "initial_owner_id": str(c.initial_owner_id) if c.initial_owner_id else None,
             "current_owner_id": str(c.current_owner_id) if c.current_owner_id else None,
+            "quantity": c.quantity,
             "created_at": c.created_at.isoformat() if c.created_at else None,
         }
         for c in credits

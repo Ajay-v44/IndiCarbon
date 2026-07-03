@@ -254,7 +254,7 @@ export function MarketplaceBuyPage() {
                         </h3>
                         <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
                           <Building2 className="w-3 h-3" />
-                          <span>Seller: {order.organization_id.substring(0, 8)}…</span>
+                          <span>Seller: {order.organization_name || `${order.organization_id.substring(0, 8)}…`}</span>
                         </div>
                       </div>
                     </div>

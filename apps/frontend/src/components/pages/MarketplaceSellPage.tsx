@@ -89,7 +89,7 @@ export function MarketplaceSellPage() {
     .filter((c) => c.status === "ISSUED")
     .reduce<Record<string, number>>((acc, credit) => {
       const type = credit.project_type ?? "Generic";
-      acc[type] = (acc[type] ?? 0) + 1;
+      acc[type] = (acc[type] ?? 0) + (credit.quantity || 1);
       return acc;
     }, {});
 

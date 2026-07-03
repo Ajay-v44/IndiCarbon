@@ -89,6 +89,7 @@ import {
   MessageSquare,
   Clock,
   FolderOpen,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppSelector } from "@/store/hooks";
@@ -205,6 +206,7 @@ export function AdminPage() {
   const [projectReviewDialogOpen, setProjectReviewDialogOpen] = useState(false);
   const [selectedAdminProject, setSelectedAdminProject] = useState<any>(null);
   const [adminApprovedCredits, setAdminApprovedCredits] = useState<string>("");
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   // Admin Projects Pagination state
   const [adminProjectsCount, setAdminProjectsCount] = useState(0);
@@ -508,6 +510,7 @@ export function AdminPage() {
   };
 
   const handleProjectStatusUpdate = async (projectId: string, newStatus: string, notes: string, approvedCredits?: number) => {
+    setStatusUpdating(true);
     try {
       await updateProjectStatus(projectId, newStatus, notes || undefined, approvedCredits);
       toast.success(`Project status updated to ${newStatus}.`);
@@ -519,6 +522,8 @@ export function AdminPage() {
       fetchAdminProjects(adminProjectStatusFilter !== "ALL" ? adminProjectStatusFilter : undefined, adminProjectsOffset);
     } catch (err: any) {
       toast.error(err.message || "Failed to update project status.");
+    } finally {
+      setStatusUpdating(false);
     }
   };
 
@@ -2584,10 +2589,10 @@ export function AdminPage() {
                             setAdminApprovedCredits(
                               project.admin_approved_credits !== null && project.admin_approved_credits !== undefined
                                 ? String(project.admin_approved_credits)
-                                : project.ai_estimated_credits !== null && project.ai_estimated_credits !== undefined
-                                ? String(project.ai_estimated_credits)
                                 : project.estimated_credits !== null && project.estimated_credits !== undefined
                                 ? String(project.estimated_credits)
+                                : project.ai_estimated_credits !== null && project.ai_estimated_credits !== undefined
+                                ? String(project.ai_estimated_credits)
                                 : ""
                             );
                             setReviewingProjectId(project.id);
@@ -2601,6 +2606,7 @@ export function AdminPage() {
                             size="sm"
                             className="h-7 text-[10px] bg-blue-600 hover:bg-blue-700 text-white"
                             onClick={() => handleProjectStatusUpdate(project.id, "UNDER_REVIEW", "Project moved to active review queue.")}
+                            disabled={statusUpdating}
                           >
                             Start Review
                           </Button>
@@ -2610,7 +2616,8 @@ export function AdminPage() {
                             <Button
                               size="sm"
                               className="h-7 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white"
-                              onClick={() => handleProjectStatusUpdate(project.id, "VERIFIED", "Project verified — eligible for carbon credit issuance.")}
+                              onClick={() => handleProjectStatusUpdate(project.id, "VERIFIED", "Project verified — eligible for carbon credit issuance.", project.estimated_credits)}
+                              disabled={statusUpdating}
                             >
                               Verify ✓
                             </Button>
@@ -2624,15 +2631,16 @@ export function AdminPage() {
                                 setAdminApprovedCredits(
                                   project.admin_approved_credits !== null && project.admin_approved_credits !== undefined
                                     ? String(project.admin_approved_credits)
-                                    : project.ai_estimated_credits !== null && project.ai_estimated_credits !== undefined
-                                    ? String(project.ai_estimated_credits)
                                     : project.estimated_credits !== null && project.estimated_credits !== undefined
                                     ? String(project.estimated_credits)
+                                    : project.ai_estimated_credits !== null && project.ai_estimated_credits !== undefined
+                                    ? String(project.ai_estimated_credits)
                                     : ""
                                 );
                                 setReviewingProjectId(project.id);
                                 setProjectReviewDialogOpen(true);
                               }}
+                              disabled={statusUpdating}
                             >
                               Reject
                             </Button>
@@ -2685,7 +2693,7 @@ export function AdminPage() {
 
           {/* Project Review Dialog */}
           <Dialog open={projectReviewDialogOpen} onOpenChange={setProjectReviewDialogOpen}>
-            <DialogContent className="sm:max-w-md bg-background border border-border text-foreground">
+            <DialogContent className="sm:max-w-md bg-background border border-border text-foreground max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="text-sm font-black text-foreground">
                   Review: {selectedAdminProject?.name}
@@ -2765,13 +2773,22 @@ export function AdminPage() {
                       size="sm"
                       className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
                       onClick={() => reviewingProjectId && handleProjectStatusUpdate(reviewingProjectId, "VERIFIED", projectReviewNotes, adminApprovedCredits ? Number(adminApprovedCredits) : undefined)}
+                      disabled={statusUpdating}
                     >
-                      Verify Project ✓
+                      {statusUpdating ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        "Verify Project ✓"
+                      )}
                     </Button>
                     <Button
                       size="sm"
                       className="text-xs h-8 bg-blue-600 hover:bg-blue-700 text-white"
                       onClick={() => reviewingProjectId && handleProjectStatusUpdate(reviewingProjectId, "UNDER_REVIEW", projectReviewNotes, adminApprovedCredits ? Number(adminApprovedCredits) : undefined)}
+                      disabled={statusUpdating}
                     >
                       Move to Under Review
                     </Button>
@@ -2780,6 +2797,7 @@ export function AdminPage() {
                       variant="outline"
                       className="text-xs h-8 border-red-500/30 text-red-500 hover:bg-red-500/10"
                       onClick={() => reviewingProjectId && handleProjectStatusUpdate(reviewingProjectId, "REJECTED", projectReviewNotes, adminApprovedCredits ? Number(adminApprovedCredits) : undefined)}
+                      disabled={statusUpdating}
                     >
                       Reject
                     </Button>
@@ -2788,6 +2806,7 @@ export function AdminPage() {
                       variant="outline"
                       className="text-xs h-8 border-border text-muted-foreground ml-auto"
                       onClick={() => setProjectReviewDialogOpen(false)}
+                      disabled={statusUpdating}
                     >
                       Cancel
                     </Button>

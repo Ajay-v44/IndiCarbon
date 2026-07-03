@@ -305,17 +305,20 @@ def update_project_status(
 
         if credit_qty > 0:
             org_id = project.organization_id
-            for _ in range(credit_qty):
-                serial = f"CCT-{uuid.uuid4().hex[:8].upper()}-{str(org_id)[:8]}"
-                credit = CarbonCredit(
-                    serial_number=serial,
-                    vintage_year=datetime.now(timezone.utc).year,
-                    project_type=project.project_type,
-                    initial_owner_id=org_id,
-                    current_owner_id=org_id,
-                    status="ISSUED",
-                )
-                db.add(credit)
+            serial = f"CCT-{uuid.uuid4().hex[:16].upper()}-{str(org_id)[:8]}"
+            credit = CarbonCredit(
+                id=uuid.uuid4(),
+                serial_number=serial,
+                vintage_year=datetime.now(timezone.utc).year,
+                project_type=project.project_type,
+                initial_owner_id=org_id,
+                current_owner_id=org_id,
+                status="ISSUED",
+                quantity=credit_qty,
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(credit)
+            db.flush()
 
             project.credits_issued = credit_qty
             credits_minted = credit_qty

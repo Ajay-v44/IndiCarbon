@@ -518,7 +518,7 @@ async def run_chat(
         session_pii_map.update(payload.get("pii_map") or {})
     session_pii_map.update(pii_unmask_map)
 
-    tools = build_chat_tools(db, organization_id, user_id, pii_unmask_map=session_pii_map)
+    tools = build_chat_tools(db, organization_id, user, pii_unmask_map=session_pii_map)
     langfuse_handler = build_langfuse_handler(str(run_id), "chat", organization_id)
 
     system_prompt = _build_system_prompt(user, memory, sources, structured_context)

@@ -282,7 +282,7 @@ export function DashboardPage() {
       setRealEmissions(emissions);
       setRealWallet(wallet);
       
-      const totalCredits = credits.filter((c: any) => c.status === "ISSUED").length;
+      const totalCredits = credits.filter((c: any) => c.status === "ISSUED").reduce((sum: number, c: any) => sum + (c.quantity || 1), 0);
       setRealCredits(totalCredits);
       setCreditsList(credits || []);
 
@@ -624,7 +624,16 @@ export function DashboardPage() {
             <KpiCard title="Total Emissions" value={realEmissions ? realEmissions.grand_total_tco2e.toLocaleString() : "0"} unit="tCO₂e"    delta="-8.2%" trend="down" Icon={Factory}  iconColor="text-green-600"  iconBg="bg-green-50" />
             <KpiCard title="Carbon Credits"  value={realCredits.toLocaleString()} unit="tCO₂ offset" delta="+22.5%" trend="up" Icon={Leaf}   iconColor="text-emerald-600" iconBg="bg-emerald-50" />
             <KpiCard title="Wallet Balance"     value={realWallet ? "₹" + realWallet.balance.toLocaleString() : "₹0"}    unit="INR" delta="Live"  trend="up" Icon={IndianRupee} iconColor="text-blue-600"  iconBg="bg-blue-50" />
-            <KpiCard title="AI Accuracy"     value="99.2"  unit="%"        delta="+0.4%"  trend="up"   Icon={Zap}     iconColor="text-violet-600" iconBg="bg-violet-50" />
+            <KpiCard
+              title="Net Carbon Position"
+              value={portfolioSummary ? portfolioSummary.net_carbon_position_tco2e.toLocaleString(undefined, { maximumFractionDigits: 1 }) : "0"}
+              unit="tCO₂e"
+              delta={portfolioSummary?.net_carbon_position_tco2e > 0 ? "Offset Required" : "Net Zero"}
+              trend={portfolioSummary?.net_carbon_position_tco2e > 0 ? "up" : "down"}
+              Icon={Zap}
+              iconColor={portfolioSummary?.net_carbon_position_tco2e > 0 ? "text-orange-600" : "text-emerald-600"}
+              iconBg={portfolioSummary?.net_carbon_position_tco2e > 0 ? "bg-orange-50" : "bg-emerald-50"}
+            />
           </div>
 
           {/* Charts */}
@@ -928,7 +937,7 @@ export function DashboardPage() {
 
       {/* ── Document Analysis Modal ───────────────────────────── */}
       <Dialog open={analysisModalOpen} onOpenChange={setAnalysisModalOpen}>
-        <DialogContent className="glass border-border max-w-2xl text-foreground max-h-[85vh] overflow-y-auto">
+        <DialogContent className="glass border-border w-full sm:max-w-2xl text-foreground max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
@@ -1017,7 +1026,7 @@ export function DashboardPage() {
 
       {/* ── Upload Confirmation Modal ───────────────────────────── */}
       <Dialog open={uploadConfirmOpen} onOpenChange={setUploadConfirmOpen}>
-        <DialogContent className="glass border-border max-w-md text-foreground">
+        <DialogContent className="glass border-border w-full sm:max-w-md text-foreground">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
               <CloudUpload className="w-5 h-5 text-green-600 dark:text-green-400 animate-bounce" />

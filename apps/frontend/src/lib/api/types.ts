@@ -139,6 +139,7 @@ export interface CarbonCredit {
   project_type?: string;
   status: CreditStatus;
   current_owner_id?: string;
+  quantity?: number;
 }
 
 /** A market order as returned by GET /api/v1/orders/market or GET /api/v1/orders */
@@ -152,6 +153,7 @@ export interface MarketOrder {
   created_at?: string;
   vintage_year?: number;
   project_type?: string;
+  organization_name?: string;
 }
 
 /** Request body for POST /api/v1/orders — matches backend PlaceOrderRequest schema */

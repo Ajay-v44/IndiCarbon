@@ -170,7 +170,7 @@ async def calculate_scope_emissions(
     document_id:str,
     db: Session,
 ) :
-    current_month=datetime.now(timezone.utc)
+    current_month = datetime.now(timezone.utc).date()
     total_tco2e=0.0
     
     # Safely handle invalid UUIDs (e.g. during testing with "document_id=2")

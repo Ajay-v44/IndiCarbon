@@ -20,4 +20,6 @@ class CarbonCredit(Base):
     initial_owner_id = Column(UUID(as_uuid=True), nullable=True)
     current_owner_id = Column(UUID(as_uuid=True), nullable=True)
     status = Column(String(20), default="ISSUED")
+    quantity = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
