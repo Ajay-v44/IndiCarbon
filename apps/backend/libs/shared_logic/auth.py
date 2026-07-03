@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import contextvars
 from uuid import UUID
 
 from fastapi import HTTPException, Request, status
@@ -27,6 +28,9 @@ class AuthenticatedUser(BaseModel):
         return org_id == self.organization_id
 
 
+current_user_var: contextvars.ContextVar[AuthenticatedUser | None] = contextvars.ContextVar("current_user_var", default=None)
+
+
 async def get_current_user(request: Request) -> AuthenticatedUser:
     user_id = request.headers.get("X-User-ID")
     if user_id:
@@ -39,12 +43,14 @@ async def get_current_user(request: Request) -> AuthenticatedUser:
             for role in request.headers.get("X-User-Roles", "").split(",")
             if role.strip()
         ]
-        return AuthenticatedUser(
+        user = AuthenticatedUser(
             id=UUID(user_id),
             email=request.headers.get("X-User-Email") or None,
             roles=roles,
             organization_id=organization_id,
         )
+        current_user_var.set(user)
+        return user
 
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
@@ -63,7 +69,7 @@ async def get_current_user(request: Request) -> AuthenticatedUser:
             )
             response.raise_for_status()
             data = response.json().get("data", {})
-            return AuthenticatedUser(
+            user = AuthenticatedUser(
                 id=UUID(data.get("user_id")),
                 email=data.get("email"),
                 roles=data.get("roles", []),
@@ -72,6 +78,8 @@ async def get_current_user(request: Request) -> AuthenticatedUser:
                     data.get("organization_ids"),
                 ),
             )
+            current_user_var.set(user)
+            return user
         except httpx.HTTPStatusError as e:
             detail = "Invalid token."
             try:

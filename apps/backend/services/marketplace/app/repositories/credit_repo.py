@@ -18,15 +18,52 @@ class CreditRepository:
         return q.order_by(CarbonCredit.created_at.desc()).all()
 
     def find_available_for_seller(self, seller_id: str, quantity: int) -> list[CarbonCredit]:
-        return (
+        credits = (
             self.db.query(CarbonCredit)
             .filter(
                 CarbonCredit.current_owner_id == seller_id,
                 CarbonCredit.status == "ISSUED",
             )
-            .limit(quantity)
+            .order_by(CarbonCredit.created_at.asc())
             .all()
         )
+        total_available = sum(c.quantity for c in credits)
+        if total_available < quantity:
+            return []
+
+        selected = []
+        collected = 0
+        import uuid
+        from datetime import datetime, timezone
+        for c in credits:
+            needed = quantity - collected
+            if needed <= 0:
+                break
+            if c.quantity <= needed:
+                selected.append(c)
+                collected += c.quantity
+            else:
+                # Split this batch
+                c.quantity -= needed
+                self.db.flush()
+
+                split_credit = CarbonCredit(
+                    id=uuid.uuid4(),
+                    serial_number=f"CCT-{uuid.uuid4().hex[:16].upper()}-{seller_id[:8]}",
+                    vintage_year=c.vintage_year,
+                    project_type=c.project_type,
+                    initial_owner_id=c.initial_owner_id,
+                    current_owner_id=c.current_owner_id,
+                    status="ISSUED",
+                    quantity=needed,
+                    created_at=c.created_at
+                )
+                self.db.add(split_credit)
+                self.db.flush()
+                selected.append(split_credit)
+                collected += needed
+                break
+        return selected
 
     def set_status_bulk(self, credit_ids: list[str], new_status: str) -> None:
         self.db.query(CarbonCredit).filter(
@@ -42,44 +79,34 @@ class CreditRepository:
 
     def get_portfolio_summary(self, org_id: str) -> dict:
         """
-        Return a portfolio summary for an organization.
-
-        Credit statuses:
-          ISSUED   — owned, available for trading or applying
-          APPLIED  — explicitly applied against the org's emissions (reduces Net Carbon Position)
-          RETIRED  — permanently burned / offset certificate issued
-          PENDING_TRANSFER — locked in an active trade
+        Return a portfolio summary for an organization based on credit quantities.
         """
         all_credits = self.db.query(CarbonCredit).filter(
             CarbonCredit.current_owner_id == org_id
         ).all()
 
-        issued = [c for c in all_credits if c.status == "ISSUED"]
-        applied = [c for c in all_credits if c.status == "APPLIED"]
-        retired = [c for c in all_credits if c.status == "RETIRED"]
-        pending = [c for c in all_credits if c.status == "PENDING_TRANSFER"]
+        issued_count = sum(c.quantity for c in all_credits if c.status == "ISSUED")
+        applied_count = sum(c.quantity for c in all_credits if c.status == "APPLIED")
+        retired_count = sum(c.quantity for c in all_credits if c.status == "RETIRED")
+        pending_count = sum(c.quantity for c in all_credits if c.status == "PENDING_TRANSFER")
 
-        sold_count = self.db.query(CarbonCredit).filter(
+        sold_credits = self.db.query(CarbonCredit).filter(
             CarbonCredit.initial_owner_id == org_id,
             CarbonCredit.current_owner_id != org_id,
             CarbonCredit.status != "RETIRED",
-        ).count()
+        ).all()
+        sold_count = sum(c.quantity for c in sold_credits)
 
-        issued_count = len(issued)
-        applied_count = len(applied)
-        retired_count = len(retired)
-        # Total offsets = applied + retired (both reduce net carbon position)
         total_offsets = applied_count + retired_count
 
         return {
-            "total_credits_owned": len(all_credits),
+            "total_credits_owned": sum(c.quantity for c in all_credits),
             "issued": issued_count,
             "applied": applied_count,
             "retired": retired_count,
-            "pending_transfer": len(pending),
+            "pending_transfer": pending_count,
             "sold": sold_count,
             "credits_available": issued_count,
-            # tCO2e offset = applied + retired (each credit = 1 tCO2e)
             "credits_applied_tco2e": float(applied_count),
             "credits_retired_tco2e": float(retired_count),
             "total_offset_tco2e": float(total_offsets),
@@ -87,10 +114,7 @@ class CreditRepository:
 
     def apply_to_emissions(self, org_id: str, quantity: int) -> list[str]:
         """
-        Apply N ISSUED credits against org's carbon emissions.
-        Changes status: ISSUED → APPLIED.
-        Applied credits reduce the Net Carbon Position.
-        Returns list of applied credit IDs.
+        Apply N ISSUED credits against org's carbon emissions (FIFO splitting).
         """
         credits = (
             self.db.query(CarbonCredit)
@@ -98,42 +122,104 @@ class CreditRepository:
                 CarbonCredit.current_owner_id == org_id,
                 CarbonCredit.status == "ISSUED",
             )
-            .limit(quantity)
+            .order_by(CarbonCredit.created_at.asc())
             .all()
         )
-        if not credits:
+        total_available = sum(c.quantity for c in credits)
+        if total_available < quantity:
             return []
+
         applied_ids = []
+        collected = 0
+        import uuid
+        from datetime import datetime, timezone
         for c in credits:
-            c.status = "APPLIED"
-            applied_ids.append(str(c.id))
+            needed = quantity - collected
+            if needed <= 0:
+                break
+            if c.quantity <= needed:
+                c.status = "APPLIED"
+                applied_ids.append(str(c.id))
+                collected += c.quantity
+            else:
+                # Split
+                c.quantity -= needed
+                self.db.flush()
+
+                split_credit = CarbonCredit(
+                    id=uuid.uuid4(),
+                    serial_number=f"CCT-{uuid.uuid4().hex[:16].upper()}-{org_id[:8]}",
+                    vintage_year=c.vintage_year,
+                    project_type=c.project_type,
+                    initial_owner_id=c.initial_owner_id,
+                    current_owner_id=c.current_owner_id,
+                    status="APPLIED",
+                    quantity=needed,
+                    created_at=c.created_at
+                )
+                self.db.add(split_credit)
+                self.db.flush()
+                applied_ids.append(str(split_credit.id))
+                collected += needed
+                break
         self.db.flush()
         return applied_ids
 
     def retire_by_quantity(self, org_id: str, quantity: int) -> list[str]:
-        """Retire N issued credits (FIFO). Returns list of retired IDs."""
+        """Retire N issued credits (FIFO splitting)."""
         credits = (
             self.db.query(CarbonCredit)
             .filter(
                 CarbonCredit.current_owner_id == org_id,
                 CarbonCredit.status == "ISSUED",
             )
-            .limit(quantity)
+            .order_by(CarbonCredit.created_at.asc())
             .all()
         )
+        total_available = sum(c.quantity for c in credits)
+        if total_available < quantity:
+            return []
+
         retired_ids = []
+        collected = 0
+        import uuid
+        from datetime import datetime, timezone
         for c in credits:
-            c.status = "RETIRED"
-            retired_ids.append(str(c.id))
+            needed = quantity - collected
+            if needed <= 0:
+                break
+            if c.quantity <= needed:
+                c.status = "RETIRED"
+                retired_ids.append(str(c.id))
+                collected += c.quantity
+            else:
+                # Split
+                c.quantity -= needed
+                self.db.flush()
+
+                split_credit = CarbonCredit(
+                    id=uuid.uuid4(),
+                    serial_number=f"CCT-{uuid.uuid4().hex[:16].upper()}-{org_id[:8]}",
+                    vintage_year=c.vintage_year,
+                    project_type=c.project_type,
+                    initial_owner_id=c.initial_owner_id,
+                    current_owner_id=c.current_owner_id,
+                    status="RETIRED",
+                    quantity=needed,
+                    created_at=c.created_at
+                )
+                self.db.add(split_credit)
+                self.db.flush()
+                retired_ids.append(str(split_credit.id))
+                collected += needed
+                break
         self.db.flush()
         return retired_ids
 
     def get_credit_ledger(self, org_id: str, limit: int = 50, offset: int = 0) -> dict:
         """
-        Return all credit events for an organization as a ledger.
-        Includes: owned, applied, retired, and sold credits.
+        Return all credit events for an organization as a ledger based on quantities.
         """
-        # All credits ever owned by this org (current + sold)
         owned = self.db.query(CarbonCredit).filter(
             CarbonCredit.current_owner_id == org_id
         ).order_by(CarbonCredit.created_at.desc()).all()
@@ -154,7 +240,7 @@ class CreditRepository:
                 "event_type": "APPLIED" if c.status == "APPLIED" else
                               "RETIRED" if c.status == "RETIRED" else
                               "ISSUED",
-                "tco2e": 1.0,
+                "tco2e": float(c.quantity),
                 "created_at": c.created_at.isoformat() if c.created_at else None,
             })
 
@@ -166,7 +252,7 @@ class CreditRepository:
                 "vintage_year": c.vintage_year,
                 "status": "SOLD",
                 "event_type": "SOLD",
-                "tco2e": 1.0,
+                "tco2e": float(c.quantity),
                 "created_at": c.created_at.isoformat() if c.created_at else None,
             })
 
@@ -174,3 +260,4 @@ class CreditRepository:
         total = len(result)
         paginated_result = result[offset:offset+limit]
         return {"ledger": paginated_result, "total": total, "limit": limit, "offset": offset}
+

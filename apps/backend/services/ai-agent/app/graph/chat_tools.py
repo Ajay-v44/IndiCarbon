@@ -9,7 +9,7 @@ from langchain_core.tools import tool
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from ..models.agent import HITLReview
-from shared_logic import get_supabase_client, get_service_client, ServiceName
+from shared_logic import get_supabase_client, get_service_client, ServiceName, AuthenticatedUser
 
 logger = logging.getLogger("ai-agent.graph.chat_tools")
 
@@ -31,7 +31,7 @@ def _unmask_pii(value: str, pii_map: Dict[str, str]) -> str:
     return result
 
 
-def build_chat_tools(db: Session, organization_id: str, user_id: str, pii_unmask_map: Optional[Dict[str, str]] = None) -> List:
+def build_chat_tools(db: Session, organization_id: str, user: AuthenticatedUser, pii_unmask_map: Optional[Dict[str, str]] = None) -> List:
     """Build toolset injected with request context for the Chatbot Agent.
 
     Args:
@@ -39,6 +39,7 @@ def build_chat_tools(db: Session, organization_id: str, user_id: str, pii_unmask
                         used to reverse PII masking in HITL tool inputs.
     """
     _pii_map = pii_unmask_map or {}
+    user_id = str(user.id)
 
     @tool
     def get_compliance_reports() -> str:
@@ -359,7 +360,7 @@ def build_chat_tools(db: Session, organization_id: str, user_id: str, pii_unmask
         """Fetch the organization's wallet balance."""
         try:
             client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
-            resp = client.request("GET", "/wallet", params={"organization_id": organization_id})
+            resp = client.request("GET", "/wallet", params={"organization_id": organization_id}, user=user)
             data = resp.json().get("data", {})
             return f"Wallet balance: {data.get('balance')} {data.get('currency')}."
         except Exception as e:
@@ -370,7 +371,7 @@ def build_chat_tools(db: Session, organization_id: str, user_id: str, pii_unmask
         """Fetch the organization's wallet transaction history."""
         try:
             client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
-            resp = client.request("GET", "/wallet/transactions", params={"organization_id": organization_id})
+            resp = client.request("GET", "/wallet/transactions", params={"organization_id": organization_id}, user=user)
             data = resp.json().get("data", [])
             if not data:
                 return "No transactions found."
@@ -383,7 +384,7 @@ def build_chat_tools(db: Session, organization_id: str, user_id: str, pii_unmask
         """Fetch the open carbon credit sell orders available in the market."""
         try:
             client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
-            resp = client.request("GET", "/orders/market")
+            resp = client.request("GET", "/orders/market", user=user)
             data = resp.json().get("data", [])
             if not data:
                 return "No open sell orders available in the market."
@@ -412,7 +413,7 @@ def build_chat_tools(db: Session, organization_id: str, user_id: str, pii_unmask
                 "vintage_year": vintage_year,
                 "project_type": project_type
             }
-            resp = client.request("POST", "/orders", json=payload)
+            resp = client.request("POST", "/orders", json=payload, user=user)
             data = resp.json()
             return f"Order placed successfully: {data.get('message')}. Order details: {data.get('data')}."
         except Exception as e:
@@ -437,7 +438,7 @@ def build_chat_tools(db: Session, organization_id: str, user_id: str, pii_unmask
                 "proposed_price": proposed_price,
                 "buyer_note": buyer_note
             }
-            resp = client.request("POST", "/proposals", json=payload)
+            resp = client.request("POST", "/proposals", json=payload, user=user)
             data = resp.json()
             return f"Proposal submitted successfully: {data.get('message')}. Proposal details: {data.get('data')}."
         except Exception as e:
@@ -455,7 +456,7 @@ def build_chat_tools(db: Session, organization_id: str, user_id: str, pii_unmask
             params = {"organization_id": organization_id}
             if role:
                 params["role"] = role
-            resp = client.request("GET", "/proposals", params=params)
+            resp = client.request("GET", "/proposals", params=params, user=user)
             data = resp.json().get("data", [])
             if not data:
                 return "No proposals found."
@@ -483,7 +484,7 @@ def build_chat_tools(db: Session, organization_id: str, user_id: str, pii_unmask
             if action_lower == "reject" and rejection_reason:
                 payload["rejection_reason"] = rejection_reason
             
-            resp = client.request("POST", path, json=payload if payload else None)
+            resp = client.request("POST", path, json=payload if payload else None, user=user)
             data = resp.json()
             return f"Successfully responded '{action_lower}' to proposal {proposal_id}. Details: {data.get('data')}."
         except Exception as e:

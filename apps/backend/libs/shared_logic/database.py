@@ -31,8 +31,8 @@ def _get_engine():
     return create_engine(
         url,
         pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10,
+        pool_size=2,
+        max_overflow=0,
         echo=False,
     )
 

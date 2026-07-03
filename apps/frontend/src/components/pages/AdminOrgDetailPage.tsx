@@ -213,7 +213,7 @@ export function AdminOrgDetailPage() {
             Emissions & Compliance
           </TabsTrigger>
           <TabsTrigger value="credits" className="text-xs font-semibold py-1.5 px-3">
-            Carbon Credits ({credits.length})
+            Carbon Credits ({credits.reduce((sum, c) => sum + (c.quantity || 1), 0).toLocaleString()})
           </TabsTrigger>
           <TabsTrigger value="wallet" className="text-xs font-semibold py-1.5 px-3">
             Wallet & Ledger ({transactions.length})
@@ -323,7 +323,8 @@ export function AdminOrgDetailPage() {
                       <TableHead className="text-xs font-semibold py-3 pl-4">Serial Number</TableHead>
                       <TableHead className="text-xs font-semibold py-3">Project Type</TableHead>
                       <TableHead className="text-xs font-semibold py-3">Vintage</TableHead>
-                      <TableHead className="text-xs font-semibold py-3">Status</TableHead>
+                      <TableHead className="text-xs font-semibold py-3 text-right">Quantity</TableHead>
+                      <TableHead className="text-xs font-semibold py-3 pr-4">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-border/30 text-xs">
@@ -332,7 +333,8 @@ export function AdminOrgDetailPage() {
                         <TableCell className="py-2.5 pl-4 font-mono font-semibold text-muted-foreground">{c.serial_number}</TableCell>
                         <TableCell className="py-2.5 text-foreground">{c.project_type || "—"}</TableCell>
                         <TableCell className="py-2.5 text-muted-foreground">{c.vintage_year}</TableCell>
-                        <TableCell className="py-2.5">
+                        <TableCell className="py-2.5 text-right font-mono font-bold text-foreground">{(c.quantity || 1).toLocaleString()}</TableCell>
+                        <TableCell className="py-2.5 pr-4">
                           <Badge className={cn(
                             "text-[8px] font-bold uppercase",
                             c.status === "ISSUED" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" :

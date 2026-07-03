@@ -133,6 +133,9 @@ class ServiceClient:
         user: AuthenticatedUser | None,
         headers: dict[str, str] | None,
     ) -> dict[str, str]:
+        if user is None:
+            from .auth import current_user_var
+            user = current_user_var.get(None)
         outgoing = {
             "X-Service-Name": self.caller,
             **(headers or {}),
