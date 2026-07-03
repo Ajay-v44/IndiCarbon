@@ -149,12 +149,16 @@ function EmptyState() {
         Ask about carbon emissions, BRSR compliance, sustainability strategy, or
         analyze uploaded documents.
       </p>
-      <div className="mt-6 grid w-full max-w-md grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="mt-6 grid w-full max-w-lg grid-cols-1 gap-2 sm:grid-cols-2">
         {[
-          "What are my Scope 2 emissions?",
-          "Explain BRSR requirements",
-          "Suggest reduction strategies",
-          "Summarize my compliance status",
+          "Analyze my top emission contributors across Scope 1, 2, and 3",
+          "What carbon credits am I eligible for under VERRA or BEE/CCTS?",
+          "Give me a complete decarbonization roadmap for 2030 net zero",
+          "Explain my Net Carbon Position and what it means",
+          "What projects should I submit for carbon credit verification?",
+          "Generate a full 15-section sustainability intelligence report",
+          "Summarize my BRSR compliance status and gaps",
+          "How do I retire credits and improve my offset coverage?",
         ].map((suggestion) => (
           <button
             key={suggestion}
@@ -165,6 +169,7 @@ function EmptyState() {
           </button>
         ))}
       </div>
+
     </div>
   );
 }

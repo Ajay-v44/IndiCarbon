@@ -24,10 +24,11 @@
 |--------|-------------|
 | **Compliance Engine** | Scope 1/2/3 GHG calculations (GHG Protocol), SEBI BRSR report generation, emission factor management |
 | **Carbon Marketplace** | Carbon credit registry (Verra VCS, Gold Standard), order book, ACID-safe Reserve→Commit trade settlement, RFQ proposals |
+| **Carbon Intelligence** | AI-powered PDD parsing, CDM/VCS credit calculator (India Grid CEA baseline), Credit Vault Ledger (Issued/Applied/Retired), per-org audits |
 | **AI Sovereign Agent** | LangChain ReAct agents (Auditor + Strategist), local Ollama LLMs, Langfuse observability, Supabase vector search |
 | **MCP Server** | 40+ tools via Model Context Protocol — connect Claude, Cursor, or any MCP host to the full platform |
 | **A2A Protocol** | Agent2Agent v0.3.0 — agent-to-agent communication with task lifecycle, JSON-RPC 2.0 + SSE streaming, guardrailed execution |
-| **API Gateway** | Supabase JWT auth, Redis rate limiting, reverse-proxy routing, 4-layer guardrail pipeline |
+| **API Gateway** | Supabase JWT auth, Redis rate limiting, reverse-proxy routing, 4-layer guardrail pipeline, async system log capturing |
 
 ---
 
@@ -305,6 +306,7 @@ curl http://localhost:8003/health
 
 | Document | Description |
 |----------|-------------|
+| [`docs/carbon_intelligence_and_trading.md`](docs/carbon_intelligence_and_trading.md) | **NEW** — Carbon Intelligence features, AI document extraction, and Credit Vault Ledger |
 | [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md) | Full directory tree and design patterns |
 | [`docs/a2a-protocol.md`](docs/a2a-protocol.md) | A2A Protocol v0.2.1 — specification, integration guide, examples |
 | [`docs/mcp-server.md`](docs/mcp-server.md) | MCP Server — 40+ tools reference, setup, workflows |

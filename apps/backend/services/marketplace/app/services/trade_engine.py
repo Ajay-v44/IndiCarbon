@@ -458,3 +458,46 @@ def list_proposals(org_id: str, role: Optional[str], db: Session) -> list[dict]:
     else:
         proposals = proposal_repo.list_by_organization(org_id)
     return [_proposal_to_dict(p) for p in proposals]
+
+
+def list_credits(org_id: str, db: Session) -> list[dict]:
+    """List all carbon credits owned by an organization."""
+    from ..repositories.credit_repo import CreditRepository
+    repo = CreditRepository(db)
+    credits = repo.find_by_owner(org_id)
+    return [
+        {
+            "id": str(c.id),
+            "serial_number": c.serial_number,
+            "vintage_year": c.vintage_year,
+            "project_type": c.project_type,
+            "status": c.status,
+            "initial_owner_id": str(c.initial_owner_id) if c.initial_owner_id else None,
+            "current_owner_id": str(c.current_owner_id) if c.current_owner_id else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in credits
+    ]
+
+
+def retire_credits(credit_ids: list[str], user_id: str, db: Session) -> dict:
+    """Retire a specific list of carbon credits by their IDs."""
+    from ..repositories.credit_repo import CreditRepository
+    repo = CreditRepository(db)
+    # Find credits to validate they exist and are ISSUED
+    from ..models.credit import CarbonCredit
+    credits = db.query(CarbonCredit).filter(
+        CarbonCredit.id.in_(credit_ids),
+        CarbonCredit.status == "ISSUED",
+    ).all()
+    if not credits:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No valid ISSUED credits found to retire.",
+        )
+    retired_ids = [str(c.id) for c in credits]
+    repo.set_status_bulk(retired_ids, "RETIRED")
+    db.commit()
+    logger.info("User %s retired %d credits: %s", user_id, len(retired_ids), retired_ids[:5])
+    return {"retired_count": len(retired_ids), "retired_ids": retired_ids}
+

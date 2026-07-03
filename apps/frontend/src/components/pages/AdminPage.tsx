@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ import {
   Workflow,
   MessageSquare,
   Clock,
+  FolderOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppSelector } from "@/store/hooks";
@@ -94,7 +96,7 @@ import { cn } from "@/lib/utils";
 import { listUsers, listOrganizations, assignRole, listRoles, createRole, createUser, deleteUser, deleteOrganization, getOrganizationTokenStats } from "@/lib/api/auth";
 import { listBenchmarks, createBenchmark, deleteBenchmark } from "@/lib/api/compliance";
 import { getAllWallets, adminAddFunds, getAllWalletTransactions } from "@/lib/api/wallet";
-import { adminMintCredits } from "@/lib/api/marketplace";
+import { adminMintCredits, listAllProjects, updateProjectStatus } from "@/lib/api/marketplace";
 import { getSystemLogs, getSystemLogStats, resolveSystemLog, bulkResolveSystemLogs } from "@/lib/api/system-logs";
 import { getA2AStats, listA2ATasks } from "@/lib/api/ai";
 import { UserProfile, OrganizationResponse, SectorBenchmarkResponse, RoleResponse, WalletResponse, WalletTransactionResponse, SystemLogEntry, SystemLogStats, SystemLogFilters, A2ATaskSummary, A2AActivityStats } from "@/lib/api/types";
@@ -111,6 +113,7 @@ const requestVolumeData = [
 ];
 
 export function AdminPage() {
+  const router = useRouter();
   const currentUser = useAppSelector((state) => state.auth.tokens);
   const roles = currentUser?.roles || [];
   const isSuperAdmin = roles.includes("SUPER_ADMIN");
@@ -193,12 +196,28 @@ export function AdminPage() {
   const [mintProjectType, setMintProjectType] = useState("Reforestation");
   const [minting, setMinting] = useState(false);
 
+  // Carbon Projects State (Admin Review)
+  const [adminProjects, setAdminProjects] = useState<any[]>([]);
+  const [adminProjectsLoading, setAdminProjectsLoading] = useState(false);
+  const [adminProjectStatusFilter, setAdminProjectStatusFilter] = useState<string>("ALL");
+  const [projectReviewNotes, setProjectReviewNotes] = useState("");
+  const [reviewingProjectId, setReviewingProjectId] = useState<string | null>(null);
+  const [projectReviewDialogOpen, setProjectReviewDialogOpen] = useState(false);
+  const [selectedAdminProject, setSelectedAdminProject] = useState<any>(null);
+  const [adminApprovedCredits, setAdminApprovedCredits] = useState<string>("");
+
+  // Admin Projects Pagination state
+  const [adminProjectsCount, setAdminProjectsCount] = useState(0);
+  const [adminProjectsOffset, setAdminProjectsOffset] = useState(0);
+  const adminProjectsLimit = 10;
+
+
   // System Logs State (live from API)
   const [systemLogs, setSystemLogs] = useState<SystemLogEntry[]>([]);
   const [systemLogStats, setSystemLogStats] = useState<SystemLogStats | null>(null);
   const [systemLogsTotal, setSystemLogsTotal] = useState(0);
   const [systemLogsLoading, setSystemLogsLoading] = useState(false);
-  const [logFilters, setLogFilters] = useState<SystemLogFilters>({ limit: 50, offset: 0 });
+  const [logFilters, setLogFilters] = useState<SystemLogFilters>({ limit: 10, offset: 0 });
   const [logSearchInput, setLogSearchInput] = useState("");
   const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
 
@@ -469,8 +488,40 @@ export function AdminPage() {
     }
     if (isSuperAdmin) {
       fetchA2AData();
+      fetchAdminProjects();
     }
   }, [currentUser]);
+
+  const fetchAdminProjects = async (statusFilter?: string, offsetVal: number = adminProjectsOffset) => {
+    if (!isSuperAdmin) return;
+    setAdminProjectsLoading(true);
+    try {
+      const filter = statusFilter && statusFilter !== "ALL" ? statusFilter : undefined;
+      const res = await listAllProjects(filter, adminProjectsLimit, offsetVal);
+      setAdminProjects(res.projects || []);
+      setAdminProjectsCount(res.total || 0);
+    } catch {
+      toast.error("Failed to load carbon projects.");
+    } finally {
+      setAdminProjectsLoading(false);
+    }
+  };
+
+  const handleProjectStatusUpdate = async (projectId: string, newStatus: string, notes: string, approvedCredits?: number) => {
+    try {
+      await updateProjectStatus(projectId, newStatus, notes || undefined, approvedCredits);
+      toast.success(`Project status updated to ${newStatus}.`);
+      setProjectReviewDialogOpen(false);
+      setProjectReviewNotes("");
+      setAdminApprovedCredits("");
+      setReviewingProjectId(null);
+      setSelectedAdminProject(null);
+      fetchAdminProjects(adminProjectStatusFilter !== "ALL" ? adminProjectStatusFilter : undefined, adminProjectsOffset);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update project status.");
+    }
+  };
+
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -800,8 +851,14 @@ export function AdminPage() {
                   )}
                 </TabsTrigger>
               )}
+              {isSuperAdmin && (
+                <TabsTrigger value="carbon-projects" className="text-xs font-medium py-1.5 px-3">
+                  <FolderOpen className="w-3.5 h-3.5 mr-2" /> Carbon Projects
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
+
 
           {/* tab 1: Platform Monitoring */}
         <TabsContent value="monitoring" className="space-y-4 outline-none">
@@ -983,8 +1040,7 @@ export function AdminPage() {
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => {
-                                  setInspectedOrg(org);
-                                  setIsInspecting(true);
+                                  router.push(`/admin/org/${org.id}`);
                                 }}
                                 className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                                 title="Inspect Details"
@@ -1058,8 +1114,7 @@ export function AdminPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => {
-                            setInspectedOrg(org);
-                            setIsInspecting(true);
+                            router.push(`/admin/org/${org.id}`);
                           }}
                           className="h-8 text-xs px-3 text-foreground border-border hover:bg-muted font-medium flex-1"
                         >
@@ -2227,10 +2282,10 @@ export function AdminPage() {
               )}
 
               {/* Pagination */}
-              {systemLogsTotal > (logFilters.limit || 50) && (
+              {systemLogsTotal > (logFilters.limit || 10) && (
                 <div className="flex items-center justify-between p-4 border-t border-border/50">
                   <span className="text-[10px] text-muted-foreground">
-                    Page {Math.floor((logFilters.offset || 0) / (logFilters.limit || 50)) + 1} of {Math.ceil(systemLogsTotal / (logFilters.limit || 50))}
+                    Page {Math.floor((logFilters.offset || 0) / (logFilters.limit || 10)) + 1} of {Math.ceil(systemLogsTotal / (logFilters.limit || 10))}
                   </span>
                   <div className="flex gap-2">
                     <Button
@@ -2238,7 +2293,7 @@ export function AdminPage() {
                       variant="outline"
                       disabled={(logFilters.offset || 0) === 0}
                       onClick={() => {
-                        const newFilters = { ...logFilters, offset: Math.max(0, (logFilters.offset || 0) - (logFilters.limit || 50)) };
+                        const newFilters = { ...logFilters, offset: Math.max(0, (logFilters.offset || 0) - (logFilters.limit || 10)) };
                         setLogFilters(newFilters);
                         fetchSystemLogs(newFilters);
                       }}
@@ -2249,9 +2304,9 @@ export function AdminPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={(logFilters.offset || 0) + (logFilters.limit || 50) >= systemLogsTotal}
+                      disabled={(logFilters.offset || 0) + (logFilters.limit || 10) >= systemLogsTotal}
                       onClick={() => {
-                        const newFilters = { ...logFilters, offset: (logFilters.offset || 0) + (logFilters.limit || 50) };
+                        const newFilters = { ...logFilters, offset: (logFilters.offset || 0) + (logFilters.limit || 10) };
                         setLogFilters(newFilters);
                         fetchSystemLogs(newFilters);
                       }}
@@ -2426,6 +2481,321 @@ export function AdminPage() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Carbon Projects Tab */}
+        <TabsContent value="carbon-projects" className="space-y-4 outline-none">
+          <Card className="glass border-border">
+            <CardHeader className="pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <FolderOpen className="w-4 h-4 text-emerald-500" />
+                    Carbon Project Verification Queue
+                  </CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                    Review and approve organization-submitted carbon reduction projects
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={adminProjectStatusFilter}
+                    onValueChange={(v) => {
+                      if (v) {
+                        setAdminProjectStatusFilter(v);
+                        setAdminProjectsOffset(0);
+                        fetchAdminProjects(v !== "ALL" ? v : undefined, 0);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-card border-border text-xs h-8 w-40 text-foreground">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border text-foreground">
+                      {["ALL", "PENDING", "UNDER_REVIEW", "VERIFIED", "REJECTED"].map((s) => (
+                        <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs border-border text-muted-foreground"
+                    onClick={() => fetchAdminProjects(adminProjectStatusFilter !== "ALL" ? adminProjectStatusFilter : undefined)}
+                    disabled={adminProjectsLoading}
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${adminProjectsLoading ? "animate-spin" : ""}`} />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {adminProjectsLoading ? (
+                <div className="text-center py-8 text-xs text-muted-foreground">Loading projects...</div>
+              ) : adminProjects.length === 0 ? (
+                <div className="text-center py-8 text-xs text-muted-foreground">
+                  No projects found{adminProjectStatusFilter !== "ALL" ? ` with status: ${adminProjectStatusFilter}` : ""}.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {adminProjects.map((project) => (
+                    <div
+                      key={project.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-muted/30 border border-border hover:border-muted-foreground/30 transition-all"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-sm font-bold text-foreground truncate">{project.name}</p>
+                          <Badge className={`text-[10px] shrink-0 ${
+                            project.status === "VERIFIED" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" :
+                            project.status === "PENDING" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" :
+                            project.status === "UNDER_REVIEW" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" :
+                            "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
+                          }`}>
+                            {project.status}
+                          </Badge>
+                        </div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+                          <span>{project.project_type}</span>
+                          {project.registry && <span>· {project.registry}</span>}
+                          {project.estimated_annual_reduction_tco2e && (
+                            <span>· Est. {Number(project.estimated_annual_reduction_tco2e).toLocaleString()} tCO₂e/yr</span>
+                          )}
+                          {project.estimated_credits && (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                              · {Number(project.estimated_credits).toLocaleString()} credits
+                            </span>
+                          )}
+                          <span>· Submitted {project.submitted_at ? new Date(project.submitted_at).toLocaleDateString("en-IN") : "—"}</span>
+                        </div>
+                        {project.reviewer_notes && (
+                          <p className="text-[10px] text-blue-500 mt-1">📝 {project.reviewer_notes}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-[10px] border-border text-muted-foreground hover:bg-muted"
+                          onClick={() => {
+                            setSelectedAdminProject(project);
+                            setProjectReviewNotes(project.reviewer_notes || "");
+                            setAdminApprovedCredits(
+                              project.admin_approved_credits !== null && project.admin_approved_credits !== undefined
+                                ? String(project.admin_approved_credits)
+                                : project.ai_estimated_credits !== null && project.ai_estimated_credits !== undefined
+                                ? String(project.ai_estimated_credits)
+                                : project.estimated_credits !== null && project.estimated_credits !== undefined
+                                ? String(project.estimated_credits)
+                                : ""
+                            );
+                            setReviewingProjectId(project.id);
+                            setProjectReviewDialogOpen(true);
+                          }}
+                        >
+                          <Eye className="w-3 h-3 mr-1" /> Review
+                        </Button>
+                        {project.status === "PENDING" && (
+                          <Button
+                            size="sm"
+                            className="h-7 text-[10px] bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() => handleProjectStatusUpdate(project.id, "UNDER_REVIEW", "Project moved to active review queue.")}
+                          >
+                            Start Review
+                          </Button>
+                        )}
+                        {project.status === "UNDER_REVIEW" && (
+                          <>
+                            <Button
+                              size="sm"
+                              className="h-7 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white"
+                              onClick={() => handleProjectStatusUpdate(project.id, "VERIFIED", "Project verified — eligible for carbon credit issuance.")}
+                            >
+                              Verify ✓
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[10px] border-red-500/30 text-red-500 hover:bg-red-500/10"
+                              onClick={() => {
+                                setSelectedAdminProject(project);
+                                setProjectReviewNotes("");
+                                setAdminApprovedCredits(
+                                  project.admin_approved_credits !== null && project.admin_approved_credits !== undefined
+                                    ? String(project.admin_approved_credits)
+                                    : project.ai_estimated_credits !== null && project.ai_estimated_credits !== undefined
+                                    ? String(project.ai_estimated_credits)
+                                    : project.estimated_credits !== null && project.estimated_credits !== undefined
+                                    ? String(project.estimated_credits)
+                                    : ""
+                                );
+                                setReviewingProjectId(project.id);
+                                setProjectReviewDialogOpen(true);
+                              }}
+                            >
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Pagination for admin projects */}
+                  {adminProjectsCount > adminProjectsLimit && (
+                    <div className="flex items-center justify-between p-4 border-t border-border/50 bg-card/10 rounded-xl mt-4">
+                      <span className="text-[10px] text-muted-foreground">
+                        Page {Math.floor(adminProjectsOffset / adminProjectsLimit) + 1} of {Math.ceil(adminProjectsCount / adminProjectsLimit)}
+                      </span>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={adminProjectsOffset === 0}
+                          onClick={() => {
+                            const nextOffset = Math.max(0, adminProjectsOffset - adminProjectsLimit);
+                            setAdminProjectsOffset(nextOffset);
+                            fetchAdminProjects(adminProjectStatusFilter !== "ALL" ? adminProjectStatusFilter : undefined, nextOffset);
+                          }}
+                          className="h-7 text-xs border border-border text-foreground bg-card hover:bg-muted"
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={adminProjectsOffset + adminProjectsLimit >= adminProjectsCount}
+                          onClick={() => {
+                            const nextOffset = adminProjectsOffset + adminProjectsLimit;
+                            setAdminProjectsOffset(nextOffset);
+                            fetchAdminProjects(adminProjectStatusFilter !== "ALL" ? adminProjectStatusFilter : undefined, nextOffset);
+                          }}
+                          className="h-7 text-xs border border-border text-foreground bg-card hover:bg-muted"
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Project Review Dialog */}
+          <Dialog open={projectReviewDialogOpen} onOpenChange={setProjectReviewDialogOpen}>
+            <DialogContent className="sm:max-w-md bg-background border border-border text-foreground">
+              <DialogHeader>
+                <DialogTitle className="text-sm font-black text-foreground">
+                  Review: {selectedAdminProject?.name}
+                </DialogTitle>
+              </DialogHeader>
+              {selectedAdminProject && (
+                <div className="space-y-4 py-2">
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="bg-muted/30 rounded-lg p-3 border border-border">
+                      <p className="text-muted-foreground mb-0.5">Type</p>
+                      <p className="font-semibold text-foreground">{selectedAdminProject.project_type}</p>
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-3 border border-border">
+                      <p className="text-muted-foreground mb-0.5">Registry</p>
+                      <p className="font-semibold text-foreground">{selectedAdminProject.registry || "—"}</p>
+                    </div>
+                    <div className="bg-emerald-500/5 rounded-lg p-3 border border-emerald-500/20">
+                      <p className="text-muted-foreground mb-0.5">Est. Credits</p>
+                      <p className="font-semibold text-emerald-600 dark:text-emerald-400">
+                        {selectedAdminProject.estimated_credits ? `${Number(selectedAdminProject.estimated_credits).toLocaleString()} tCO₂e` : "—"}
+                      </p>
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-3 border border-border">
+                      <p className="text-muted-foreground mb-0.5">Lifetime</p>
+                      <p className="font-semibold text-foreground">
+                        {selectedAdminProject.project_lifetime_years ? `${selectedAdminProject.project_lifetime_years} years` : "—"}
+                      </p>
+                    </div>
+                    {selectedAdminProject.ai_estimated_credits !== null && selectedAdminProject.ai_estimated_credits !== undefined && (
+                      <div className="bg-blue-500/5 rounded-lg p-3 border border-blue-500/20 col-span-2">
+                        <p className="text-blue-500 font-bold text-[10px] mb-1 flex items-center gap-1">
+                          🤖 AI Evaluation Result
+                        </p>
+                        <p className="text-xs text-foreground leading-relaxed">
+                          <strong>Methodology:</strong> {selectedAdminProject.ai_methodology || "—"}<br/>
+                          <strong>AI Estimated Credits:</strong> <span className="text-blue-600 dark:text-blue-400 font-bold">{selectedAdminProject.ai_estimated_credits}</span><br/>
+                          <strong>Confidence Score:</strong> {Math.round((selectedAdminProject.ai_confidence_score || 0) * 100)}%
+                        </p>
+                        {selectedAdminProject.ai_evaluation_notes && (
+                          <p className="text-[10px] text-muted-foreground mt-1.5 border-t border-blue-500/10 pt-1.5 italic">
+                            "{selectedAdminProject.ai_evaluation_notes}"
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {selectedAdminProject.description && (
+                    <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3 border border-border leading-relaxed">
+                      {selectedAdminProject.description}
+                    </p>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Admin Approved Credits (Override)</Label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 500"
+                      value={adminApprovedCredits}
+                      onChange={(e) => setAdminApprovedCredits(e.target.value)}
+                      className="bg-card border-border text-xs h-9 text-foreground"
+                    />
+                    <p className="text-[10px] text-muted-foreground/75">
+                      This is the quantity that will be minted to the organization's account upon verification. Defaults to AI/User estimate.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Reviewer Notes</Label>
+                    <textarea
+                      rows={3}
+                      value={projectReviewNotes}
+                      onChange={(e) => setProjectReviewNotes(e.target.value)}
+                      placeholder="Add review notes or rejection reason..."
+                      className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={() => reviewingProjectId && handleProjectStatusUpdate(reviewingProjectId, "VERIFIED", projectReviewNotes, adminApprovedCredits ? Number(adminApprovedCredits) : undefined)}
+                    >
+                      Verify Project ✓
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="text-xs h-8 bg-blue-600 hover:bg-blue-700 text-white"
+                      onClick={() => reviewingProjectId && handleProjectStatusUpdate(reviewingProjectId, "UNDER_REVIEW", projectReviewNotes, adminApprovedCredits ? Number(adminApprovedCredits) : undefined)}
+                    >
+                      Move to Under Review
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-8 border-red-500/30 text-red-500 hover:bg-red-500/10"
+                      onClick={() => reviewingProjectId && handleProjectStatusUpdate(reviewingProjectId, "REJECTED", projectReviewNotes, adminApprovedCredits ? Number(adminApprovedCredits) : undefined)}
+                    >
+                      Reject
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-8 border-border text-muted-foreground ml-auto"
+                      onClick={() => setProjectReviewDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
       </Tabs>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   FlaskConical,
@@ -15,41 +16,73 @@ import {
   ShoppingBag,
   Plug,
   Workflow,
+  FolderOpen,
+  ScrollText,
+  X,
+  Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { logout } from "@/store/auth-slice";
 
 const sidebarItems = [
-  { href: "/dashboard",  label: "Dashboard",    icon: LayoutDashboard, badge: null },
-  { href: "/dashboard/chat", label: "Agenti Chat", icon: MessageSquareText, badge: "Live" },
-  { href: "/simulator",  label: "AI Simulator",  icon: FlaskConical,    badge: "Beta" },
-  { href: "/portfolio",  label: "Carbon Vault",  icon: Vault,           badge: null },
-  { href: "/marketplace", label: "Marketplace",  icon: ShoppingBag,     badge: null },
-  { href: "/dashboard/a2a", label: "A2A Agents", icon: Workflow, badge: "New" },
-  { href: "/dashboard/integration", label: "MCP & API", icon: Plug, badge: null },
-  { href: "/admin",      label: "Admin Center",  icon: ShieldCheck,     badge: null },
+  { href: "/dashboard",            label: "Dashboard",       icon: LayoutDashboard,  badge: null  },
+  { href: "/dashboard/chat",       label: "AI Agent Chat",   icon: MessageSquareText, badge: "Live" },
+  { href: "/simulator",            label: "AI Simulator",    icon: FlaskConical,     badge: "Beta" },
+  { href: "/portfolio",            label: "Carbon Vault",    icon: Vault,            badge: null  },
+  { href: "/projects",             label: "Carbon Projects", icon: FolderOpen,       badge: "New" },
+  { href: "/ledger",               label: "Credit Ledger",   icon: ScrollText,       badge: null  },
+  { href: "/marketplace",          label: "Marketplace",     icon: ShoppingBag,      badge: null  },
+  { href: "/dashboard/a2a",        label: "A2A Agents",      icon: Workflow,         badge: "New" },
+  { href: "/dashboard/integration",label: "MCP & API",       icon: Plug,             badge: null  },
+  { href: "/admin",                label: "Admin Center",    icon: ShieldCheck,      badge: null  },
 ];
 
-export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
+interface SidebarProps {
+  collapsed?: boolean;
+}
+
+export function Sidebar({ collapsed = false }: SidebarProps) {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const tokens = useAppSelector((state) => state.auth.tokens);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const email = tokens?.email || "ajay@indicarbon.com";
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handle = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileOpen(false); };
+    document.addEventListener("keydown", handle);
+    return () => document.removeEventListener("keydown", handle);
+  }, []);
+
+  const email = tokens?.email || "user@indicarbon.com";
   const name = email.split("@")[0].split(/[._-]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
   const initials = email.split("@")[0].slice(0, 2).toUpperCase();
 
-  return (
-    <aside
-      className={cn(
-        "hidden lg:flex flex-col h-screen sticky top-0 bg-background border-r border-border shadow-sm transition-all duration-300 z-40",
-        collapsed ? "w-16" : "w-60"
-      )}
-    >
+  const visibleItems = sidebarItems.filter((item) => {
+    const isInternal = tokens?.is_internal || tokens?.roles?.includes("SUPER_ADMIN") || tokens?.roles?.includes("GOVT_AUDITOR");
+    if (item.href === "/admin") {
+      return !!isInternal;
+    }
+    if (item.href === "/dashboard/integration") {
+      return true;
+    }
+    if (isInternal) {
+      return false;
+    }
+    return true;
+  });
+
+  const NavContent = ({ inDrawer = false }: { inDrawer?: boolean }) => (
+    <>
       {/* Logo */}
       <div className="flex h-16 items-center px-5 border-b border-border shrink-0">
-        <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
+        <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0" onClick={() => setMobileOpen(false)}>
           <div className="w-10 h-10 rounded-2xl bg-card border border-border overflow-hidden shrink-0 shadow-sm flex items-center justify-center">
             <Image
               src="/images/Indicrabon%20logo.png"
@@ -71,13 +104,21 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
             </div>
           )}
         </Link>
+        {inDrawer && (
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="ml-auto p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Live stats */}
       {!collapsed && (
         <div className="mx-3 mt-3 px-3 py-2.5 bg-muted border border-border rounded-xl">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-foreground" />
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-xs font-semibold text-foreground">Live Monitoring</span>
           </div>
           <p className="text-[11px] text-muted-foreground mt-0.5 pl-[18px]">−2.4 tCO₂ this hour</p>
@@ -91,19 +132,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
             Navigation
           </p>
         )}
-        {sidebarItems.filter(item => {
-          const isInternal = tokens?.is_internal || tokens?.roles?.includes("SUPER_ADMIN");
-          if (item.href === "/admin") {
-            return !!isInternal;
-          }
-          if (item.href === "/dashboard/integration") {
-            return true;
-          }
-          if (isInternal) {
-            return false;
-          }
-          return true;
-        }).map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
           const active =
             item.href === "/dashboard"
@@ -113,6 +142,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => setMobileOpen(false)}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group relative",
                 active
@@ -121,7 +151,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
               )}
             >
               {active && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-foreground rounded-r-full" />
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-emerald-500 rounded-r-full" />
               )}
               <Icon
                 className={cn(
@@ -148,6 +178,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
       <div className="px-3 pb-4 border-t border-border pt-3 space-y-0.5">
         <Link
           href="/settings"
+          onClick={() => setMobileOpen(false)}
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
         >
           <Settings className="w-4 h-4 text-muted-foreground" />
@@ -168,8 +199,8 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
         {!collapsed && (
           <div className="mt-3 p-3 rounded-xl bg-muted border border-border">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-foreground flex items-center justify-center shrink-0">
-                <span className="text-background text-xs font-bold">{initials}</span>
+              <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shrink-0">
+                <span className="text-white text-xs font-bold">{initials}</span>
               </div>
               <div className="overflow-hidden">
                 <p className="text-sm font-semibold text-foreground truncate leading-tight">{name}</p>
@@ -179,6 +210,47 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
           </div>
         )}
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* ── Mobile hamburger button (visible on sm/md) ── */}
+      <button
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-xl bg-card border border-border text-foreground shadow-md"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Open navigation"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
+      {/* ── Mobile drawer overlay ── */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* ── Mobile drawer ── */}
+      <aside
+        className={cn(
+          "lg:hidden fixed top-0 left-0 h-full w-72 z-50 bg-background border-r border-border flex flex-col transition-transform duration-300 ease-in-out shadow-2xl",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <NavContent inDrawer />
+      </aside>
+
+      {/* ── Desktop sidebar ── */}
+      <aside
+        className={cn(
+          "hidden lg:flex flex-col h-screen sticky top-0 bg-background border-r border-border shadow-sm transition-all duration-300 z-40",
+          collapsed ? "w-16" : "w-60"
+        )}
+      >
+        <NavContent />
+      </aside>
+    </>
   );
 }

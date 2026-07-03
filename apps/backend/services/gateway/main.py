@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from shared_logic import ApiResponse, register_middleware
 from shared_logic.database import get_db
-from shared_logic.system_logger import SystemLogRepository
+from shared_logic.system_logger import SystemLogRepository, SystemLogger
 from shared_logic.paths import backend_root
 from sqlalchemy import text
 
@@ -74,10 +74,13 @@ settings = GatewaySettings()
 async def lifespan(app: FastAPI):
     app.state.redis = await aioredis.from_url(settings.redis_url, decode_responses=True)
     app.state.http = httpx.AsyncClient(timeout=httpx.Timeout(settings.gateway_client_timeout))
+    # Start SystemLogger background flush so all captured errors are persisted
+    SystemLogger.get_instance().start_background_flush()
     logger.info("Gateway started — env=%s version=%s", settings.app_env, settings.app_version)
     yield
     await app.state.redis.aclose()
     await app.state.http.aclose()
+    SystemLogger.get_instance().flush_sync()
     logger.info("Gateway shutdown complete.")
 
 
@@ -223,7 +226,7 @@ def _forward_headers(request: Request) -> dict[str, str]:
 
 
 async def _proxy(request: Request, upstream_url: str, timeout: float | None = None) -> JSONResponse:
-    """Forwards request to internal service."""
+    """Forwards request to internal service and captures errors into SystemLog."""
     http: httpx.AsyncClient = request.app.state.http
     query = str(request.url.query)
     target = f"{upstream_url}{request.url.path}" + (f"?{query}" if query else "")
@@ -235,18 +238,71 @@ async def _proxy(request: Request, upstream_url: str, timeout: float | None = No
     if timeout is not None:
         kwargs["timeout"] = timeout
 
-    resp = await http.request(
-        method=request.method,
-        url=target,
-        headers=headers,
-        content=body,
-        follow_redirects=True,
-        **kwargs
-    )
+    try:
+        resp = await http.request(
+            method=request.method,
+            url=target,
+            headers=headers,
+            content=body,
+            follow_redirects=True,
+            **kwargs
+        )
+    except httpx.RequestError as exc:
+        # Upstream service unreachable — log as CRITICAL
+        auth_ctx = getattr(request.state, "auth_context", None) or {}
+        SystemLogger.get_instance().capture(
+            level="CRITICAL",
+            service="gateway",
+            message=f"Upstream unreachable: {exc!r} → {target}",
+            organization_id=auth_ctx.get("organization_id"),
+            user_id=auth_ctx.get("user_id"),
+            request_id=getattr(request.state, "request_id", None),
+            http_method=request.method,
+            http_path=request.url.path,
+            http_status="503",
+            metadata={"target": target, "error": str(exc)},
+        )
+        raise HTTPException(status_code=503, detail="Upstream service unavailable.")
+
+    # Capture 4xx/5xx errors into SystemLog for admin visibility
+    if resp.status_code >= 400:
+        auth_ctx = getattr(request.state, "auth_context", None) or {}
+        level = "ERROR" if resp.status_code >= 500 else "WARNING"
+        # Determine service name from path
+        path = request.url.path
+        service_name = (
+            "auth" if "/auth/" in path or "/users" in path else
+            "compliance" if "/emissions" in path or "/compliance" in path or "/documents" in path else
+            "marketplace" if any(p in path for p in ["/credits", "/marketplace", "/orders", "/proposals", "/wallet", "/projects"]) else
+            "ai-agent" if "/ai/" in path or "/analyse" in path or "/a2a" in path else
+            "gateway"
+        )
+        try:
+            resp_body = resp.json()
+            detail = resp_body.get("detail") or resp_body.get("message") or resp.text[:500]
+        except Exception:
+            detail = resp.text[:500]
+
+        SystemLogger.get_instance().capture(
+            level=level,
+            service=service_name,
+            message=f"HTTP {resp.status_code} {request.method} {request.url.path}: {detail}",
+            organization_id=auth_ctx.get("organization_id"),
+            user_id=auth_ctx.get("user_id"),
+            request_id=getattr(request.state, "request_id", None),
+            http_method=request.method,
+            http_path=request.url.path,
+            http_status=str(resp.status_code),
+            metadata={"query": query, "detail": detail},
+        )
+
     return JSONResponse(
         content=resp.json(),
         status_code=resp.status_code,
-        headers={"X-Request-ID": getattr(request.state, "request_id", ""), "X-Served-By": "IndiCarbon-Gateway"},
+        headers={
+            "X-Request-ID": getattr(request.state, "request_id", ""),
+            "X-Served-By": "IndiCarbon-Gateway",
+        },
     )
 
 
@@ -499,6 +555,29 @@ async def credits_root_proxy(request: Request):
     dependencies=[Depends(rate_limit), Depends(require_auth)],
 )
 async def credits_proxy(request: Request, path: str):
+    return await _proxy(request, settings.marketplace_service_url)
+
+
+# ─── Carbon Projects ──────────────────────────────────────────────────────────
+
+
+@app.api_route(
+    "/api/v1/projects",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    include_in_schema=False,
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def projects_root_proxy(request: Request):
+    return await _proxy(request, settings.marketplace_service_url)
+
+
+@app.api_route(
+    "/api/v1/projects/{path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    tags=["Carbon Projects"],
+    dependencies=[Depends(rate_limit), Depends(require_auth)],
+)
+async def projects_proxy(request: Request, path: str):
     return await _proxy(request, settings.marketplace_service_url)
 
 

@@ -26,6 +26,7 @@ from ..schemas.agent_schemas import DocumentAnalysisResult
 from ..services import agent_service as agent_svc
 from ..services.chat_service import get_chat_history, run_chat
 from ..services.document_analysis_service import run_document_analysis
+from ..services.project_analysis_service import run_project_document_extraction
 
 logger = logging.getLogger("ai-agent.api.routes")
 
@@ -320,3 +321,37 @@ async def push_prompts() -> dict:
     from ..prompts.emission_extraction import push_prompts_to_langsmith
     push_prompts_to_langsmith()
     return {"success": True, "message": "Prompts pushed to LangSmith Hub."}
+
+
+# ─── Carbon Project Document Extraction ───────────────────────────────────────
+
+@router.post(
+    "/api/v1/ai/analyse-project",
+    response_model=dict,
+    tags=["Carbon Projects"],
+    summary="Analyze a carbon reduction project document (PDF) and extract details",
+)
+async def analyse_project_document(
+    file: UploadFile = File(..., description="Project document/PDD PDF to analyze"),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> dict:
+    """
+    Parse the project document and extract project metadata such as name, type, metrics, registry, etc.
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided.")
+
+    file_bytes = await file.read()
+    if len(file_bytes) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large. Maximum size is 25 MB.")
+
+    try:
+        extraction = await run_project_document_extraction(file_bytes, file.filename)
+        return {
+            "success": True,
+            "data": extraction.model_dump(),
+            "message": "AI successfully extracted project details from the document."
+        }
+    except Exception as exc:
+        logger.error("Failed to analyze project document: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))

@@ -35,7 +35,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { triggerDocumentAnalysis } from "@/store/ai-slice";
 import { getEmissionSummary } from "@/lib/api/compliance";
 import { getWallet } from "@/lib/api/wallet";
-import { listCredits } from "@/lib/api/marketplace";
+import { listCredits, retireByQuantity, getPortfolioSummary } from "@/lib/api/marketplace";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -256,6 +256,13 @@ export function DashboardPage() {
   const [realWallet, setRealWallet] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Carbon Portfolio & Retirement State
+  const [creditsList, setCreditsList] = useState<any[]>([]);
+  const [retireDialogOpen, setRetireDialogOpen] = useState(false);
+  const [retireQuantity, setRetireQuantity] = useState("10");
+  const [retiring, setRetiring] = useState(false);
+  const [portfolioSummary, setPortfolioSummary] = useState<any>(null);
+
   const fetchDashboardData = async () => {
     if (!tokens?.organization_id) {
       setIsLoading(false);
@@ -277,6 +284,12 @@ export function DashboardPage() {
       
       const totalCredits = credits.filter((c: any) => c.status === "ISSUED").length;
       setRealCredits(totalCredits);
+      setCreditsList(credits || []);
+
+      // Fetch portfolio summary
+      getPortfolioSummary(tokens.organization_id)
+        .then((ps) => setPortfolioSummary(ps))
+        .catch(() => {});
 
       // If report_count is 0 and we have no emissions, set state to empty
       if (emissions && emissions.report_count === 0) {
@@ -440,8 +453,174 @@ export function DashboardPage() {
       {/* ── SUCCESS STATE ─────────────────────────────────────── */}
       {state === "success" && (
         <>
+      {/* ── Retire Credits Dialog ─────────────────────────── */}
+          <Dialog open={retireDialogOpen} onOpenChange={setRetireDialogOpen}>
+            <DialogContent className="sm:max-w-md bg-background border border-border text-foreground">
+              <DialogHeader>
+                <DialogTitle className="text-sm font-black text-foreground">Retire Carbon Credits</DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Permanently retire ISSUED credits to offset emissions. This action is <strong className="text-red-500">irreversible</strong>.
+                  1 Credit = 1 tCO₂e offset.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Credits to Retire</Label>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={realCredits}
+                      value={retireQuantity}
+                      onChange={(e) => setRetireQuantity(e.target.value)}
+                      className="h-9 text-xs bg-card border-border text-foreground"
+                    />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">/ {realCredits} available</span>
+                  </div>
+                </div>
+                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-3 space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Credits Retiring</span>
+                    <span className="font-semibold text-foreground">{retireQuantity} tCO₂e</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Current Net Position</span>
+                    <span className="font-semibold text-red-500">
+                      {portfolioSummary ? portfolioSummary.net_carbon_position_tco2e?.toLocaleString() : "—"} tCO₂e
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Net Position After Retirement</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                      {portfolioSummary
+                        ? Math.max(0, portfolioSummary.net_carbon_position_tco2e - parseInt(retireQuantity || "0")).toLocaleString()
+                        : "—"}{" "}
+                      tCO₂e
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter className="pt-1">
+                <Button
+                  variant="outline"
+                  onClick={() => setRetireDialogOpen(false)}
+                  className="border-border text-foreground hover:bg-muted text-xs h-9"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  disabled={retiring || !retireQuantity || parseInt(retireQuantity) < 1}
+                  onClick={async () => {
+                    if (!tokens?.organization_id) return;
+                    setRetiring(true);
+                    try {
+                      await retireByQuantity(tokens.organization_id, parseInt(retireQuantity));
+                      toast.success(`${retireQuantity} carbon credits retired permanently!`);
+                      setRetireDialogOpen(false);
+                      fetchDashboardData();
+                    } catch (e: any) {
+                      toast.error(e?.message || "Failed to retire credits.");
+                    } finally {
+                      setRetiring(false);
+                    }
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white text-xs h-9 font-semibold"
+                >
+                  {retiring ? "Retiring..." : "Retire Credits"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* ── Net Carbon Position Panel ───────────────────── */}
+          {portfolioSummary && (
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-gray-900">Net Carbon Position</h2>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Live</span>
+                  </div>
+                  <p className="text-sm text-gray-400 mt-0.5">Your gross emissions minus retired carbon credits</p>
+                </div>
+                <button
+                  onClick={() => setRetireDialogOpen(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all shrink-0"
+                >
+                  Retire Credits →
+                </button>
+              </div>
+              <div className="p-6 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
+                {[
+                  {
+                    label: "Gross Emissions",
+                    value: portfolioSummary.gross_emissions_tco2e
+                      ? portfolioSummary.gross_emissions_tco2e.toLocaleString(undefined, { maximumFractionDigits: 1 })
+                      : (realEmissions ? realEmissions.grand_total_tco2e.toLocaleString() : "0"),
+                    unit: "tCO₂e",
+                    color: "text-red-600",
+                    bg: "bg-red-50",
+                  },
+                  {
+                    label: "Credits Owned",
+                    value: portfolioSummary.issued?.toLocaleString() || "0",
+                    unit: "credits",
+                    color: "text-blue-600",
+                    bg: "bg-blue-50",
+                  },
+                  {
+                    label: "Credits Retired",
+                    value: portfolioSummary.retired?.toLocaleString() || "0",
+                    unit: "tCO₂e offset",
+                    color: "text-emerald-600",
+                    bg: "bg-emerald-50",
+                  },
+                  {
+                    label: "Available Credits",
+                    value: portfolioSummary.credits_available?.toLocaleString() || "0",
+                    unit: "issued",
+                    color: "text-teal-600",
+                    bg: "bg-teal-50",
+                  },
+                  {
+                    label: "Net Carbon Position",
+                    value: portfolioSummary.net_carbon_position_tco2e?.toLocaleString(undefined, { maximumFractionDigits: 1 }) || "0",
+                    unit: "tCO₂e",
+                    color: portfolioSummary.net_carbon_position_tco2e > 0 ? "text-red-600" : "text-emerald-600",
+                    bg: portfolioSummary.net_carbon_position_tco2e > 0 ? "bg-red-50" : "bg-emerald-50",
+                    highlight: true,
+                  },
+                  {
+                    label: "Offset Coverage",
+                    value: portfolioSummary.offset_coverage_pct?.toFixed(1) || "0",
+                    unit: "%",
+                    color: "text-violet-600",
+                    bg: "bg-violet-50",
+                  },
+                  {
+                    label: "Credits for Net Zero",
+                    value: portfolioSummary.credits_needed_for_net_zero?.toLocaleString() || "0",
+                    unit: "needed",
+                    color: "text-amber-600",
+                    bg: "bg-amber-50",
+                  },
+                ].map((kpi) => (
+                  <div
+                    key={kpi.label}
+                    className={`p-4 rounded-xl ${kpi.bg} ${kpi.highlight ? "ring-2 ring-offset-1 ring-emerald-300" : ""}`}
+                  >
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide leading-tight">{kpi.label}</p>
+                    <p className={`text-xl font-black mt-1 ${kpi.color}`}>{kpi.value}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{kpi.unit}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* KPI grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
             <KpiCard title="Total Emissions" value={realEmissions ? realEmissions.grand_total_tco2e.toLocaleString() : "0"} unit="tCO₂e"    delta="-8.2%" trend="down" Icon={Factory}  iconColor="text-green-600"  iconBg="bg-green-50" />
             <KpiCard title="Carbon Credits"  value={realCredits.toLocaleString()} unit="tCO₂ offset" delta="+22.5%" trend="up" Icon={Leaf}   iconColor="text-emerald-600" iconBg="bg-emerald-50" />
             <KpiCard title="Wallet Balance"     value={realWallet ? "₹" + realWallet.balance.toLocaleString() : "₹0"}    unit="INR" delta="Live"  trend="up" Icon={IndianRupee} iconColor="text-blue-600"  iconBg="bg-blue-50" />

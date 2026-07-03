@@ -28,5 +28,8 @@ class MarketplaceSettings(BaseSettings):
     supabase_anon_key: str
     supabase_service_role_key: str
 
+    compliance_service_url: str = "http://localhost:8001"
+
+
 
 settings = MarketplaceSettings()
