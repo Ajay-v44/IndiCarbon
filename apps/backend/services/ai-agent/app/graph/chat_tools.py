@@ -360,7 +360,7 @@ def build_chat_tools(db: Session, organization_id: str, user: AuthenticatedUser,
         """Fetch the organization's wallet balance."""
         try:
             client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
-            resp = client.request("GET", "/wallet", params={"organization_id": organization_id}, user=user)
+            resp = client.request("GET", "/api/v1/wallet", params={"organization_id": organization_id}, user=user)
             data = resp.json().get("data", {})
             return f"Wallet balance: {data.get('balance')} {data.get('currency')}."
         except Exception as e:
@@ -371,7 +371,7 @@ def build_chat_tools(db: Session, organization_id: str, user: AuthenticatedUser,
         """Fetch the organization's wallet transaction history."""
         try:
             client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
-            resp = client.request("GET", "/wallet/transactions", params={"organization_id": organization_id}, user=user)
+            resp = client.request("GET", "/api/v1/wallet/transactions", params={"organization_id": organization_id}, user=user)
             data = resp.json().get("data", [])
             if not data:
                 return "No transactions found."
@@ -384,7 +384,7 @@ def build_chat_tools(db: Session, organization_id: str, user: AuthenticatedUser,
         """Fetch the open carbon credit sell orders available in the market."""
         try:
             client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
-            resp = client.request("GET", "/orders/market", user=user)
+            resp = client.request("GET", "/api/v1/orders/market", user=user)
             data = resp.json().get("data", [])
             if not data:
                 return "No open sell orders available in the market."
@@ -413,7 +413,7 @@ def build_chat_tools(db: Session, organization_id: str, user: AuthenticatedUser,
                 "vintage_year": vintage_year,
                 "project_type": project_type
             }
-            resp = client.request("POST", "/orders", json=payload, user=user)
+            resp = client.request("POST", "/api/v1/orders", json=payload, user=user)
             data = resp.json()
             return f"Order placed successfully: {data.get('message')}. Order details: {data.get('data')}."
         except Exception as e:
@@ -438,7 +438,7 @@ def build_chat_tools(db: Session, organization_id: str, user: AuthenticatedUser,
                 "proposed_price": proposed_price,
                 "buyer_note": buyer_note
             }
-            resp = client.request("POST", "/proposals", json=payload, user=user)
+            resp = client.request("POST", "/api/v1/proposals", json=payload, user=user)
             data = resp.json()
             return f"Proposal submitted successfully: {data.get('message')}. Proposal details: {data.get('data')}."
         except Exception as e:
@@ -456,7 +456,7 @@ def build_chat_tools(db: Session, organization_id: str, user: AuthenticatedUser,
             params = {"organization_id": organization_id}
             if role:
                 params["role"] = role
-            resp = client.request("GET", "/proposals", params=params, user=user)
+            resp = client.request("GET", "/api/v1/proposals", params=params, user=user)
             data = resp.json().get("data", [])
             if not data:
                 return "No proposals found."
@@ -479,7 +479,7 @@ def build_chat_tools(db: Session, organization_id: str, user: AuthenticatedUser,
                 return "Action must be either 'accept' or 'reject'."
             
             client = get_service_client(ServiceName.MARKETPLACE, caller="ai-agent")
-            path = f"/proposals/{proposal_id}/{action_lower}"
+            path = f"/api/v1/proposals/{proposal_id}/{action_lower}"
             payload = {}
             if action_lower == "reject" and rejection_reason:
                 payload["rejection_reason"] = rejection_reason
