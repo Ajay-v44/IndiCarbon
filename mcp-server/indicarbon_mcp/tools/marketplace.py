@@ -226,3 +226,51 @@ def register(mcp: FastMCP) -> None:
         """
         data = client.post(f"/api/v1/proposals/{proposal_id}/cancel")
         return json.dumps(data.get("data") or data, indent=2, default=str)
+
+    # ─── Wallet Tools ───────────────────────────────────────────────────
+
+    @mcp.tool()
+    def indicarbon_get_wallet(organization_id: str) -> str:
+        """
+        Get the wallet balance and details for an organisation.
+
+        Args:
+            organization_id: UUID of the organisation.
+        """
+        data = client.get("/api/v1/wallet", params={"organization_id": organization_id})
+        return json.dumps(data.get("data") or data, indent=2, default=str)
+
+    @mcp.tool()
+    def indicarbon_list_wallet_transactions(organization_id: str) -> str:
+        """
+        List all wallet transactions (debits/credits) for an organisation.
+
+        Args:
+            organization_id: UUID of the organisation.
+        """
+        data = client.get("/api/v1/wallet/transactions", params={"organization_id": organization_id})
+        return json.dumps(data.get("data") or data, indent=2, default=str)
+
+    @mcp.tool()
+    def indicarbon_add_wallet_funds(
+        organization_id: str,
+        amount: float,
+        description: str | None = None,
+    ) -> str:
+        """
+        Admin: Add funds to an organisation's wallet.
+
+        Args:
+            organization_id: UUID of the organisation.
+            amount: Amount in INR to add (must be > 0).
+            description: Optional description of the transaction.
+        """
+        payload = {
+            "organization_id": organization_id,
+            "amount": amount,
+        }
+        if description:
+            payload["description"] = description
+        data = client.post("/api/v1/wallet/admin/add-funds", json=payload)
+        return json.dumps(data.get("data") or data, indent=2, default=str)
+
