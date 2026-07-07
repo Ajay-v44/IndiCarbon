@@ -7,7 +7,8 @@ from typing import Any
 
 import httpx
 import redis.asyncio as aioredis
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+import asyncio
+from fastapi import Depends, FastAPI, HTTPException, Request, status, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -681,6 +682,50 @@ async def ai_agent_root_proxy(request: Request):
 )
 async def ai_agent_proxy(request: Request, path: str):
     return await _proxy(request, settings.ai_agent_service_url, timeout=settings.ai_service_timeout)
+
+
+@app.websocket("/api/v1/ai/voice")
+async def gateway_websocket_proxy(websocket: WebSocket):
+    token = websocket.query_params.get("token", "")
+    
+    # Map HTTP service URL to WS service URL
+    base_url = settings.ai_agent_service_url.replace("http://", "ws://").replace("https://", "wss://")
+    downstream_ws_url = f"{base_url}/api/v1/ai/voice?token={token}"
+    
+    await websocket.accept()
+    
+    import websockets
+    try:
+        async with websockets.connect(downstream_ws_url) as target_ws:
+            async def forward_to_downstream():
+                try:
+                    while True:
+                        msg = await websocket.receive()
+                        if "bytes" in msg and msg["bytes"]:
+                            await target_ws.send(msg["bytes"])
+                        elif "text" in msg and msg["text"]:
+                            await target_ws.send(msg["text"])
+                except Exception:
+                    pass
+
+            async def forward_to_client():
+                try:
+                    async for msg in target_ws:
+                        if isinstance(msg, bytes):
+                            await websocket.send_bytes(msg)
+                        else:
+                            await websocket.send_text(msg)
+                except Exception:
+                    pass
+
+            await asyncio.gather(forward_to_downstream(), forward_to_client())
+    except Exception as e:
+        logger.error(f"Gateway WebSocket proxy failed to connect: {e}")
+        try:
+            await websocket.send_json({"type": "error", "value": f"Gateway proxy error: {str(e)}"})
+            await websocket.close()
+        except Exception:
+            pass
 
 
 # ─── System Logs (Admin-Only) ────────────────────────────────────────────────

@@ -37,6 +37,7 @@ class Settings(BaseSettings):
 
     # ── LLM Provider ──────────────────────────────────────────────────────────
     llm_provider: str = "ollama"  # "ollama", "google", or "openai"
+    app_env: str = "development"
 
     # ── Ollama ────────────────────────────────────────────────────────────────
     # Use http://localhost:11434 for local dev; host.docker.internal for Docker
@@ -86,6 +87,9 @@ class Settings(BaseSettings):
     chat_vector_match_count: int = 6
     chat_vector_match_threshold: float = 0.72
     chat_llm_timeout_seconds: float = 45.0
+
+    # ── Sarvam AI ─────────────────────────────────────────────────────────────
+    sarvam_api_key: str = ""
 
 
 @lru_cache(maxsize=1)

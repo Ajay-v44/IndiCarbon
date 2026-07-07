@@ -14,6 +14,8 @@ langchain-ollama>=0.1.0          # Official Ollama integration (replaces langcha
 langchain-google-genai>=1.0.8    # Google Gemini integration
 langchain-openai>=0.3.0          # OpenAI GPT integration
 openai>=1.78.0                   # OpenAI Python SDK
+sarvamai>=0.1.0                  # Sarvam AI SDK for STT/TTS streaming
+
 
 # LangSmith (prompt hub + tracing)
 langsmith>=0.1.80
