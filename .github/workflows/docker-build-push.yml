@@ -43,7 +43,7 @@ jobs:
             echo "dockerfile=apps/frontend/Dockerfile" >> $GITHUB_OUTPUT
           else
             echo "context=./apps/backend" >> $GITHUB_OUTPUT
-            echo "dockerfile=services/${{ matrix.service }}/Dockerfile" >> $GITHUB_OUTPUT
+            echo "dockerfile=apps/backend/services/${{ matrix.service }}/Dockerfile" >> $GITHUB_OUTPUT
           fi
 
       - name: Build and Push Docker image
