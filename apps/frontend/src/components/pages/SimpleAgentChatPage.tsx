@@ -264,6 +264,21 @@ function ScrollDownButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+const LANGUAGES_LIST = [
+  { code: "unknown", name: "Auto Detect Language" },
+  { code: "en-IN", name: "English (India)" },
+  { code: "hi-IN", name: "Hindi (हिन्दी)" },
+  { code: "ta-IN", name: "Tamil (தமிழ்)" },
+  { code: "te-IN", name: "Telugu (తెలుగు)" },
+  { code: "kn-IN", name: "Kannada (ಕನ್ನಡ)" },
+  { code: "ml-IN", name: "Malayalam (മലയാളം)" },
+  { code: "mr-IN", name: "Marathi (मराठी)" },
+  { code: "gu-IN", name: "Gujarati (ગુજરાતી)" },
+  { code: "bn-IN", name: "Bengali (বাংলা)" },
+  { code: "pa-IN", name: "Punjabi (ਪੰਜਾਬੀ)" },
+  { code: "od-IN", name: "Odia (ଓଡ଼ିଆ)" },
+];
+
 export function SimpleAgentChatPage() {
   const dispatch = useAppDispatch();
   const { chatHistory, status, error } = useAppSelector((state) => state.ai);
@@ -284,6 +299,7 @@ export function SimpleAgentChatPage() {
   const [micLevel, setMicLevel] = useState(0);
   const [speakerLevel, setSpeakerLevel] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState("unknown");
 
   const wsRef = useRef<WebSocket | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -297,6 +313,11 @@ export function SimpleAgentChatPage() {
   useEffect(() => {
     voiceStatusRef.current = voiceStatus;
   }, [voiceStatus]);
+
+  const isMutedRef = useRef(isMuted);
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
 
   const handleOrbClick = () => {
     if (voiceStatus === "speaking" || voiceStatus === "thinking") {
@@ -404,6 +425,40 @@ export function SimpleAgentChatPage() {
 
   // Start voice mode
   const startVoiceMode = async () => {
+    await startVoiceModeWithLang(selectedLanguage);
+  };
+
+  const handleLanguageChange = (newLang: string) => {
+    setSelectedLanguage(newLang);
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+      setVoiceStatus("connecting");
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach((track) => track.stop());
+        micStreamRef.current = null;
+      }
+      if (audioContextRef.current) {
+        void audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+      if (processorRef.current) {
+        processorRef.current.disconnect();
+        processorRef.current = null;
+      }
+      if (pcmPlayerRef.current) {
+        pcmPlayerRef.current.stop();
+      }
+      
+      try {
+        wsRef.current.close();
+      } catch (e) {}
+      
+      setTimeout(() => {
+        void startVoiceModeWithLang(newLang);
+      }, 300);
+    }
+  };
+
+  const startVoiceModeWithLang = async (langCode: string) => {
     setIsVoiceModeActive(true);
     setVoiceStatus("connecting");
     setTranscriptText("");
@@ -428,7 +483,7 @@ export function SimpleAgentChatPage() {
 
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
     const wsBase = apiBase.replace("http://", "ws://").replace("https://", "wss://");
-    const wsUrl = `${wsBase}/api/v1/ai/voice?token=${token}`;
+    const wsUrl = `${wsBase}/api/v1/ai/voice?token=${token}&lang=${langCode}`;
 
     try {
       // 2. Connect websocket
@@ -545,7 +600,7 @@ export function SimpleAgentChatPage() {
 
       processor.onaudioprocess = (e) => {
         if (wsRef.current?.readyState !== WebSocket.OPEN) return;
-        if (isMuted) return;
+        if (isMutedRef.current) return;
         if (voiceStatusRef.current !== "listening") return;
 
         const inputData = e.inputBuffer.getChannelData(0);
@@ -703,13 +758,28 @@ export function SimpleAgentChatPage() {
                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Powered by Sarvam AI</p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
-              <span className={cn(
-                "h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]",
-                isThinking && "bg-cyan-400 animate-pulse",
-                isListening && "animate-ping"
-              )} />
-              <span className="capitalize">{voiceStatus}</span>
+            
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedLanguage}
+                onChange={(e) => handleLanguageChange(e.target.value)}
+                className="rounded-full border border-white/10 bg-slate-900/60 px-3 py-1 text-[11px] font-semibold text-white outline-none cursor-pointer transition hover:bg-slate-800/80 focus:border-emerald-500/50"
+              >
+                {LANGUAGES_LIST.map((lang) => (
+                  <option key={lang.code} value={lang.code} className="bg-slate-950 text-white">
+                    {lang.name}
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
+                <span className={cn(
+                  "h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]",
+                  isThinking && "bg-cyan-400 animate-pulse",
+                  isListening && "animate-ping"
+                )} />
+                <span className="capitalize">{voiceStatus}</span>
+              </div>
             </div>
           </div>
 

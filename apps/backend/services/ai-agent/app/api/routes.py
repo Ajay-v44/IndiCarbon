@@ -395,10 +395,10 @@ def clean_text_for_tts(text: str) -> list[str]:
     clean_parts = []
     for part in parts:
         part_clean = part.strip()
-        # Remove any remaining raw punctuation-only lines
-        part_clean = re.sub(r'[^a-zA-Z0-9\s.,?!₹$/%+-]', '', part_clean)
+        # Remove any remaining raw punctuation-only lines (preserve all unicode alphanumeric characters)
+        part_clean = re.sub(r'[^\w\s.,?!₹$/%+-]', '', part_clean)
         part_clean = part_clean.strip()
-        if part_clean and len(re.sub(r'[^a-zA-Z0-9]', '', part_clean)) > 0:
+        if part_clean and len(re.sub(r'[^\w]', '', part_clean)) > 0:
             clean_parts.append(part_clean)
             
     return clean_parts
@@ -479,6 +479,15 @@ async def websocket_voice_endpoint(
     s = get_settings()
     sarvam_client = AsyncSarvamAI(api_subscription_key=s.sarvam_api_key)
 
+    lang = websocket.query_params.get("lang") or "unknown"
+    valid_langs = {
+        "unknown", "en-IN", "hi-IN", "bn-IN", "ta-IN", "te-IN", "gu-IN", "kn-IN", 
+        "ml-IN", "mr-IN", "pa-IN", "od-IN", "as-IN", "ur-IN", "ne-IN", "kok-IN", 
+        "ks-IN", "sd-IN", "sa-IN", "sat-IN", "mni-IN", "brx-IN", "mai-IN", "doi-IN"
+    }
+    if lang not in valid_langs:
+        lang = "unknown"
+
     try:
         # Loop for multiple turns in a single websocket session
         while True:
@@ -490,7 +499,7 @@ async def websocket_voice_endpoint(
                 async with sarvam_client.speech_to_text_streaming.connect(
                     model="saaras:v3",
                     mode="transcribe",
-                    language_code="en-IN",
+                    language_code=lang,
                     input_audio_codec="pcm_s16le",
                     high_vad_sensitivity="true",
                     vad_signals="true"
@@ -663,6 +672,18 @@ async def websocket_voice_endpoint(
             if not sentences:
                 continue
 
+            # Detect response language dynamically to choose correct TTS configuration
+            target_lang = "en-IN"
+            SUPPORTED_TTS_LANGUAGES = {"en-IN", "hi-IN", "bn-IN", "ta-IN", "te-IN", "gu-IN", "kn-IN", "ml-IN", "mr-IN", "pa-IN", "od-IN"}
+            
+            try:
+                lid_resp = await sarvam_client.text.identify_language(input=agent_answer)
+                if lid_resp.language_code and lid_resp.language_code in SUPPORTED_TTS_LANGUAGES:
+                    target_lang = lid_resp.language_code
+                    logger.info(f"Dynamically identified response language for TTS: {target_lang}")
+            except Exception as e:
+                logger.warning(f"Failed to identify language for TTS, falling back to en-IN: {e}")
+
             # Connect to Sarvam TTS streaming
             try:
                 async with sarvam_client.text_to_speech_streaming.connect(
@@ -671,7 +692,7 @@ async def websocket_voice_endpoint(
                 ) as tts_ws:
                     
                     await tts_ws.configure(
-                        target_language_code="en-IN",
+                        target_language_code=target_lang,
                         speaker="ritu",
                         output_audio_codec="linear16",
                         speech_sample_rate=24000,

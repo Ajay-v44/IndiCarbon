@@ -9,9 +9,9 @@ This document provides a detailed overview of the design, architecture, and impl
 The Live Voice Mode allows users to interact with the IndiCarbon AI Agent entirely using their voice. It switches the standard chat panel to a minimalist **Zero UI** interface featuring a pulsing, glowing orb and audio waves that change shape based on whether the agent is listening, thinking, or speaking.
 
 Behind the scenes, the feature leverages the **Sarvam AI** speech platform for low-latency streaming:
-* **Speech-to-Text (STT):** Streams user microphone audio to Sarvam's `saaras:v3` model.
-* **Agentic Execution:** Feeds transcripts to the main LangGraph agentic reasoning loop.
-* **Text-to-Speech (TTS):** Converts agent text responses into natural English-Indian (`en-IN`) voice chunks using Sarvam's `bulbul:v3` model.
+* **Speech-to-Text (STT):** Streams user microphone audio to Sarvam's `saaras:v3` model. Supports automatic language identification (`unknown`) as well as forcing specific language codes (Hindi, Tamil, Telugu, Kannada, Bengali, Gujarati, Marathi, Malayalam, Punjabi, Odia).
+* **Agentic Execution:** Feeds transcripts to the main LangGraph agentic reasoning loop. The agent prompt instructs it to respond in the user's language and script.
+* **Text-to-Speech (TTS):** Converts agent text responses into natural voice chunks using Sarvam's `bulbul:v3` model. The voice language (`target_language_code`) is dynamically detected from the agent's text response using Sarvam's language identification API.
 
 ---
 
@@ -99,11 +99,28 @@ Before sending generated agent responses (which contain tables, bullet lists, ma
 * Markdown divider lines (`---`) and horizontal rules are ignored.
 * Data tables (lines containing pipe symbols `|`) are skipped entirely to prevent spelling out raw table characters.
 * Chunks are parsed and separated by newlines and sentence punctuation, reducing TTS time-to-first-byte (TTFB).
+* **Unicode Character Preservation:** The cleaning regex utilizes Unicode-aware matching (`\w`) instead of English-only limitations (`a-zA-Z0-9`). This guarantees that Indian language scripts (Devanagari, Tamil, Telugu, Kannada, Malayalam, Bengali, Gurmukhi, Odia, etc.) are fully preserved during punctuation stripping, enabling correct real-time TTS speech synthesis.
 
 ### D. Safe Database Session Management
 FastAPI WebSockets are long-lived, which can cause SQLAlchemy connection pool exhaustion (`TimeoutError: QueuePool limit reached`) if a database session dependency remains checked out.
 * The endpoint utilizes `db_context = contextmanager(get_db)` to dynamically check out a database session inside the `while True` loop *only* when the agent is executing.
 * The session commits and closes immediately when the agent finishes executing, releasing the connection back to the database pool.
+
+### E. Multilingual & Auto-Language Identification
+IndiCarbon Live AI features comprehensive multilingual speech capabilities powered by Sarvam AI:
+1. **Interactive Language Selection:**
+   A dropdown selector in the Zero UI header allows users to choose "Auto Detect Language" (which sends `lang=unknown` to Sarvam STT to auto-detect and transcribe Indian languages) or explicitly pin a specific language (Hindi, Tamil, Telugu, Kannada, Bengali, Gujarati, Marathi, Malayalam, Punjabi, Odia, or English).
+2. **Real-time Reconnection:**
+   If a user changes the language selector during a live session, the frontend automatically disconnects the active socket and reconnects with the new language parameter within 300ms, providing a seamless user experience.
+3. **Multilingual Agent Reasoning:**
+   The LangGraph system prompt instructs the underlying LLM to be fully multilingual and dynamically respond in the exact same language and script (e.g. Devanagari script for Hindi, Tamil script for Tamil) that the user used.
+4. **Dynamic TTS Language Routing:**
+   After the agent generates a text response, the backend calls Sarvam's `identify_language` API to detect the text's language. If it matches one of the 11 languages supported by `bulbul:v3` TTS, the TTS stream is initialized with that language code. This guarantees the voice synthesis matches the spoken script (e.g., native Hindi speaker voice for Hindi text).
+5. **Direct Multilingual Reasoning (No Intermediate Translation):**
+   To clarify how translation and processing work: the system does **not** translate user inputs to English, reason, and then translate the response back. Instead, the pipeline is entirely direct and native:
+   * **Direct STT:** The user's speech (e.g., Malayalam) is transcribed directly into Malayalam script by Sarvam STT.
+   * **Native LLM Processing:** The raw Malayalam transcript is sent directly to the LLM. The multilingual LLM understands Malayalam natively and constructs the response directly in Malayalam script.
+   * **Direct TTS:** The backend identifies the Malayalam text script (`ml-IN`) and feeds it directly to Sarvam's Malayalam TTS engine, synthesizing natural voice output without any intermediate translation stages.
 
 ---
 
