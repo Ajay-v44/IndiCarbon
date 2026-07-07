@@ -14,11 +14,18 @@ All endpoints follow the IndiCarbon ApiResponse envelope pattern.
 from __future__ import annotations
 
 import logging
+import base64
+import json
+import asyncio
 from typing import Optional
+from contextlib import contextmanager
+from starlette.websockets import WebSocketState
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile, status, Depends
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, UploadFile, status, Depends, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 from shared_logic import AuthenticatedUser, get_current_user, get_db
+from sarvamai import AsyncSarvamAI, AudioOutput, EventResponse
+from ..config.settings import get_settings
 
 from ..schemas.agent import AgentRegistryCreate, AgentRegistryResponse, AgentRegistryUpdate
 from ..schemas.chat import ChatHistoryResponse, ChatRequest, ChatResponse
@@ -355,3 +362,404 @@ async def analyse_project_document(
     except Exception as exc:
         logger.error("Failed to analyze project document: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+def clean_text_for_tts(text: str) -> list[str]:
+    import re
+    # Remove markdown tables completely (or lines containing | )
+    lines = text.split("\n")
+    clean_lines = []
+    for line in lines:
+        if '|' in line:
+            continue
+        if re.match(r'^\s*[-*_]{3,}\s*$', line):
+            continue
+        clean_lines.append(line)
+    
+    text = "\n".join(clean_lines)
+
+    # Remove markdown titles and headers
+    text = re.sub(r'#+\s*', '', text)
+    # Remove bold and italic formatting
+    text = re.sub(r'\*+', '', text)
+    text = re.sub(r'_+', '', text)
+    # Remove list indicators
+    text = re.sub(r'^\s*[-*+]\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
+    # Remove links [text](url) -> text
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    
+    # Split by newlines and sentence punctuation
+    parts = re.split(r'\n+|(?<=[.?!])\s+', text)
+    
+    clean_parts = []
+    for part in parts:
+        part_clean = part.strip()
+        # Remove any remaining raw punctuation-only lines
+        part_clean = re.sub(r'[^a-zA-Z0-9\s.,?!₹$/%+-]', '', part_clean)
+        part_clean = part_clean.strip()
+        if part_clean and len(re.sub(r'[^a-zA-Z0-9]', '', part_clean)) > 0:
+            clean_parts.append(part_clean)
+            
+    return clean_parts
+
+
+
+
+@router.websocket("/api/v1/ai/voice")
+async def websocket_voice_endpoint(
+    websocket: WebSocket,
+    token: Optional[str] = None
+):
+    """
+    WebSocket endpoint for real-time voice chat with the IndiCarbon agent.
+    Streams microphone input from client to Sarvam STT,
+    executes agentic tools via run_chat,
+    and streams agent response audio from Sarvam TTS to client.
+    """
+    # 1. Accept WebSocket
+    await websocket.accept()
+    
+    # 2. Authenticate
+    if not token:
+        token = websocket.query_params.get("token")
+        
+    user: Optional[AuthenticatedUser] = None
+    try:
+        from shared_logic.auth import AUTH_SERVICE_URL, AuthenticatedUser, _resolve_organization_id
+        import httpx
+        from uuid import UUID
+        
+        s = get_settings()
+        
+        # Check for dev tokens or bypass for local testing
+        if token == "mock-dev-token" or (s.app_env == "development" and not token):
+            # Fallback mock user if no token in development
+            user = AuthenticatedUser(
+                id=UUID("00000000-0000-0000-0000-000000000000"),
+                email="dev@indicarbon.com",
+                roles=["ADMIN"],
+                organization_id=UUID("11111111-1111-1111-1111-111111111111")
+            )
+        else:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    f"{AUTH_SERVICE_URL}/api/v1/auth/verify",
+                    json={"token": token},
+                )
+                resp.raise_for_status()
+                data = resp.json().get("data", {})
+                if not data.get("valid") or not data.get("user_id"):
+                    raise ValueError("Invalid token validation response.")
+                user = AuthenticatedUser(
+                    id=UUID(data.get("user_id")),
+                    email=data.get("email"),
+                    roles=data.get("roles", []),
+                    organization_id=_resolve_organization_id(
+                        data.get("organization_id"),
+                        data.get("organization_ids"),
+                    ),
+                )
+    except Exception as e:
+        logger.error(f"WebSocket authentication error: {e}")
+        try:
+            await websocket.send_json({"type": "error", "value": f"Authentication failed: {str(e)}"})
+            await websocket.close()
+        except Exception:
+            pass
+        return
+
+    logger.info(f"WebSocket voice connection authenticated for user: {user.id}")
+    try:
+        await websocket.send_json({"type": "status", "value": "connected"})
+    except Exception:
+        return
+
+    # Setup Sarvam AI client
+    s = get_settings()
+    sarvam_client = AsyncSarvamAI(api_subscription_key=s.sarvam_api_key)
+
+    try:
+        # Loop for multiple turns in a single websocket session
+        while True:
+            # Send status: ready to listen
+            await websocket.send_json({"type": "status", "value": "listening"})
+            
+            try:
+                # Connect to Sarvam STT streaming
+                async with sarvam_client.speech_to_text_streaming.connect(
+                    model="saaras:v3",
+                    mode="transcribe",
+                    language_code="en-IN",
+                    input_audio_codec="pcm_s16le",
+                    high_vad_sensitivity="true",
+                    vad_signals="true"
+                ) as stt_ws:
+                    
+                    end_speech_event = asyncio.Event()
+                    transcript_container = [""]
+                    
+                    async def read_client_microphone():
+                        try:
+                            while not end_speech_event.is_set():
+                                msg = await websocket.receive()
+                                if "bytes" in msg and msg["bytes"]:
+                                    chunk = msg["bytes"]
+                                    # Forward raw PCM bytes to Sarvam STT (expects base64 encoded string)
+                                    chunk_base64 = base64.b64encode(chunk).decode("utf-8")
+                                    await stt_ws.transcribe(
+                                        audio=chunk_base64,
+                                        encoding="audio/wav"
+                                    )
+                                elif "text" in msg and msg["text"]:
+                                    try:
+                                        data = json.loads(msg["text"])
+                                        if data.get("type") == "stop":
+                                            logger.info("Client requested stop listening.")
+                                            end_speech_event.set()
+                                            break
+                                    except json.JSONDecodeError:
+                                        pass
+                        except WebSocketDisconnect:
+                            logger.info("WebSocket client disconnected in read_client_microphone task.")
+                            end_speech_event.set()
+                        except Exception as exc:
+                            logger.error(f"Error in read_client_microphone: {exc}")
+                            end_speech_event.set()
+
+                    async def read_stt_responses():
+                        try:
+                            async for message in stt_ws:
+                                if message.type == "data":
+                                    if message.data.transcript:
+                                        transcript_container[0] = message.data.transcript
+                                        # Send intermediate transcript to client
+                                        await websocket.send_json({
+                                            "type": "transcript",
+                                            "value": transcript_container[0],
+                                            "is_final": False
+                                        })
+                                elif message.type == "events":
+                                    if message.data.signal_type == "END_SPEECH":
+                                        logger.info("Sarvam VAD detected END_SPEECH.")
+                                        end_speech_event.set()
+                                        break
+                        except Exception as exc:
+                            logger.error(f"Error in read_stt_responses: {exc}")
+                            end_speech_event.set()
+
+                    # Start concurrent read and write tasks for STT
+                    mic_task = asyncio.create_task(read_client_microphone())
+                    stt_task = asyncio.create_task(read_stt_responses())
+                    
+                    # Wait until speech ends
+                    await asyncio.wait([mic_task, stt_task], return_when=asyncio.FIRST_COMPLETED)
+                    
+                    # Cancel pending tasks
+                    mic_task.cancel()
+                    stt_task.cancel()
+                    
+                    # Flush the STT stream
+                    await stt_ws.flush()
+                    
+                    # Get final transcript (it may arrive after flush)
+                    try:
+                        async with asyncio.timeout(0.5):
+                            async for message in stt_ws:
+                                if message.type == "data" and message.data.transcript:
+                                    transcript_container[0] = message.data.transcript
+                    except Exception:
+                        pass
+            except Exception as exc:
+                logger.error(f"Failed to connect to Sarvam STT streaming: {exc}")
+                await websocket.send_json({"type": "error", "value": "Speech service is temporarily unavailable. Retrying..."})
+                await asyncio.sleep(2.0)
+                continue
+
+            final_transcript = transcript_container[0].strip()
+            if not final_transcript:
+                logger.info("No speech detected.")
+                await websocket.send_json({"type": "status", "value": "no_speech"})
+                await asyncio.sleep(0.5)
+                continue
+
+            logger.info(f"Final STT Transcript: {final_transcript}")
+            
+            # Send final transcript to client
+            await websocket.send_json({
+                "type": "transcript",
+                "value": final_transcript,
+                "is_final": True
+            })
+
+            # Check for exit commands
+            if final_transcript.lower() in ("exit", "quit", "stop", "goodbye"):
+                await websocket.send_json({"type": "status", "value": "exiting"})
+                break
+
+            # 3. Transition to Thinking state and run agent (Interruptible)
+            await websocket.send_json({"type": "status", "value": "thinking"})
+            
+            # Run agent chat with a short-lived DB session
+            db_context = contextmanager(get_db)
+            chat_resp = None
+            
+            with db_context() as db_session:
+                chat_task = asyncio.create_task(run_chat(
+                    req=ChatRequest(query=final_transcript),
+                    user=user,
+                    db=db_session
+                ))
+                
+                interrupt_event = asyncio.Event()
+                
+                async def listen_for_interrupt_thinking():
+                    try:
+                        while not chat_task.done() and not interrupt_event.is_set():
+                            msg = await websocket.receive()
+                            if "text" in msg and msg["text"]:
+                                data = json.loads(msg["text"])
+                                if data.get("type") == "interrupt":
+                                    logger.info("Interrupt received during thinking!")
+                                    interrupt_event.set()
+                                    break
+                    except Exception:
+                        pass
+                        
+                interrupt_task = asyncio.create_task(listen_for_interrupt_thinking())
+                
+                try:
+                    await asyncio.wait([chat_task, interrupt_task], return_when=asyncio.FIRST_COMPLETED)
+                except Exception as e:
+                    logger.error(f"Error waiting for chat task: {e}")
+                    
+                interrupt_task.cancel()
+                
+                if interrupt_event.is_set():
+                    chat_task.cancel()
+                    logger.info("Thinking task cancelled due to user interrupt.")
+                    await websocket.send_json({"type": "status", "value": "listening"})
+                    continue
+                    
+                try:
+                    chat_resp = await chat_task
+                    agent_answer = chat_resp.answer
+                    logger.info(f"Agent response: {agent_answer}")
+                except Exception as e:
+                    logger.error(f"Agent execution failed: {e}")
+                    await websocket.send_json({"type": "error", "value": f"Agent error: {str(e)}"})
+                    continue
+
+            # Send agent text response to client
+            await websocket.send_json({
+                "type": "response",
+                "value": agent_answer
+            })
+
+            # 4. Transition to Speaking state and stream TTS (Interruptible)
+            await websocket.send_json({"type": "status", "value": "speaking"})
+
+            sentences = clean_text_for_tts(agent_answer)
+            if not sentences:
+                continue
+
+            # Connect to Sarvam TTS streaming
+            try:
+                async with sarvam_client.text_to_speech_streaming.connect(
+                    model="bulbul:v3",
+                    send_completion_event="true"
+                ) as tts_ws:
+                    
+                    await tts_ws.configure(
+                        target_language_code="en-IN",
+                        speaker="ritu",
+                        output_audio_codec="linear16",
+                        speech_sample_rate=24000,
+                        min_buffer_size=30,
+                        max_chunk_length=150
+                    )
+
+                    audio_finished = asyncio.Event()
+                    
+                    async def receive_and_send_audio():
+                        try:
+                            async for message in tts_ws:
+                                if isinstance(message, AudioOutput):
+                                    await websocket.send_json({
+                                        "type": "audio",
+                                        "value": message.data.audio
+                                    })
+                                elif isinstance(message, EventResponse):
+                                    if message.data.event_type == "final":
+                                        logger.info("TTS final audio chunk received.")
+                                        break
+                        except Exception as exc:
+                            logger.error(f"Error in receive_and_send_audio: {exc}")
+                        finally:
+                            audio_finished.set()
+
+                    audio_task = asyncio.create_task(receive_and_send_audio())
+                    
+                    async def listen_for_interrupt_speaking():
+                        try:
+                            while not audio_finished.is_set() and not interrupt_event.is_set():
+                                msg = await websocket.receive()
+                                if "text" in msg and msg["text"]:
+                                    data = json.loads(msg["text"])
+                                    if data.get("type") == "interrupt":
+                                        logger.info("Interrupt received during speaking!")
+                                        interrupt_event.set()
+                                        break
+                        except Exception:
+                            pass
+                            
+                    speaking_interrupt_task = asyncio.create_task(listen_for_interrupt_speaking())
+
+                    # Send text chunks to TTS WebSocket
+                    try:
+                        for sentence in sentences:
+                            if interrupt_event.is_set():
+                                break
+                            await tts_ws.convert(sentence)
+                            await asyncio.sleep(0.01)
+
+                        # Flush TTS
+                        if not interrupt_event.is_set():
+                            await tts_ws.flush()
+                            await audio_task
+                        else:
+                            audio_task.cancel()
+                    except Exception as exc:
+                        logger.warning(f"Sarvam TTS stream closed/encountered exception: {exc}")
+                        audio_task.cancel()
+                        
+                    speaking_interrupt_task.cancel()
+                    
+                    if interrupt_event.is_set():
+                        logger.info("Speaking cancelled due to user interrupt.")
+                        await websocket.send_json({"type": "status", "value": "listening"})
+                        continue
+                    
+                    # Send playback complete signal to client and wait a tiny bit
+                    await websocket.send_json({"type": "playback_complete"})
+                    await asyncio.sleep(1.0)
+            except Exception as exc:
+                logger.error(f"Failed to connect to Sarvam TTS streaming: {exc}")
+                await websocket.send_json({"type": "error", "value": "Speech playback service is temporarily unavailable."})
+                await websocket.send_json({"type": "playback_complete"})
+                await asyncio.sleep(1.0)
+
+    except (WebSocketDisconnect, RuntimeError) as e:
+        # Starlette raises RuntimeError when writing to a closed socket
+        if isinstance(e, RuntimeError) and "close message has been sent" not in str(e):
+            logger.error(f"Error in WebSocket voice endpoint: {e}", exc_info=True)
+        else:
+            logger.info(f"WebSocket connection closed for user {user.id if user else 'unknown'}")
+    except Exception as e:
+        logger.error(f"Error in WebSocket voice endpoint: {e}", exc_info=True)
+        try:
+            if websocket.client_state != WebSocketState.DISCONNECTED:
+                await websocket.send_json({"type": "error", "value": f"Server error: {str(e)}"})
+        except Exception:
+            pass
+
