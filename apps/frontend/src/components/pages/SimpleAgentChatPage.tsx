@@ -469,6 +469,12 @@ export function SimpleAgentChatPage() {
     pcmPlayer.init();
     pcmPlayerRef.current = pcmPlayer;
 
+    // Create recording AudioContext synchronously inside user click gesture!
+    const recAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({
+      sampleRate: 16000,
+    });
+    audioContextRef.current = recAudioCtx;
+
     // 1. Get tokens and build url
     const stored = localStorage.getItem("indicarbon_tokens");
     let token = "";
@@ -577,10 +583,17 @@ export function SimpleAgentChatPage() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       micStreamRef.current = stream;
 
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({
-        sampleRate: 16000,
-      });
-      audioContextRef.current = audioCtx;
+      let audioCtx = audioContextRef.current;
+      if (!audioCtx || audioCtx.state === "closed") {
+        audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({
+          sampleRate: 16000,
+        });
+        audioContextRef.current = audioCtx;
+      }
+
+      if (audioCtx.state === "suspended") {
+        await audioCtx.resume();
+      }
 
       const source = audioCtx.createMediaStreamSource(stream);
       

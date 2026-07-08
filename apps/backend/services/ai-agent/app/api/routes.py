@@ -697,7 +697,8 @@ async def websocket_voice_endpoint(
                 from ..services.chat_service import _get_chat_llm
                 from ..config.observability import build_langfuse_handler
                 from ..graph.chat_tools import build_chat_tools
-                from langchain_core.messages import HumanMessage
+                from ..graph.tools import get_emission_factors, calculate_scope_emissions, calculate_carbon_credits
+                from langchain_core.messages import HumanMessage, AIMessage
                 import uuid
                 
                 db_context = contextmanager(get_db)
@@ -754,9 +755,18 @@ async def websocket_voice_endpoint(
                         }
                     )
                     
-                    # Get the final response from state
-                    last_msg = final_state["messages"][-1]
-                    return last_msg.content
+                    # Get the final response from state (last non-empty AIMessage)
+                    last_ai_msg = None
+                    for msg in reversed(final_state.get("messages", [])):
+                        if isinstance(msg, AIMessage) and msg.content:
+                            last_ai_msg = msg
+                            break
+                    
+                    if last_ai_msg:
+                        return last_ai_msg.content
+                    else:
+                        last_msg = final_state["messages"][-1]
+                        return last_msg.content
 
             graph_task = asyncio.create_task(execute_multi_agent_pipeline())
             active_tasks.append(graph_task)
