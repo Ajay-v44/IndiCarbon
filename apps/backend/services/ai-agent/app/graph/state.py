@@ -9,9 +9,12 @@ built-in checkpointing and streaming mechanisms.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 from typing_extensions import TypedDict
 from langgraph.graph import MessagesState
+from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
+
 
 class AuditorState(MessagesState):
     """
@@ -76,3 +79,23 @@ class AgentState(TypedDict, total=False):
     # ── Metadata ─────────────────────────────────────────────────────────────
     graph_steps: List[str]                     # Ordered list of nodes executed
     errors: List[str]                          # Non-fatal errors accumulated during run
+
+
+class MultiAgentState(TypedDict):
+    """
+    Shared multi-agent graph state for the IndiCarbon multi-agent supervisor.
+    """
+    # The message history. Annotated with add_messages so that nodes
+    # append messages to the list instead of overwriting.
+    messages: Annotated[List[BaseMessage], add_messages]
+    
+    # Contextual metadata
+    organization_id: str
+    user_id: str
+    
+    # Stores metrics extracted/used by Compliance or Marketplace agents
+    extracted_metrics: Dict[str, Any]
+    
+    # Conditional routing token updated by the Supervisor/Router
+    next_agent: str
+
