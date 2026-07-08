@@ -37,6 +37,7 @@ class Settings(BaseSettings):
 
     # ── LLM Provider ──────────────────────────────────────────────────────────
     llm_provider: str = "ollama"  # "ollama", "google", or "openai"
+    llm_embed_provider: str = "ollama"  # "ollama", "google", or "openai"
     app_env: str = "development"
 
     # ── Ollama ────────────────────────────────────────────────────────────────

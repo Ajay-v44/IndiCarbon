@@ -67,15 +67,16 @@ def _message_content_to_str(content: Any) -> str:
 
 async def _embed_text(text: str) -> list[float]:
     s = get_settings()
-    if s.llm_provider == "openai":
+    if s.llm_embed_provider == "openai":
         from langchain_openai import OpenAIEmbeddings
         embeddings = OpenAIEmbeddings(
             model=s.openai_embed_model,
             api_key=s.openai_api_key,
             base_url=s.openai_api_base or None,
+            max_retries=0,
         )
         return await embeddings.aembed_query(text)
-    elif s.llm_provider == "google":
+    elif s.llm_embed_provider == "google":
         from langchain_google_genai import GoogleGenerativeAIEmbeddings
         embeddings = GoogleGenerativeAIEmbeddings(
             model=s.gemini_embed_model,

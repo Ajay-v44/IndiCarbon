@@ -114,14 +114,17 @@ def _extract_chat_memory(
 
 async def _embed_query(query: str) -> list[float]:
     s = get_settings()
-    if s.llm_provider == "openai":
+    if s.llm_embed_provider == "openai":
+        from langchain_openai import OpenAIEmbeddings
         embeddings = OpenAIEmbeddings(
             model=s.openai_embed_model,
             api_key=s.openai_api_key,
             base_url=s.openai_api_base or None,
+            max_retries=0,
         )
         return await embeddings.aembed_query(query)
-    elif s.llm_provider == "google":
+    elif s.llm_embed_provider == "google":
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
         embeddings = GoogleGenerativeAIEmbeddings(
             model=s.gemini_embed_model,
             google_api_key=s.google_api_key,
@@ -136,6 +139,7 @@ async def _embed_query(query: str) -> list[float]:
             )
             resp.raise_for_status()
             return resp.json()["embedding"]
+
 
 
 async def _search_org_documents(query: str, organization_id: str) -> list[ChatSource]:
@@ -262,6 +266,7 @@ def _fetch_structured_context(query: str, organization_id: str, db: Session) -> 
                     + "; ".join(f"{row['scope_type']}={float(row['total_tco2e']):.3f} tCO2e" for row in totals)
                 )
         except Exception as exc:
+            db.rollback()
             logger.debug("Structured emission lookup skipped: %s", exc)
 
         try:
@@ -287,6 +292,7 @@ def _fetch_structured_context(query: str, organization_id: str, db: Session) -> 
                     )
                 )
         except Exception as exc:
+            db.rollback()
             logger.debug("Structured score lookup skipped: %s", exc)
 
     if any(word in lower for word in ["credit", "credits", "carbon credit", "retire", "available"]):
@@ -294,7 +300,7 @@ def _fetch_structured_context(query: str, organization_id: str, db: Session) -> 
             credits = db.execute(
                 text(
                     """
-                    SELECT status, COUNT(*) AS credit_count
+                    SELECT status, COALESCE(SUM(quantity), 0) AS credit_count
                     FROM carbon_credits
                     WHERE current_owner_id = :organization_id
                     GROUP BY status
@@ -309,6 +315,7 @@ def _fetch_structured_context(query: str, organization_id: str, db: Session) -> 
                     + "; ".join(f"{row['status']}={int(row['credit_count'])}" for row in credits)
                 )
         except Exception as exc:
+            db.rollback()
             logger.debug("Structured credit lookup skipped: %s", exc)
 
     if any(word in lower for word in ["delete", "update", "edit", "retire", "transfer"]):

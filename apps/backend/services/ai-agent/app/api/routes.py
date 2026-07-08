@@ -606,169 +606,253 @@ async def websocket_voice_endpoint(
                 await websocket.send_json({"type": "status", "value": "exiting"})
                 break
 
-            # 3. Transition to Thinking state and run agent (Interruptible)
-            await websocket.send_json({"type": "status", "value": "thinking"})
+            # ─── Fast-Path Voice Orchestration (Front-Desk) ───
+            # Immediately acknowledge the user request verbally to prevent latency dead-air.
+            ack_text = "Got it. Let me look into that for you..."
+            lower_transcript = final_transcript.lower()
+            if any(w in lower_transcript for w in ["calculate", "emission", "footprint", "scope", "ghg", "brsr"]):
+                ack_text = "Checking our carbon accounting registry and calculating emissions now."
+            elif any(w in lower_transcript for w in ["credit", "buy", "sell", "trade", "mint", "marketplace"]):
+                ack_text = "Accessing the carbon credit ledger and checking order books."
+
+            # Immediately switch to speaking state for acknowledgment
+            await websocket.send_json({"type": "status", "value": "speaking"})
             
-            # Run agent chat with a short-lived DB session
-            db_context = contextmanager(get_db)
-            chat_resp = None
+            # Create interrupt event
+            interrupt_event = asyncio.Event()
             
-            with db_context() as db_session:
-                chat_task = asyncio.create_task(run_chat(
-                    req=ChatRequest(query=final_transcript),
-                    user=user,
-                    db=db_session
-                ))
-                
-                interrupt_event = asyncio.Event()
-                
-                async def listen_for_interrupt_thinking():
-                    try:
-                        while not chat_task.done() and not interrupt_event.is_set():
-                            msg = await websocket.receive()
-                            if "text" in msg and msg["text"]:
+            # Listener for client interrupts during the entire transaction
+            async def listen_for_interrupt(running_tasks: list[asyncio.Task]):
+                try:
+                    while not interrupt_event.is_set():
+                        msg = await websocket.receive()
+                        if "text" in msg and msg["text"]:
+                            try:
                                 data = json.loads(msg["text"])
                                 if data.get("type") == "interrupt":
-                                    logger.info("Interrupt received during thinking!")
+                                    logger.info("User requested interrupt during agent loop!")
                                     interrupt_event.set()
+                                    for t in running_tasks:
+                                        if not t.done():
+                                            t.cancel()
                                     break
-                    except Exception:
-                        pass
-                        
-                interrupt_task = asyncio.create_task(listen_for_interrupt_thinking())
-                
-                try:
-                    await asyncio.wait([chat_task, interrupt_task], return_when=asyncio.FIRST_COMPLETED)
-                except Exception as e:
-                    logger.error(f"Error waiting for chat task: {e}")
-                    
-                interrupt_task.cancel()
-                
-                if interrupt_event.is_set():
-                    chat_task.cancel()
-                    logger.info("Thinking task cancelled due to user interrupt.")
-                    await websocket.send_json({"type": "status", "value": "listening"})
-                    continue
-                    
-                try:
-                    chat_resp = await chat_task
-                    agent_answer = chat_resp.answer
-                    logger.info(f"Agent response: {agent_answer}")
-                except Exception as e:
-                    logger.error(f"Agent execution failed: {e}")
-                    await websocket.send_json({"type": "error", "value": f"Agent error: {str(e)}"})
-                    continue
+                            except json.JSONDecodeError:
+                                pass
+                except Exception as exc:
+                    logger.debug(f"Interrupt listener error: {exc}")
 
-            # Send agent text response to client
+            # List to track all active tasks for the current turn
+            active_tasks = []
+            
+            # Start interrupt listener
+            interrupt_listener = asyncio.create_task(listen_for_interrupt(active_tasks))
+
+            # Task 1: Play the fast-path acknowledgement
+            async def play_acknowledgement():
+                try:
+                    async with sarvam_client.text_to_speech_streaming.connect(
+                        model="bulbul:v3",
+                        send_completion_event="true"
+                    ) as tts_ws:
+                        await tts_ws.configure(
+                            target_language_code="en-IN",
+                            speaker="ritu",
+                            output_audio_codec="linear16",
+                            speech_sample_rate=24000
+                        )
+                        await tts_ws.convert(ack_text)
+                        await tts_ws.flush()
+                        
+                        async for message in tts_ws:
+                            if interrupt_event.is_set():
+                                break
+                            if isinstance(message, AudioOutput):
+                                await websocket.send_json({
+                                    "type": "audio",
+                                    "value": message.data.audio
+                                })
+                            elif isinstance(message, EventResponse) and message.data.event_type == "final":
+                                break
+                except Exception as e:
+                    logger.error(f"Fast-path TTS acknowledgement failed: {e}")
+
+            ack_task = asyncio.create_task(play_acknowledgement())
+            active_tasks.append(ack_task)
+            
+            # Wait for acknowledgment to complete or be interrupted
+            await asyncio.wait([ack_task], return_when=asyncio.FIRST_COMPLETED)
+            
+            if interrupt_event.is_set():
+                logger.info("Transaction interrupted during acknowledgement.")
+                interrupt_listener.cancel()
+                await websocket.send_json({"type": "status", "value": "listening"})
+                continue
+                
+            # Once acknowledgment finishes, switch to thinking state
+            await websocket.send_json({"type": "status", "value": "thinking"})
+            
+            # Task 2: Execute Multi-Agent Graph in background
+            async def execute_multi_agent_pipeline():
+                from ..graph.multi_agent_graph import build_multi_agent_graph
+                from ..services.chat_service import _get_chat_llm
+                from ..config.observability import build_langfuse_handler
+                from ..graph.chat_tools import build_chat_tools
+                from langchain_core.messages import HumanMessage
+                import uuid
+                
+                db_context = contextmanager(get_db)
+                with db_context() as db_session:
+                    llm = _get_chat_llm()
+                    
+                    # Build dynamic context-aware tools
+                    chat_tools_list = build_chat_tools(db_session, str(user.organization_id), user)
+                    chat_tools_map = {t.name: t for t in chat_tools_list}
+                    
+                    compliance_tools = [
+                        get_emission_factors,
+                        calculate_scope_emissions,
+                        chat_tools_map["get_compliance_reports"],
+                        chat_tools_map["get_organization_details"]
+                    ]
+                    
+                    marketplace_tools = [
+                        calculate_carbon_credits,
+                        chat_tools_map["get_wallet_balance"],
+                        chat_tools_map["get_wallet_transactions"],
+                        chat_tools_map["get_carbon_market_book"],
+                        chat_tools_map["place_carbon_order"],
+                        chat_tools_map["submit_carbon_proposal"],
+                        chat_tools_map["list_carbon_proposals"],
+                        chat_tools_map["respond_carbon_proposal"]
+                    ]
+                    
+                    graph = build_multi_agent_graph(llm, compliance_tools, marketplace_tools)
+                    
+                    # Setup Langfuse handler for complete traceability
+                    run_uuid = uuid.uuid4()
+                    langfuse_handler = build_langfuse_handler(str(run_uuid), "multi_agent_voice", str(user.organization_id))
+                    
+                    initial_state = {
+                        "messages": [HumanMessage(content=final_transcript)],
+                        "organization_id": str(user.organization_id),
+                        "user_id": str(user.id),
+                        "extracted_metrics": {},
+                        "next_agent": "supervisor"
+                    }
+                    
+                    # Execute multi-agent graph with complete trace passing
+                    final_state = await graph.ainvoke(
+                        initial_state,
+                        config={
+                            "configurable": {"thread_id": str(user.id)},
+                            "callbacks": [langfuse_handler],
+                            "recursion_limit": 6,
+                            "metadata": {
+                                "langfuse_session_id": f"voice-{user.id}",
+                                "langfuse_user_id": str(user.id),
+                            }
+                        }
+                    )
+                    
+                    # Get the final response from state
+                    last_msg = final_state["messages"][-1]
+                    return last_msg.content
+
+            graph_task = asyncio.create_task(execute_multi_agent_pipeline())
+            active_tasks.append(graph_task)
+            
+            # Wait for graph execution to complete
+            await asyncio.wait([graph_task], return_when=asyncio.FIRST_COMPLETED)
+            
+            if interrupt_event.is_set():
+                logger.info("Transaction interrupted during graph thinking.")
+                interrupt_listener.cancel()
+                await websocket.send_json({"type": "status", "value": "listening"})
+                continue
+                
+            try:
+                agent_answer = graph_task.result()
+                logger.info(f"Agent response: {agent_answer}")
+            except Exception as e:
+                logger.error(f"Multi-agent execution failed: {e}")
+                await websocket.send_json({"type": "error", "value": f"Agent error: {str(e)}"})
+                interrupt_listener.cancel()
+                continue
+                
+            # Send the text response
             await websocket.send_json({
                 "type": "response",
                 "value": agent_answer
             })
-
-            # 4. Transition to Speaking state and stream TTS (Interruptible)
-            await websocket.send_json({"type": "status", "value": "speaking"})
-
-            sentences = clean_text_for_tts(agent_answer)
-            if not sentences:
-                continue
-
-            # Detect response language dynamically to choose correct TTS configuration
-            target_lang = "en-IN"
-            SUPPORTED_TTS_LANGUAGES = {"en-IN", "hi-IN", "bn-IN", "ta-IN", "te-IN", "gu-IN", "kn-IN", "ml-IN", "mr-IN", "pa-IN", "od-IN"}
             
-            try:
-                lid_resp = await sarvam_client.text.identify_language(input=agent_answer)
-                if lid_resp.language_code and lid_resp.language_code in SUPPORTED_TTS_LANGUAGES:
-                    target_lang = lid_resp.language_code
-                    logger.info(f"Dynamically identified response language for TTS: {target_lang}")
-            except Exception as e:
-                logger.warning(f"Failed to identify language for TTS, falling back to en-IN: {e}")
+            # Task 3: Stream the final response audio
+            await websocket.send_json({"type": "status", "value": "speaking"})
+            sentences = clean_text_for_tts(agent_answer)
+            
+            if sentences:
+                # Detect language dynamically to choose correct TTS configuration
+                target_lang = "en-IN"
+                SUPPORTED_TTS_LANGUAGES = {"en-IN", "hi-IN", "bn-IN", "ta-IN", "te-IN", "gu-IN", "kn-IN", "ml-IN", "mr-IN", "pa-IN", "od-IN"}
+                try:
+                    lid_resp = await sarvam_client.text.identify_language(input=agent_answer)
+                    if lid_resp.language_code and lid_resp.language_code in SUPPORTED_TTS_LANGUAGES:
+                        target_lang = lid_resp.language_code
+                        logger.info(f"Dynamically identified response language for TTS: {target_lang}")
+                except Exception as e:
+                    logger.warning(f"Failed to identify language for TTS, falling back to en-IN: {e}")
 
-            # Connect to Sarvam TTS streaming
-            try:
-                async with sarvam_client.text_to_speech_streaming.connect(
-                    model="bulbul:v3",
-                    send_completion_event="true"
-                ) as tts_ws:
-                    
-                    await tts_ws.configure(
-                        target_language_code=target_lang,
-                        speaker="ritu",
-                        output_audio_codec="linear16",
-                        speech_sample_rate=24000,
-                        min_buffer_size=30,
-                        max_chunk_length=150
-                    )
-
-                    audio_finished = asyncio.Event()
-                    
-                    async def receive_and_send_audio():
-                        try:
-                            async for message in tts_ws:
-                                if isinstance(message, AudioOutput):
+                async def play_response_tts():
+                    try:
+                        async with sarvam_client.text_to_speech_streaming.connect(
+                            model="bulbul:v3",
+                            send_completion_event="true"
+                        ) as res_tts_ws:
+                            await res_tts_ws.configure(
+                                target_language_code=target_lang,
+                                speaker="ritu",
+                                output_audio_codec="linear16",
+                                speech_sample_rate=24000,
+                                min_buffer_size=30,
+                                max_chunk_length=150
+                            )
+                            for sentence in sentences:
+                                if interrupt_event.is_set():
+                                    break
+                                await res_tts_ws.convert(sentence)
+                                await asyncio.sleep(0.01)
+                            
+                            if not interrupt_event.is_set():
+                                await res_tts_ws.flush()
+                                
+                            async for msg in res_tts_ws:
+                                if interrupt_event.is_set():
+                                    break
+                                if isinstance(msg, AudioOutput):
                                     await websocket.send_json({
                                         "type": "audio",
-                                        "value": message.data.audio
+                                        "value": msg.data.audio
                                     })
-                                elif isinstance(message, EventResponse):
-                                    if message.data.event_type == "final":
-                                        logger.info("TTS final audio chunk received.")
-                                        break
-                        except Exception as exc:
-                            logger.error(f"Error in receive_and_send_audio: {exc}")
-                        finally:
-                            audio_finished.set()
-
-                    audio_task = asyncio.create_task(receive_and_send_audio())
-                    
-                    async def listen_for_interrupt_speaking():
-                        try:
-                            while not audio_finished.is_set() and not interrupt_event.is_set():
-                                msg = await websocket.receive()
-                                if "text" in msg and msg["text"]:
-                                    data = json.loads(msg["text"])
-                                    if data.get("type") == "interrupt":
-                                        logger.info("Interrupt received during speaking!")
-                                        interrupt_event.set()
-                                        break
-                        except Exception:
-                            pass
-                            
-                    speaking_interrupt_task = asyncio.create_task(listen_for_interrupt_speaking())
-
-                    # Send text chunks to TTS WebSocket
-                    try:
-                        for sentence in sentences:
-                            if interrupt_event.is_set():
-                                break
-                            await tts_ws.convert(sentence)
-                            await asyncio.sleep(0.01)
-
-                        # Flush TTS
-                        if not interrupt_event.is_set():
-                            await tts_ws.flush()
-                            await audio_task
-                        else:
-                            audio_task.cancel()
+                                elif isinstance(msg, EventResponse) and msg.data.event_type == "final":
+                                    break
                     except Exception as exc:
                         logger.warning(f"Sarvam TTS stream closed/encountered exception: {exc}")
-                        audio_task.cancel()
-                        
-                    speaking_interrupt_task.cancel()
-                    
-                    if interrupt_event.is_set():
-                        logger.info("Speaking cancelled due to user interrupt.")
-                        await websocket.send_json({"type": "status", "value": "listening"})
-                        continue
-                    
-                    # Send playback complete signal to client and wait a tiny bit
-                    await websocket.send_json({"type": "playback_complete"})
-                    await asyncio.sleep(1.0)
-            except Exception as exc:
-                logger.error(f"Failed to connect to Sarvam TTS streaming: {exc}")
-                await websocket.send_json({"type": "error", "value": "Speech playback service is temporarily unavailable."})
-                await websocket.send_json({"type": "playback_complete"})
-                await asyncio.sleep(1.0)
+
+                tts_playback_task = asyncio.create_task(play_response_tts())
+                active_tasks.append(tts_playback_task)
+                
+                await asyncio.wait([tts_playback_task], return_when=asyncio.FIRST_COMPLETED)
+                
+            # Clean up the interrupt listener
+            interrupt_listener.cancel()
+            
+            if interrupt_event.is_set():
+                logger.info("Speaking cancelled due to user interrupt.")
+                await websocket.send_json({"type": "status", "value": "listening"})
+                continue
+                
+            # Send playback complete signal to client and wait a tiny bit
+            await websocket.send_json({"type": "playback_complete"})
+            await asyncio.sleep(1.0)
 
     except (WebSocketDisconnect, RuntimeError) as e:
         # Starlette raises RuntimeError when writing to a closed socket
